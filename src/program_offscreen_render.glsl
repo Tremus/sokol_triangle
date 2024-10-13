@@ -29,7 +29,7 @@ out vec2 uv;
 
 void main() {
     gl_Position = position;
-    uv = texcoord0;
+    uv = vec2(texcoord0.x, -texcoord0.y);
 }
 @end
 

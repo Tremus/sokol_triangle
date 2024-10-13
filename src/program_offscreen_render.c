@@ -21,29 +21,24 @@ static struct
         sg_pipeline    pip;
         sg_bindings    bind;
     } display;
-} state;
+} state = {0};
 
 void program_setup()
 {
+    sg_image offscreen_img;
     // offscreen
     {
         sg_image_desc img_desc = {
             .render_target = true,
             .width         = APP_WIDTH,
             .height        = APP_HEIGHT,
-            .sample_count  = 1,
             .pixel_format  = SG_PIXELFORMAT_RGBA8,
             .label         = "offscreen-image"};
-        const sg_image col_img = sg_make_image(&img_desc);
-
-        img_desc.pixel_format = SG_PIXELFORMAT_DEPTH;
-        img_desc.label        = "depth-image";
-        sg_image depth_img    = sg_make_image(&img_desc);
+        offscreen_img = sg_make_image(&img_desc);
 
         state.offscreen.pass = (sg_pass){
             .attachments = sg_make_attachments(&(sg_attachments_desc){
-                .colors[0].image     = col_img,
-                .depth_stencil.image = depth_img,
+                .colors[0].image     = offscreen_img,
                 .label               = "offscreen-attachment"}),
             .action      = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
             .label       = "offscreen-pass"};
@@ -70,14 +65,11 @@ void program_setup()
                                     {.attrs =
                                          {[ATTR_offscreen_vs_position].format = SG_VERTEXFORMAT_FLOAT2,
                                           [ATTR_offscreen_vs_color0].format   = SG_VERTEXFORMAT_FLOAT4}},
-                                .shader = shd,
+                                .shader       = shd,
                                 .depth =
                                     {
-                                        .pixel_format  = SG_PIXELFORMAT_DEPTH,
-                                        .compare       = SG_COMPAREFUNC_LESS_EQUAL,
-                                        .write_enabled = true,
+                                        .pixel_format  = SG_PIXELFORMAT_NONE,
                                     },
-                                // .sample_count = 1,
                                 .colors[0].pixel_format = SG_PIXELFORMAT_RGBA8,
                                 .label                  = "offscreen-pipeline"});
     }
@@ -111,7 +103,7 @@ void program_setup()
         state.display.bind.vertex_buffers[0] =
             sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
 
-        state.display.bind.index_buffer = sg_make_buffer(
+        state.display.bind.index_buffer = state.display.bind.index_buffer = sg_make_buffer(
             &(sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"});
 
         // a shader (use separate shader sources here
@@ -127,7 +119,7 @@ void program_setup()
                       [ATTR_display_vs_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
             .label = "quad-pipeline"});
 
-        state.display.bind.fs.images[SLOT_tex] = sg_alloc_image();
+        state.display.bind.fs.images[SLOT_tex] = offscreen_img;
 
         // a sampler object
         state.display.bind.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){

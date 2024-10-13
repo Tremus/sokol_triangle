@@ -1786,6 +1786,7 @@ static const char* _sg_log_messages[] = {_SG_LOG_ITEMS};
     {                                                                                                                  \
         _sg.validate_error = SG_LOGITEM_##code;                                                                        \
         _sg_log(SG_LOGITEM_##code, 1, 0, __LINE__);                                                                    \
+        SOKOL_ASSERT(cond);                                                                                            \
     }
 
 static void _sg_log(sg_log_item log_item, uint32_t log_level, const char* msg, uint32_t line_nr)
@@ -15701,43 +15702,32 @@ _SOKOL_PRIVATE bool _sg_validate_apply_pipeline(sg_pipeline pip_id)
         // an offscreen pass
         const _sg_attachments_t* atts = _sg.cur_pass.atts;
         SOKOL_ASSERT(atts);
-        SOKOL_ASSERT(atts->slot.id == _sg.cur_pass.atts_id.id);
         _SG_VALIDATE(atts->slot.id == _sg.cur_pass.atts_id.id, VALIDATE_APIP_CURPASS_ATTACHMENTS_EXISTS);
-        SOKOL_ASSERT(atts->slot.state == SG_RESOURCESTATE_VALID);
         _SG_VALIDATE(atts->slot.state == SG_RESOURCESTATE_VALID, VALIDATE_APIP_CURPASS_ATTACHMENTS_VALID);
 
-        SOKOL_ASSERT(pip->cmn.color_count == atts->cmn.num_colors);
         _SG_VALIDATE(pip->cmn.color_count == atts->cmn.num_colors, VALIDATE_APIP_ATT_COUNT);
         for (int i = 0; i < pip->cmn.color_count; i++)
         {
             const _sg_image_t* att_img = _sg_attachments_color_image(atts, i);
-            SOKOL_ASSERT(pip->cmn.colors[i].pixel_format == att_img->cmn.pixel_format);
             _SG_VALIDATE(pip->cmn.colors[i].pixel_format == att_img->cmn.pixel_format, VALIDATE_APIP_COLOR_FORMAT);
-            SOKOL_ASSERT(pip->cmn.sample_count == att_img->cmn.sample_count);
             _SG_VALIDATE(pip->cmn.sample_count == att_img->cmn.sample_count, VALIDATE_APIP_SAMPLE_COUNT);
         }
         const _sg_image_t* att_dsimg = _sg_attachments_ds_image(atts);
         if (att_dsimg)
         {
-            SOKOL_ASSERT(pip->cmn.depth.pixel_format == att_dsimg->cmn.pixel_format);
             _SG_VALIDATE(pip->cmn.depth.pixel_format == att_dsimg->cmn.pixel_format, VALIDATE_APIP_DEPTH_FORMAT);
         }
         else
         {
-            SOKOL_ASSERT(pip->cmn.depth.pixel_format == SG_PIXELFORMAT_NONE);
             _SG_VALIDATE(pip->cmn.depth.pixel_format == SG_PIXELFORMAT_NONE, VALIDATE_APIP_DEPTH_FORMAT);
         }
     }
     else
     {
         // default pass
-        SOKOL_ASSERT(pip->cmn.color_count == 1);
         _SG_VALIDATE(pip->cmn.color_count == 1, VALIDATE_APIP_ATT_COUNT);
-        SOKOL_ASSERT(pip->cmn.colors[0].pixel_format == _sg.cur_pass.swapchain.color_fmt);
         _SG_VALIDATE(pip->cmn.colors[0].pixel_format == _sg.cur_pass.swapchain.color_fmt, VALIDATE_APIP_COLOR_FORMAT);
-        SOKOL_ASSERT(pip->cmn.depth.pixel_format == _sg.cur_pass.swapchain.depth_fmt);
         _SG_VALIDATE(pip->cmn.depth.pixel_format == _sg.cur_pass.swapchain.depth_fmt, VALIDATE_APIP_DEPTH_FORMAT);
-        SOKOL_ASSERT(pip->cmn.sample_count == _sg.cur_pass.swapchain.sample_count);
         _SG_VALIDATE(pip->cmn.sample_count == _sg.cur_pass.swapchain.sample_count, VALIDATE_APIP_SAMPLE_COUNT);
     }
     return _sg_validate_end();
