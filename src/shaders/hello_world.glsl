@@ -19,4 +19,4 @@ void main() {
 }
 @end
 
-@program triangle vs fs
+@program hello_world vs fs
