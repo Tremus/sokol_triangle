@@ -26,38 +26,12 @@ static void log_win32(const char* const fmt, ...)
 }
 #define print log_win32
 #endif // _WIN32
-#ifdef __APPLE__
-#define SOKOL_METAL
-#define SOKOL_ASSERT(cond) (cond) ? (void)0 : __builtin_debugtrap()
-#include <stdarg.h>
-#include <stdio.h>
 
-static void log_macos(const char* const fmt, ...)
-{
-    char    buf[256] = {0};
-    va_list args;
-    va_start(args, fmt);
-    int n = vsnprintf(buf, sizeof(buf), fmt, args);
-    va_end(args);
-
-    if (n > 0)
-    {
-        if (n < sizeof(buf) && buf[n - 1] != '\n')
-        {
-            buf[n] = '\n';
-            n++;
-        }
-
-        fwrite(buf, 1, n, stderr);
-    }
-}
-#endif
+#include "common.h"
 
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
-
-#include "common.h"
 
 static void init(void)
 {
