@@ -5,7 +5,8 @@ set(MY_SOURCE_FILES
     src/main.c
     # src/program_hello_world.c
     # src/program_white.c
-    src/program_quad.c
+    # src/program_quad.c
+    src/program_texquad.c
 )
 
 if (APPLE)

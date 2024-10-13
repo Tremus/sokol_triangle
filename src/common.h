@@ -9,6 +9,8 @@
 #define APP_WIDTH  640
 #define APP_HEIGHT 480
 
+#define ARRLEN(a) (sizeof(a) / sizeof(a[0]))
+
 void print(const char* const fmt, ...);
 void program_setup();
 void program_tick();
