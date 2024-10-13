@@ -4,7 +4,8 @@ project(sokol_triangle VERSION 0.0.1)
 set(MY_SOURCE_FILES 
     src/main.c
     # src/program_hello_world.c
-    src/program_white.c
+    # src/program_white.c
+    src/program_quad.c
 )
 
 if (APPLE)
