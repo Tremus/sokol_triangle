@@ -1,7 +1,3 @@
-#define SOKOL_APP_IMPL
-#define SOKOL_GFX_IMPL
-#define SOKOL_GLUE_IMPL
-
 #ifdef _WIN32
 #define SOKOL_D3D11
 #define SOKOL_ASSERT(cond) (cond) ? (void)0 : __debugbreak()
@@ -63,54 +59,18 @@ static void log_macos(const char* const fmt, ...)
 
 #include "common.h"
 
-// application state
-static struct
-{
-    sg_pipeline    pip;
-    sg_bindings    bind;
-    sg_pass_action pass_action;
-} state;
-
 static void init(void)
 {
     sg_setup(&(sg_desc){
         .environment = sglue_environment(),
     });
 
-    setup_hello_world();
-
-    // // a vertex buffer with 3 vertices
-    // // clang-format off
-    // float vertices[] = {
-    //     // positions
-    //      0.0f,  0.5f, 0.5f,
-    //      0.5f, -0.5f, 0.5f,
-    //     -0.5f, -0.5f, 0.5f,
-    // };
-    // // clang-format on
-    // sg_buffer_desc white_buf = (sg_buffer_desc){.data = SG_RANGE(vertices), .label = "white-triangles"};
-    // state.bind.vertex_buffers[0] = sg_make_buffer(&white_buf);
-
-    // // create shader from code-generated sg_shader_desc
-    // sg_shader shd = sg_make_shader(white_shader_desc(sg_query_backend()));
-
-    // // create a pipeline object (default render states are fine for triangle)
-    // state.pip = sg_make_pipeline(&(sg_pipeline_desc){
-    //     .shader = shd,
-    //     // if the vertex layout doesn't have gaps, don't need to provide strides and offsets
-    //     .layout =
-    //         {.attrs =
-    //              {[ATTR_vs_position].format = SG_VERTEXFORMAT_FLOAT3}},
-    //     .label = "triangle-pipeline"});
-
-    // // a pass action to clear framebuffer to black
-    // state.pass_action =
-    //     (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
+    program_setup();
 }
 
 void frame(void)
 {
-    tick_hello_world();
+    program_tick();
     sg_commit();
 }
 
