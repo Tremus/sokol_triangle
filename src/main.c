@@ -1,32 +1,3 @@
-#ifdef _WIN32
-#define SOKOL_D3D11
-#define SOKOL_ASSERT(cond) (cond) ? (void)0 : __debugbreak()
-#include <Windows.h>
-#include <stdarg.h>
-#include <stdio.h>
-
-static void log_win32(const char* const fmt, ...)
-{
-    char    buf[256] = {0};
-    va_list args;
-    va_start(args, fmt);
-    int n = vsnprintf(buf, sizeof(buf), fmt, args);
-    va_end(args);
-
-    if (n > 0)
-    {
-        if (n < sizeof(buf) && buf[n - 1] != '\n')
-        {
-            buf[n] = '\n';
-            n++;
-        }
-
-        OutputDebugStringA(buf);
-    }
-}
-#define print log_win32
-#endif // _WIN32
-
 #include "common.h"
 
 #include "sokol_app.h"
@@ -59,8 +30,8 @@ sapp_desc sokol_main(int argc, char* argv[])
         .frame_cb   = frame,
         .cleanup_cb = cleanup,
         // .event_cb           = __dbgui_event,
-        .width              = 640,
-        .height             = 480,
+        .width              = APP_WIDTH,
+        .height             = APP_HEIGHT,
         .window_title       = "GFX (sokol-app)",
         .icon.sokol_default = true,
     };

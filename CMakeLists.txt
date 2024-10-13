@@ -16,7 +16,7 @@ if (APPLE)
     target_link_libraries(sokol_triangle PRIVATE "-framework Cocoa -framework QuartzCore -framework Metal -framework MetalKit")
 else()
     add_executable(sokol_triangle
-        src/main.c
         ${MY_SOURCE_FILES}
+        src/platform_win.c
         )
 endif()
