@@ -15,11 +15,11 @@ void program_setup()
 {
     // a vertex buffer with 3 vertices
     // clang-format off
-    float vertices[] = {
+    static float vertices[] = {
         // positions
-         0.0f,  0.5f, 0.5f,
-         0.5f, -0.5f, 0.5f,
-        -0.5f, -0.5f, 0.5f,
+         0.0f,  0.5f,
+         0.5f, -0.5f,
+        -0.5f, -0.5f,
     };
     // clang-format on
     sg_buffer_desc white_buf     = (sg_buffer_desc){.data = SG_RANGE(vertices), .label = "white-triangles"};
@@ -32,7 +32,7 @@ void program_setup()
     state.pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = shd,
         // if the vertex layout doesn't have gaps, don't need to provide strides and offsets
-        .layout = {.attrs = {[ATTR_vs_position].format = SG_VERTEXFORMAT_FLOAT3}},
+        .layout = {.attrs = {[ATTR_vs_position].format = SG_VERTEXFORMAT_FLOAT2}},
         .label  = "triangle-pipeline"});
 
     // a pass action to clear framebuffer to black
