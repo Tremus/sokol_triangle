@@ -7,9 +7,9 @@ set(MY_SOURCE_FILES
     # src/program_white.c
     # src/program_quad.c
     # src/program_texquad.c
-    # src/program_offscreen_render.c
+    src/program_offscreen_render.c
     # src/program_fxaa.c
-    src/program_msaa.c
+    # src/program_msaa.c
 )
 
 if (APPLE)

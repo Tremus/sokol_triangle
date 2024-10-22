@@ -1,3 +1,4 @@
+#include "common.h"
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 
@@ -42,6 +43,8 @@ void program_setup()
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 }
+
+void program_event(const sapp_event* e) {}
 
 void program_tick()
 {

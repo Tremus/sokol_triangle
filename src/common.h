@@ -11,6 +11,9 @@
 
 #define ARRLEN(a) (sizeof(a) / sizeof(a[0]))
 
+#include "sokol_app.h"
+
 void print(const char* const fmt, ...);
 void program_setup();
 void program_tick();
+void program_event(const sapp_event* event);

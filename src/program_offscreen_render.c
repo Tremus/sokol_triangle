@@ -8,6 +8,8 @@
 // application state
 static struct
 {
+    sg_image offscreen_img;
+
     struct
     {
         sg_pass     pass;
@@ -25,23 +27,21 @@ static struct
 
 void program_setup()
 {
-    sg_image offscreen_img;
     // offscreen
     {
-        sg_image_desc img_desc = {
+        sapp_desc app_desc  = sapp_query_desc();
+        state.offscreen_img = sg_make_image(&(sg_image_desc){
             .render_target = true,
-            .width         = APP_WIDTH,
-            .height        = APP_HEIGHT,
+            .width         = app_desc.width,
+            .height        = app_desc.height,
             .pixel_format  = SG_PIXELFORMAT_RGBA8,
-            .label         = "offscreen-image"};
-        offscreen_img = sg_make_image(&img_desc);
+            .label         = "offscreen-image"});
 
         state.offscreen.pass = (sg_pass){
-            .attachments = sg_make_attachments(&(sg_attachments_desc){
-                .colors[0].image     = offscreen_img,
-                .label               = "offscreen-attachment"}),
-            .action      = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
-            .label       = "offscreen-pass"};
+            .attachments = sg_make_attachments(
+                &(sg_attachments_desc){.colors[0].image = state.offscreen_img, .label = "offscreen-attachment"}),
+            .action = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
+            .label  = "offscreen-pass"};
 
         // a vertex buffer with 3 vertices
         // clang-format off
@@ -52,8 +52,9 @@ void program_setup()
             -0.5f, -0.5f,     0.0f, 0.0f, 1.0f, 1.0f
         };
         // clang-format on
-        state.offscreen.bind.vertex_buffers[0] =
-            sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "offscreen-vertices"});
+        state.offscreen.bind = (sg_bindings){
+            .vertex_buffers[0] =
+                sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "offscreen-vertices"})};
 
         // create shader from code-generated sg_shader_desc
         sg_shader shd = sg_make_shader(offscreen_shader_desc(sg_query_backend()));
@@ -65,10 +66,10 @@ void program_setup()
                                     {.attrs =
                                          {[ATTR_offscreen_vs_position].format = SG_VERTEXFORMAT_FLOAT2,
                                           [ATTR_offscreen_vs_color0].format   = SG_VERTEXFORMAT_FLOAT4}},
-                                .shader       = shd,
+                                .shader = shd,
                                 .depth =
                                     {
-                                        .pixel_format  = SG_PIXELFORMAT_NONE,
+                                        .pixel_format = SG_PIXELFORMAT_NONE,
                                     },
                                 .colors[0].pixel_format = SG_PIXELFORMAT_RGBA8,
                                 .label                  = "offscreen-pipeline"});
@@ -119,7 +120,7 @@ void program_setup()
                       [ATTR_display_vs_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
             .label = "quad-pipeline"});
 
-        state.display.bind.fs.images[SLOT_tex] = offscreen_img;
+        state.display.bind.fs.images[SLOT_tex] = state.offscreen_img;
 
         // a sampler object
         state.display.bind.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
@@ -129,8 +130,29 @@ void program_setup()
     }
 }
 
+void program_event(const sapp_event* e)
+{
+    if (e->type == SAPP_EVENTTYPE_RESIZED)
+    {
+        // print("Resized %d %d", e->window_width, e->window_height);
+        sg_destroy_attachments(state.offscreen.pass.attachments);
+        sg_destroy_image(state.offscreen_img);
+
+        state.offscreen_img              = sg_make_image(&(sg_image_desc){
+                         .render_target = true,
+                         .width         = e->window_width,
+                         .height        = e->window_height,
+                         .pixel_format  = SG_PIXELFORMAT_RGBA8,
+                         .label         = "offscreen-image"});
+        state.offscreen.pass.attachments = sg_make_attachments(
+            &(sg_attachments_desc){.colors[0].image = state.offscreen_img, .label = "offscreen-attachment"});
+        state.display.bind.fs.images[SLOT_tex] = state.offscreen_img;
+    }
+}
+
 void program_tick()
 {
+    // print("image: %u", state.offscreen_img.id);
     // offscreen
     sg_begin_pass(&state.offscreen.pass);
     sg_apply_pipeline(state.offscreen.pip);
