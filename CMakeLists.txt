@@ -14,12 +14,26 @@ set(MY_PROGRAM program_line_stroke_texquad_1D)
 
 if (APPLE)
     enable_language(OBJC)
+    add_custom_command(
+        OUTPUT
+            ${CMAKE_CURRENT_BINARY_DIR}/shaders/shader.h.noexist
+            ${CMAKE_CURRENT_BINARY_DIR}/shaders/${MY_PROGRAM}.h
+        COMMAND
+            sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/${MY_PROGRAM}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/shaders/${MY_PROGRAM}.h --slang metal_macos
+    )
+    add_custom_target(shader_header
+        DEPENDS
+            ${CMAKE_CURRENT_BINARY_DIR}/shaders/${MY_PROGRAM}.h
+    )
+
     add_executable(sokol_triangle
         src/main.c
         src/${MY_PROGRAM}.c
         src/platform_mac.m
         )
+    target_include_directories(sokol_triangle PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders/)
     target_link_libraries(sokol_triangle PRIVATE "-framework Cocoa -framework QuartzCore -framework Metal -framework MetalKit")
+    add_dependencies(sokol_triangle shader_header)
 elseif(WIN32)
     # https://discourse.cmake.org/t/pre-ninja-bash-command/1418/5
     add_custom_command(
