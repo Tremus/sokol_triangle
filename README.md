@@ -6,3 +6,5 @@ eg:
 
 -   (Windows) `sokol-shdc.exe --input src\program_hello_triangle.glsl --output src\program_hello_triangle.h --slang glsl430:hlsl5:metal_macos`
 -   (macOS) `sokol-shdc --input src/program_hello_triangle.glsl --output src/program_hello_triangle.h --slang glsl430:hlsl5:metal_macos`
+
+Alternatively run: `compile_shaders.bat`
