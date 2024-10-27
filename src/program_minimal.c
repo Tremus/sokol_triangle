@@ -24,8 +24,7 @@ void program_setup()
         -0.5f, -0.5f,
     };
     // clang-format on
-    sg_buffer_desc white_buf     = (sg_buffer_desc){.data = SG_RANGE(vertices), .label = "triangle"};
-    state.bind.vertex_buffers[0] = sg_make_buffer(&white_buf);
+    state.bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "triangle"});
 
     // create shader from code-generated sg_shader_desc
     sg_shader shd = sg_make_shader(minimal_shader_desc(sg_query_backend()));

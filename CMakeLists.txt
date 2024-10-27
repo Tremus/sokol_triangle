@@ -3,13 +3,14 @@ project(sokol_triangle VERSION 0.0.1)
 
 set(MY_SOURCE_FILES 
     src/main.c
-    src/program_hello_triangle.c
+    # src/program_hello_triangle.c
     # src/program_hello_quad.c
     # src/program_minimal.c
     # src/program_texquad.c
     # src/program_offscreen_render.c
     # src/program_fxaa.c
     # src/program_msaa.c
+    src/program_animated_vertices.c
 )
 
 if (APPLE)
