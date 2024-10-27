@@ -3,7 +3,7 @@
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 
-#include "program_white.h"
+#include "program_minimal.h"
 
 // application state
 static struct
@@ -24,11 +24,11 @@ void program_setup()
         -0.5f, -0.5f,
     };
     // clang-format on
-    sg_buffer_desc white_buf     = (sg_buffer_desc){.data = SG_RANGE(vertices), .label = "white-triangles"};
+    sg_buffer_desc white_buf     = (sg_buffer_desc){.data = SG_RANGE(vertices), .label = "triangle"};
     state.bind.vertex_buffers[0] = sg_make_buffer(&white_buf);
 
     // create shader from code-generated sg_shader_desc
-    sg_shader shd = sg_make_shader(white_shader_desc(sg_query_backend()));
+    sg_shader shd = sg_make_shader(minimal_shader_desc(sg_query_backend()));
 
     // create a pipeline object (default render states are fine for triangle)
     state.pip = sg_make_pipeline(&(sg_pipeline_desc){

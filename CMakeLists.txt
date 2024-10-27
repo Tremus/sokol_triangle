@@ -3,9 +3,9 @@ project(sokol_triangle VERSION 0.0.1)
 
 set(MY_SOURCE_FILES 
     src/main.c
-    src/program_hello_world.c
-    # src/program_white.c
-    # src/program_quad.c
+    src/program_hello_triangle.c
+    # src/program_hello_quad.c
+    # src/program_minimal.c
     # src/program_texquad.c
     # src/program_offscreen_render.c
     # src/program_fxaa.c
@@ -19,7 +19,7 @@ if (APPLE)
         src/platform_mac.m
         )
     target_link_libraries(sokol_triangle PRIVATE "-framework Cocoa -framework QuartzCore -framework Metal -framework MetalKit")
-else()
+elseif(WIN32)
     add_executable(sokol_triangle
         ${MY_SOURCE_FILES}
         src/platform_win.c

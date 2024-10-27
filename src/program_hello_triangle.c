@@ -2,7 +2,7 @@
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 
-#include "program_hello_world.h"
+#include "program_hello_triangle.h"
 
 // application state
 static struct
@@ -27,7 +27,7 @@ void program_setup()
         sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "triangle-vertices"});
 
     // create shader from code-generated sg_shader_desc
-    sg_shader shd = sg_make_shader(hello_world_shader_desc(sg_query_backend()));
+    sg_shader shd = sg_make_shader(hello_triangle_shader_desc(sg_query_backend()));
 
     // create a pipeline object (default render states are fine for triangle)
     state.pip = sg_make_pipeline(&(sg_pipeline_desc){

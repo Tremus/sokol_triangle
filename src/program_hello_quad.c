@@ -3,7 +3,7 @@
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 
-#include "program_quad.h"
+#include "program_hello_quad.h"
 
 // application state
 static struct
@@ -37,7 +37,7 @@ void program_setup()
         &(sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"});
 
     // a shader (use separate shader sources here
-    sg_shader shd = sg_make_shader(quad_shader_desc(sg_query_backend()));
+    sg_shader shd = sg_make_shader(hello_quad_shader_desc(sg_query_backend()));
 
     // a pipeline state object
     state.pip = sg_make_pipeline(&(sg_pipeline_desc){
