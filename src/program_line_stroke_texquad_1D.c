@@ -23,7 +23,7 @@ typedef struct
     int16_t u, v;
 } vertex_t;
 
-static float SINE_BUFFER[512];
+static float SINE_BUFFER[1024];
 
 void program_setup()
 {
@@ -62,18 +62,10 @@ void program_setup()
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 
-    const size_t buflen = ARRLEN(SINE_BUFFER);
-    float        phase  = 0;
-    const float  inc    = 1.0f / (float)buflen;
-    for (int i = 0; i < ARRLEN(SINE_BUFFER); i++)
-    {
-        SINE_BUFFER[i]  = sinf(phase * 3.14159f * 2);
-        phase          += inc;
-    }
-
     state.bind.fs.storage_buffers[SLOT_storage_buffer] = sg_make_buffer(&(sg_buffer_desc){
         .type  = SG_BUFFERTYPE_STORAGEBUFFER,
-        .data  = SG_RANGE(SINE_BUFFER),
+        .usage = SG_USAGE_STREAM,
+        .size  = sizeof(SINE_BUFFER),
         .label = "sine-buffer",
     });
 }
@@ -90,6 +82,26 @@ void program_event(const sapp_event* e)
 void program_tick()
 {
     sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = sglue_swapchain()});
+
+    // Animated sine wave
+    static float START_PHASE = 0.0f;
+
+    const size_t buflen = ARRLEN(SINE_BUFFER);
+    float        phase  = START_PHASE;
+    const float  inc    = 1.0f / (float)buflen;
+    for (int i = 0; i < ARRLEN(SINE_BUFFER); i++)
+    {
+        SINE_BUFFER[i]  = sinf(phase * 3.14159f * 2);
+        phase          += inc;
+    }
+
+    START_PHASE += 0.5f / 60.0f;
+    START_PHASE -= (int)START_PHASE;
+
+    sg_update_buffer(
+        state.bind.fs.storage_buffers[SLOT_storage_buffer],
+        &(sg_range){.ptr = SINE_BUFFER, sizeof(SINE_BUFFER)});
+
     sg_apply_pipeline(state.pip);
     sg_apply_bindings(&state.bind);
 

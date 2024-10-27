@@ -39,7 +39,7 @@ void main() {
     float y_distance = abs(sine_denorm - pixel_y_denorm);
 
     // Stroke with of 6 (3 pixels in both N & S directions)
-    float v = y_distance < 3 ? 1 : 0;
+    float v = y_distance < 3 ? uv.x : 0;
 
     frag_color = vec4(v, v, v, 1);
 }
