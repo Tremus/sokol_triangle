@@ -6,3 +6,4 @@ CALL sokol-shdc.exe --input src\program_offscreen_render.glsl  --output src\prog
 CALL sokol-shdc.exe --input src\program_fxaa.glsl              --output src\program_fxaa.h              --slang hlsl5
 CALL sokol-shdc.exe --input src\program_msaa.glsl              --output src\program_msaa.h              --slang hlsl5
 CALL sokol-shdc.exe --input src\program_animated_vertices.glsl --output src\program_animated_vertices.h --slang hlsl5
+CALL sokol-shdc.exe --input src\program_draw_rect.glsl         --output src\program_draw_rect.h         --slang hlsl5

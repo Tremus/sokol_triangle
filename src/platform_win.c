@@ -1,9 +1,10 @@
-#include "common.h"
-
 #define SOKOL_D3D11
 #define SOKOL_APP_IMPL
 #define SOKOL_GFX_IMPL
 #define SOKOL_GLUE_IMPL
+#define XHL_TIME_IMPL
+
+#include "common.h"
 
 #include <Windows.h>
 #include <stdarg.h>
@@ -35,3 +36,4 @@ void print(const char* const fmt, ...)
 
 #include "sokol_app.c"
 #include "sokol_gfx.c"
+#include "xhl_time.h"

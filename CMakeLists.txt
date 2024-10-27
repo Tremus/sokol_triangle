@@ -10,7 +10,8 @@ set(MY_SOURCE_FILES
     # src/program_offscreen_render.c
     # src/program_fxaa.c
     # src/program_msaa.c
-    src/program_animated_vertices.c
+    # src/program_animated_vertices.c
+    src/program_draw_rect.c
 )
 
 if (APPLE)

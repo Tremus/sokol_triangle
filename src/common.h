@@ -1,10 +1,12 @@
 #pragma once
 
+#ifndef NDEBUG
 #ifdef _WIN32
 #define SOKOL_ASSERT(cond) (cond) ? (void)0 : __debugbreak()
 #else
 #define SOKOL_ASSERT(cond) (cond) ? (void)0 : __builtin_debugtrap()
 #endif
+#endif // NDEBUG
 
 #define APP_WIDTH  640
 #define APP_HEIGHT 480
