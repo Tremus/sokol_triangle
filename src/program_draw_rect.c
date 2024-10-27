@@ -96,7 +96,6 @@ void program_setup()
 
 void program_event(const sapp_event* e)
 {
-
     if (e->type == SAPP_EVENTTYPE_RESIZED)
     {
         state.window_width  = e->window_width;

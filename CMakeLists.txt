@@ -11,7 +11,8 @@ set(MY_SOURCE_FILES
     # src/program_fxaa.c
     # src/program_msaa.c
     # src/program_animated_vertices.c
-    src/program_draw_rect.c
+    # src/program_draw_rect.c
+    src/program_line_stroke_texquad_1D.c
 )
 
 if (APPLE)

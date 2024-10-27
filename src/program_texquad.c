@@ -92,7 +92,7 @@ void program_setup()
             .pixel_format        = SG_PIXELFORMAT_RGBA8,
             .data.subimage[0][0] = {
                 .ptr  = img_buf,
-                .size = (size_t)(APP_WIDTH * APP_HEIGHT * sizeof(img_buf[0])),
+                .size = sizeof(img_buf),
             }});
 }
 
