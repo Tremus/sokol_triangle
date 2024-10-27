@@ -8,6 +8,9 @@
 
 static struct
 {
+    sg_image msaa_image;
+    sg_image resolve_image;
+
     struct
     {
         sg_pass     pass;
@@ -25,9 +28,9 @@ static struct
 
 void program_setup()
 {
-    sg_image resolve_image;
-
+    // offscreen
     {
+        sapp_desc app_desc = sapp_query_desc();
         // NOTE: we don't need to store the MSAA render target content, because
         // it will be resolved into a non-MSAA texture at the end of the
         // offscreen pass
@@ -39,10 +42,10 @@ void program_setup()
 
         // create a MSAA render target image, this will be rendered to
         // in the offscreen render pass
-        const sg_image msaa_image = sg_make_image(&(sg_image_desc){
+        state.msaa_image = sg_make_image(&(sg_image_desc){
             .render_target = true,
-            .width         = APP_WIDTH,
-            .height        = APP_HEIGHT,
+            .width         = app_desc.width,
+            .height        = app_desc.height,
             .pixel_format  = SG_PIXELFORMAT_RGBA8,
             .sample_count  = OFFSCREEN_SAMPLE_COUNT,
             .label         = "msaa-image"});
@@ -50,10 +53,10 @@ void program_setup()
         // create a matching resolve-image where the MSAA-rendered content will
         // be resolved to at the end of the offscreen pass, and which will be
         // texture-sampled in the display pass
-        resolve_image = sg_make_image(&(sg_image_desc){
+        state.resolve_image = sg_make_image(&(sg_image_desc){
             .render_target = true,
-            .width         = APP_WIDTH,
-            .height        = APP_HEIGHT,
+            .width         = app_desc.width,
+            .height        = app_desc.height,
             .pixel_format  = SG_PIXELFORMAT_RGBA8,
             .sample_count  = 1,
             .label         = "resolve-image",
@@ -63,8 +66,8 @@ void program_setup()
         // an MSAA-resolve operation will happen from the color attachment into the
         // resolve attachment in sg_end_pass()
         state.offscreen.pass.attachments = sg_make_attachments(&(sg_attachments_desc){
-            .colors[0].image   = msaa_image,
-            .resolves[0].image = resolve_image,
+            .colors[0].image   = state.msaa_image,
+            .resolves[0].image = state.resolve_image,
             .label             = "offscreen-attachments",
         });
 
@@ -129,7 +132,7 @@ void program_setup()
                 sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"}),
             .index_buffer          = sg_make_buffer(&(
                 sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"}),
-            .fs.images[SLOT_tex]   = resolve_image,
+            .fs.images[SLOT_tex]   = state.resolve_image,
             .fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
                 .min_filter = SG_FILTER_LINEAR,
                 .mag_filter = SG_FILTER_LINEAR,
@@ -143,6 +146,41 @@ void program_setup()
                      {[ATTR_display_vs_position].format  = SG_VERTEXFORMAT_FLOAT2,
                       [ATTR_display_vs_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
             .label = "quad-pipeline"});
+    }
+}
+
+void program_event(const sapp_event* e)
+{
+    if (e->type == SAPP_EVENTTYPE_RESIZED)
+    {
+        // print("Resized %d %d", e->window_width, e->window_height);
+        sg_destroy_attachments(state.offscreen.pass.attachments);
+        sg_destroy_image(state.resolve_image);
+        sg_destroy_image(state.msaa_image);
+
+        state.msaa_image    = sg_make_image(&(sg_image_desc){
+               .render_target = true,
+               .width         = e->window_width,
+               .height        = e->window_height,
+               .pixel_format  = SG_PIXELFORMAT_RGBA8,
+               .sample_count  = OFFSCREEN_SAMPLE_COUNT,
+               .label         = "msaa-image"});
+        state.resolve_image = sg_make_image(&(sg_image_desc){
+            .render_target = true,
+            .width         = e->window_width,
+            .height        = e->window_height,
+            .pixel_format  = SG_PIXELFORMAT_RGBA8,
+            .sample_count  = 1,
+            .label         = "resolve-image",
+        });
+
+        state.offscreen.pass.attachments = sg_make_attachments(&(sg_attachments_desc){
+            .colors[0].image   = state.msaa_image,
+            .resolves[0].image = state.resolve_image,
+            .label             = "offscreen-attachments",
+        });
+
+        state.display.bind.fs.images[SLOT_tex] = state.resolve_image;
     }
 }
 
