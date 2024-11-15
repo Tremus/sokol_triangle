@@ -10,8 +10,8 @@
 
 #include <vector>
 
-#include "pathkit.h"
-#include "src/core/SkStroke.h"
+#include "pathkit/core/SkStroke.h"
+#include "pathkit/pathkit.h"
 
 static struct
 {
