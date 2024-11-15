@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 project(sokol_triangle VERSION 0.0.1)
 set(CMAKE_CXX_STANDARD 20)
 
+### PATHKIT ###
 add_library(pathkit STATIC
     modules/pathkit/unity_pathkit_core.cpp
     modules/pathkit/unity_pathkit_misc.cpp
@@ -10,67 +11,64 @@ add_library(pathkit STATIC
     )
 target_include_directories(pathkit PRIVATE modules/pathkit/)
 
-# set(MY_PROGRAM program_hello_triangle)
-# set(MY_PROGRAM program_hello_quad)
-# set(MY_PROGRAM program_minimal)
-# set(MY_PROGRAM program_texquad)
-# set(MY_PROGRAM program_offscreen_render)
-# set(MY_PROGRAM program_fxaa)
-# set(MY_PROGRAM program_msaa)
-# set(MY_PROGRAM program_animated_vertices)
-# set(MY_PROGRAM program_draw_rect)
-# set(MY_PROGRAM program_line_stroke_texquad_1D)
-# set(MY_PROGRAM program_gaussian_blur)
-# set(MY_PROGRAM program_sdf_shapes)
-# set(MY_PROGRAM program_flatten_quadbez)
-set(MY_PROGRAM program_pathkit)
+### SELECT PROGRAM ###
+# set(SRC_FILE program_hello_triangle.c)
+# set(SRC_FILE program_hello_quad.c)
+# set(SRC_FILE program_minimal.c)
+# set(SRC_FILE program_texquad.c)
+# set(SRC_FILE program_offscreen_render.c)
+# set(SRC_FILE program_fxaa.c)
+# set(SRC_FILE program_msaa.c)
+# set(SRC_FILE program_animated_vertices.c)
+# set(SRC_FILE program_draw_rect.c)
+# set(SRC_FILE program_line_stroke_texquad_1D.c)
+# set(SRC_FILE program_gaussian_blur.c)
+# set(SRC_FILE program_sdf_shapes.c)
+# set(SRC_FILE program_flatten_quadbez.c)
+set(SRC_FILE program_pathkit.cpp)
+
+string(REPLACE ".cpp" "" FILENAME ${SRC_FILE})
+string(REPLACE ".c" "" FILENAME ${FILENAME})
+
+set(LIBS pathkit)
+set(SOURCES src/main.c src/${SRC_FILE})
+set(COMPILE_SHADER_CMD "")
 
 if (APPLE)
     enable_language(OBJC)
-    add_custom_command(
-        OUTPUT
-            ${CMAKE_CURRENT_BINARY_DIR}/shaders/shader.h.noexist
-            ${CMAKE_CURRENT_BINARY_DIR}/shaders/${MY_PROGRAM}.h
-        COMMAND
-            sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/${MY_PROGRAM}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/shaders/${MY_PROGRAM}.h --slang metal_macos
-    )
-    add_custom_target(shader_header
-        DEPENDS
-            ${CMAKE_CURRENT_BINARY_DIR}/shaders/${MY_PROGRAM}.h
-    )
-
-    add_executable(sokol_triangle
-        src/main.c
-        src/${MY_PROGRAM}.cpp
-        src/platform_mac.m
-        )
-    target_include_directories(sokol_triangle PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders/)
-    target_link_libraries(sokol_triangle PRIVATE "-framework Cocoa -framework QuartzCore -framework Metal -framework MetalKit")
-    add_dependencies(sokol_triangle shader_header)
+    
+    list(APPEND SOURCES src/platform_mac.m)
+    list(APPEND LIBS "-framework Cocoa -framework QuartzCore -framework Metal -framework MetalKit")
+    set(COMPILE_SHADER_CMD sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/${FILENAME}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h --slang metal_macos)
 elseif(WIN32)
-    # https://discourse.cmake.org/t/pre-ninja-bash-command/1418/5
-    add_custom_command(
-        OUTPUT
-            ${CMAKE_CURRENT_BINARY_DIR}/shaders/shader.h.noexist
-            ${CMAKE_CURRENT_BINARY_DIR}/shaders/${MY_PROGRAM}.h
-        COMMAND
-            sokol-shdc.exe "--input \"${PROJECT_SOURCE_DIR}/src/${MY_PROGRAM}.glsl\" --output \"${CMAKE_CURRENT_BINARY_DIR}/shaders/${MY_PROGRAM}.h\" --slang hlsl5"
-    )
-    add_custom_target(shader_header
-        DEPENDS
-            ${CMAKE_CURRENT_BINARY_DIR}/shaders/${MY_PROGRAM}.h
-    )
-
-    add_executable(sokol_triangle
-        src/main.c
-        src/${MY_PROGRAM}.c
-        src/platform_win.c
-        )
-    target_include_directories(sokol_triangle PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders/)
-    add_dependencies(sokol_triangle shader_header)
+    list(APPEND SOURCES src/platform_win.c)
+    set(COMPILE_SHADER_CMD sokol-shdc.exe "--input \"${PROJECT_SOURCE_DIR}/src/${FILENAME}.glsl\" --output \"${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h\" --slang hlsl5")
 endif()
 
-target_compile_options(sokol_triangle PRIVATE
+### COMPILE SHADERS ###
+# https://discourse.cmake.org/t/pre-ninja-bash-command/1418/5
+add_custom_command(
+    OUTPUT
+        ${CMAKE_CURRENT_BINARY_DIR}/shaders/shader.h.noexist
+        ${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h
+    COMMAND
+        ${COMPILE_SHADER_CMD}
+)
+add_custom_target(shader_header
+    DEPENDS
+        ${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h
+)
+
+### MAIN TARGET ###
+add_executable(${PROJECT_NAME} ${SOURCES})
+add_dependencies(${PROJECT_NAME} shader_header)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/shaders/
+    modules/pathkit
+    )
+target_compile_options(${PROJECT_NAME} PRIVATE
     -Werror=absolute-value
     -Werror=return-type
     -Werror=shadow
@@ -89,6 +87,5 @@ target_compile_options(sokol_triangle PRIVATE
     -Wno-c++17-extensions
     -Wno-c++20-extensions
     -Wno-microsoft-enum-forward-reference
+    -Wno-c99-designator
 )
-target_link_libraries(sokol_triangle PRIVATE pathkit)
-target_include_directories(sokol_triangle PRIVATE modules/pathkit)
