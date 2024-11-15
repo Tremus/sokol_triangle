@@ -2,7 +2,7 @@
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 
-#include "program_offscreen_render.h"
+#include "program_msaa.h"
 
 #define OFFSCREEN_SAMPLE_COUNT (4)
 
