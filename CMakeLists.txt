@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.15)
 project(sokol_triangle VERSION 0.0.1)
+set(CMAKE_CXX_STANDARD 20)
+
+add_library(pathkit STATIC
+    modules/pathkit/unity_pathkit_core.cpp
+    modules/pathkit/unity_pathkit_misc.cpp
+    modules/pathkit/unity_pathkit_pathops1.cpp
+    modules/pathkit/unity_pathkit_pathops2.cpp
+    )
+target_include_directories(pathkit PRIVATE modules/pathkit/)
 
 # set(MY_PROGRAM program_hello_triangle)
 # set(MY_PROGRAM program_hello_quad)
@@ -13,7 +22,8 @@ project(sokol_triangle VERSION 0.0.1)
 # set(MY_PROGRAM program_line_stroke_texquad_1D)
 # set(MY_PROGRAM program_gaussian_blur)
 # set(MY_PROGRAM program_sdf_shapes)
-set(MY_PROGRAM program_flatten_quadbez)
+# set(MY_PROGRAM program_flatten_quadbez)
+set(MY_PROGRAM program_pathkit)
 
 if (APPLE)
     enable_language(OBJC)
@@ -31,7 +41,7 @@ if (APPLE)
 
     add_executable(sokol_triangle
         src/main.c
-        src/${MY_PROGRAM}.c
+        src/${MY_PROGRAM}.cpp
         src/platform_mac.m
         )
     target_include_directories(sokol_triangle PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders/)
@@ -80,3 +90,5 @@ target_compile_options(sokol_triangle PRIVATE
     -Wno-c++20-extensions
     -Wno-microsoft-enum-forward-reference
 )
+target_link_libraries(sokol_triangle PRIVATE pathkit)
+target_include_directories(sokol_triangle PRIVATE modules/pathkit)

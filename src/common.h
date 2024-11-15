@@ -15,7 +15,15 @@
 
 #include "sokol_app.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void print(const char* const fmt, ...);
 void program_setup();
 void program_tick();
 void program_event(const sapp_event* event);
+
+#ifdef __cplusplus
+}
+#endif
