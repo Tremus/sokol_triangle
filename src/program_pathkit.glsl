@@ -9,9 +9,13 @@ void main() {
 @fs fs
 out vec4 frag_color;
 
+uniform fs_uniforms {
+    vec4 col;
+};
+
 void main() {
-    frag_color = vec4(1);
+    frag_color = col;
 }
 @end
 
-@program minimal vs fs
+@program pathkit vs fs

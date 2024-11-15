@@ -23,22 +23,10 @@ static struct
     sg_pass_action pass_action;
 } state;
 
-typedef struct vertex_t
-{
-    float x, y;
-} vertex_t;
-
 float mapf(float v, float s1, float e1, float s2, float e2) { return s2 + ((e2 - s2) * (v - s1)) / (e1 - s1); }
 
 #define BIG_INDICES_BUFFER_CAP  ((1 << 16) - 1)
 #define BIG_VERTICES_BUFFER_CAP ((BIG_INDICES_BUFFER_CAP * 2) / 3)
-
-std::vector<float> BIG_VERTICES_BUFFER;
-
-typedef struct point_t
-{
-    float x, y;
-} point_t;
 
 void program_setup()
 {
@@ -51,7 +39,7 @@ void program_setup()
         .label = "quad-vertices"};
     state.bind.vertex_buffers[0] = sg_make_buffer(&buffer_desc);
 
-    sg_shader shd = sg_make_shader(minimal_shader_desc(sg_query_backend()));
+    sg_shader shd = sg_make_shader(pathkit_shader_desc(sg_query_backend()));
 
     auto pipeline_desc = (sg_pipeline_desc){
         .shader = shd,
@@ -74,19 +62,19 @@ void program_event(const sapp_event* e)
 
 void program_tick()
 {
-    BIG_VERTICES_BUFFER.clear();
-
     sg_pass pass = (sg_pass){.action = state.pass_action, .swapchain = sglue_swapchain()};
     sg_begin_pass(&pass);
 
     using namespace pk;
 
-    SkRect        clipBounds({0, 0, (float)state.window_width, (float)state.window_height});
-    static SkPath path;
-    static SkPath line;
+    SkRect             clipBounds({0, 0, (float)state.window_width, (float)state.window_height});
+    static SkPath      path;
+    static SkPath      line;
+    std::vector<float> vertices;
 
     path.reset();
     line.reset();
+    vertices.clear();
 
     line.moveTo(32, 150);
     line.quadTo(50, 50, 100, 100);
@@ -96,30 +84,35 @@ void program_tick()
     stroke.setWidth(5.0f);
     stroke.strokePath(line, &path);
 
-    bool   isLinear = false;
-    size_t sz       = path.toTriangles(0.5f, clipBounds, &BIG_VERTICES_BUFFER, &isLinear);
+    bool   isLinear      = false;
+    size_t num_triangles = path.toTriangles(0.5f, clipBounds, &vertices, &isLinear);
+    SOKOL_ASSERT(vertices.size() < BIG_VERTICES_BUFFER_CAP);
 
-    for (int i = 0; i < BIG_VERTICES_BUFFER.size(); i += 2)
+    for (int i = 0; i < vertices.size(); i += 2)
     {
-        float x = BIG_VERTICES_BUFFER[i];
-        float y = BIG_VERTICES_BUFFER[i + 1];
+        float x = vertices[i];
+        float y = vertices[i + 1];
 
         x = mapf(x, 0, state.window_width, -1.0f, 1.0f);
         y = mapf(y, 0, state.window_height, 1.0f, -1.0f);
 
-        BIG_VERTICES_BUFFER[i]     = x;
-        BIG_VERTICES_BUFFER[i + 1] = y;
+        vertices[i]     = x;
+        vertices[i + 1] = y;
     }
 
-    if (BIG_VERTICES_BUFFER.size())
+    if (vertices.size())
     {
-        auto range =
-            (sg_range){.ptr = BIG_VERTICES_BUFFER.data(), BIG_VERTICES_BUFFER.size() * sizeof(BIG_VERTICES_BUFFER[0])};
-        sg_update_buffer(state.bind.vertex_buffers[0], &range);
+        sg_range buf_range = {.ptr = vertices.data(), vertices.size() * sizeof(vertices[0])};
+        sg_update_buffer(state.bind.vertex_buffers[0], &buf_range);
 
         sg_apply_pipeline(state.pip);
         sg_apply_bindings(&state.bind);
-        sg_draw(0, sz, 1);
+
+        const fs_uniforms_t uniforms = {.col = {1., 0., 1., 1.}};
+        sg_range            u_range  = SG_RANGE(uniforms);
+        sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_uniforms, &u_range);
+
+        sg_draw(0, num_triangles, 1);
     }
     sg_end_pass();
 }
