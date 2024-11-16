@@ -35,5 +35,4 @@ void program_tick()
     nvgFill(vg);
 
     sg_end_pass();
-    sg_commit();
 }
