@@ -26,13 +26,17 @@ target_include_directories(pathkit PRIVATE modules/pathkit/)
 # set(SRC_FILE program_sdf_shapes.c)
 # set(SRC_FILE program_flatten_quadbez.c)
 # set(SRC_FILE program_pathkit.cpp)
-set(SRC_FILE program_pathkit_msaa.cpp)
+# set(SRC_FILE program_pathkit_msaa.cpp)
+set(SRC_FILE program_nanovg.c)
 
 string(REPLACE ".cpp" "" FILENAME ${SRC_FILE})
 string(REPLACE ".c" "" FILENAME ${FILENAME})
 
 set(LIBS pathkit)
-set(SOURCES src/main.c src/${SRC_FILE})
+set(SOURCES
+    src/main.c
+    src/${SRC_FILE}
+    src/nanovg.c)
 set(COMPILE_SHADER_CMD "")
 
 if (APPLE)
@@ -68,6 +72,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/shaders/
     modules/pathkit
+    src/
     )
 target_compile_options(${PROJECT_NAME} PRIVATE
     -Werror=absolute-value

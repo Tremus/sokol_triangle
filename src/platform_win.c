@@ -3,6 +3,7 @@
 #define SOKOL_GFX_IMPL
 #define SOKOL_GLUE_IMPL
 #define XHL_TIME_IMPL
+#define NANOVG_SOKOL_IMPLEMENTATION
 
 #include "common.h"
 
@@ -37,3 +38,4 @@ void print(const char* const fmt, ...)
 #include "sokol_app.c"
 #include "sokol_gfx.c"
 #include "xhl_time.h"
+#include "nanovg_sokol.h"
