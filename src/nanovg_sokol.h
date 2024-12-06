@@ -7455,7 +7455,8 @@ struct SGNVGfragUniforms {
 typedef struct SGNVGfragUniforms SGNVGfragUniforms;
 
 // LRU cache; keep its size relatively small, as items are accessed via a linear search
-#define NANOVG_SG_PIPELINE_CACHE_SIZE 32
+// TODO: use tricks to calculate pipeline cache size. Older GPUs may not be able to use a large pipeline cache size, and setting this too high could crash the program
+#define NANOVG_SG_PIPELINE_CACHE_SIZE 16
 
 struct SGNVGpipelineCacheKey {
     uint16_t blend;         // cached as `src_factor_rgb | (dst_factor_rgb << 4) | (src_factor_alpha << 8) | (dst_factor_alpha << 12)`

@@ -47,7 +47,7 @@ if (APPLE)
     set(COMPILE_SHADER_CMD sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/${FILENAME}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h --slang metal_macos)
 elseif(WIN32)
     list(APPEND SOURCES src/platform_win.c)
-    set(COMPILE_SHADER_CMD sokol-shdc.exe "--input \"${PROJECT_SOURCE_DIR}/src/${FILENAME}.glsl\" --output \"${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h\" --slang hlsl5")
+    set(COMPILE_SHADER_CMD sokol-shdc "--input \"${PROJECT_SOURCE_DIR}/src/${FILENAME}.glsl\" --output \"${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h\" --slang hlsl5")
 endif()
 
 ### COMPILE SHADERS ###

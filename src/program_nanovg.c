@@ -27,12 +27,12 @@ void program_tick()
     int w = sapp_width();
     int h = sapp_height();
     nvgBeginFrame(vg, w, h, sapp_dpi_scale());
-    nvgEndFrame(vg);
 
     nvgBeginPath(vg);
     nvgCircle(vg, 100, 100, 50);
     nvgFillColor(vg, (NVGcolor){1, 1, 0, 1});
     nvgFill(vg);
 
+    nvgEndFrame(vg);
     sg_end_pass();
 }

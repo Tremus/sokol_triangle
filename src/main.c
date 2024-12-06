@@ -20,7 +20,7 @@ static void my_logger(
         "WARNING",
         "INFO",
     };
-    SOKOL_ASSERT(log_level > 0);
+    SOKOL_ASSERT(log_level > 1);
     SOKOL_ASSERT(log_level < ARRLEN(LOG_LEVEL));
     if (!message_or_null)
         message_or_null = "";
@@ -33,6 +33,7 @@ static void init(void)
     sg_setup(&(sg_desc){
         .environment = sglue_environment(),
         .logger.func = my_logger,
+        .pipeline_pool_size = 512,
     });
 
     program_setup();
