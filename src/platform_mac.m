@@ -37,4 +37,4 @@ void print(const char* const fmt, ...)
 #include "nanovg_sokol.h"
 #include "sokol_app.c"
 #include "sokol_gfx.c"
-#include "xhl_time.h"
+#include <xhl/time.h>
