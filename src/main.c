@@ -3,7 +3,7 @@
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
-#include "xhl_time.h"
+#include <xhl/time.h>
 
 static void my_logger(
     const char* tag,              // always "sapp"
@@ -14,7 +14,7 @@ static void my_logger(
     const char* filename_or_null, // source filename, may be nullptr in release mode
     void*       user_data)
 {
-    static char* LOG_LEVEL[] = {
+    static const char* LOG_LEVEL[] = {
         "PANIC",
         "ERROR",
         "WARNING",
@@ -31,8 +31,8 @@ static void init(void)
 {
     xtime_init();
     sg_setup(&(sg_desc){
-        .environment = sglue_environment(),
-        .logger.func = my_logger,
+        .environment        = sglue_environment(),
+        .logger.func        = my_logger,
         .pipeline_pool_size = 512,
     });
 

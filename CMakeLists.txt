@@ -27,7 +27,8 @@ target_include_directories(pathkit PRIVATE modules/pathkit/)
 # set(SRC_FILE program_flatten_quadbez.c)
 # set(SRC_FILE program_pathkit.cpp)
 # set(SRC_FILE program_pathkit_msaa.cpp)
-set(SRC_FILE program_nanovg.c)
+# set(SRC_FILE program_nanovg.c)
+set(SRC_FILE program_msdf.c)
 
 string(REPLACE ".cpp" "" FILENAME ${SRC_FILE})
 string(REPLACE ".c" "" FILENAME ${FILENAME})
@@ -72,6 +73,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/shaders/
     modules/pathkit
+    modules/xhl/include
     src/
     )
 target_compile_options(${PROJECT_NAME} PRIVATE
@@ -95,3 +97,4 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     -Wno-microsoft-enum-forward-reference
     -Wno-c99-designator
 )
+target_compile_definitions(${PROJECT_NAME} PRIVATE SRC_DIR="${PROJECT_SOURCE_DIR}")

@@ -1,3 +1,6 @@
 [submodule "modules/pathkit"]
 	path = modules/pathkit
 	url = https://github.com/Tremus/pathkit
+[submodule "modules/xhl"]
+	path = modules/xhl
+	url = https://github.com/Tremus/xhl
