@@ -16,7 +16,7 @@ target_include_directories(pathkit PRIVATE modules/pathkit/)
 # set(SRC_FILE program_hello_quad.c)
 # set(SRC_FILE program_minimal.c)
 # set(SRC_FILE program_texquad.c)
-# set(SRC_FILE program_offscreen_render.c)
+set(SRC_FILE program_offscreen_render.c)
 # set(SRC_FILE program_fxaa.c)
 # set(SRC_FILE program_msaa.c)
 # set(SRC_FILE program_animated_vertices.c)
@@ -28,7 +28,7 @@ target_include_directories(pathkit PRIVATE modules/pathkit/)
 # set(SRC_FILE program_pathkit.cpp)
 # set(SRC_FILE program_pathkit_msaa.cpp)
 # set(SRC_FILE program_nanovg.c)
-set(SRC_FILE program_msdf.c)
+# set(SRC_FILE program_msdf.c)
 
 string(REPLACE ".cpp" "" FILENAME ${SRC_FILE})
 string(REPLACE ".c" "" FILENAME ${FILENAME})
@@ -37,7 +37,8 @@ set(LIBS pathkit)
 set(SOURCES
     src/main.c
     src/${SRC_FILE}
-    src/nanovg.c)
+    # src/nanovg.c
+    )
 set(COMPILE_SHADER_CMD "")
 
 if (APPLE)

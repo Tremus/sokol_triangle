@@ -35,7 +35,7 @@ void print(const char* const fmt, ...)
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 
-#include "nanovg_sokol.h"
+// #include "nanovg_sokol.h"
 #include "sokol_app.c"
 #include "sokol_gfx.c"
 #include <xhl/time.h>
