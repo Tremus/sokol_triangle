@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.15)
 project(sokol_triangle VERSION 0.0.1)
 set(CMAKE_CXX_STANDARD 20)
 
+set(SRC_DIR ${PROJECT_SOURCE_DIR})
+if (WIN32)
+    string(REPLACE "/" "\\\\" SRC_DIR ${PROJECT_SOURCE_DIR})
+endif()
+message(STATUS ${SRC_DIR})
+
 ### PATHKIT ###
 add_library(pathkit STATIC
     modules/pathkit/unity_pathkit_core.cpp
@@ -22,13 +28,14 @@ target_include_directories(pathkit PRIVATE modules/pathkit/)
 # set(SRC_FILE program_animated_vertices.c)
 # set(SRC_FILE program_draw_rect.c)
 # set(SRC_FILE program_line_stroke_texquad_1D.c)
-set(SRC_FILE program_gaussian_blur.c)
+# set(SRC_FILE program_gaussian_blur.c)
 # set(SRC_FILE program_sdf_shapes.c)
 # set(SRC_FILE program_flatten_quadbez.c)
 # set(SRC_FILE program_pathkit.cpp)
 # set(SRC_FILE program_pathkit_msaa.cpp)
 # set(SRC_FILE program_nanovg.c)
 # set(SRC_FILE program_msdf.c)
+set(SRC_FILE program_dualfilter_blur.c)
 
 string(REPLACE ".cpp" "" FILENAME ${SRC_FILE})
 string(REPLACE ".c" "" FILENAME ${FILENAME})
@@ -68,7 +75,7 @@ add_custom_target(shader_header
 
 ### MAIN TARGET ###
 add_executable(${PROJECT_NAME} ${SOURCES})
-add_dependencies(${PROJECT_NAME} shader_header)
+# add_dependencies(${PROJECT_NAME} shader_header)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -98,4 +105,4 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     -Wno-microsoft-enum-forward-reference
     -Wno-c99-designator
 )
-target_compile_definitions(${PROJECT_NAME} PRIVATE SRC_DIR="${PROJECT_SOURCE_DIR}")
+target_compile_definitions(${PROJECT_NAME} PRIVATE SRC_DIR="${SRC_DIR}")
