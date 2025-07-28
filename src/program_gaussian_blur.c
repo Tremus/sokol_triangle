@@ -46,7 +46,6 @@ static struct
     uint32_t height;
     sg_image offscreen_img;
 
-    RenderTarget target_triangle;
     RenderTarget targets_blur[2];
 
     sg_buffer vertices_triangle;
@@ -66,7 +65,6 @@ void program_setup()
     state.width  = APP_WIDTH;
     state.height = APP_HEIGHT;
 
-    state.target_triangle = make_render_target(state.width, state.height);
     state.targets_blur[0] = make_render_target(state.width, state.height);
     state.targets_blur[1] = make_render_target(state.width, state.height);
 
@@ -144,7 +142,7 @@ void program_tick()
     // Draw triangle to offscreen texture
     sg_begin_pass(&(sg_pass){
         .action      = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
-        .attachments = state.target_triangle.att,
+        .attachments = state.targets_blur[0].att,
     });
     sg_apply_pipeline(state.pip_triangle);
     sg_apply_bindings(&(sg_bindings){
@@ -169,11 +167,6 @@ void program_tick()
             sg_image       read_img  = state.targets_blur[j].img;
             sg_attachments write_att = state.targets_blur[(j + 1) & 1].att;
 
-            if (i == 0 && j == 0)
-            {
-                read_img = state.target_triangle.img;
-            }
-
             sg_begin_pass(
                 &(sg_pass){.action = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}}, .attachments = write_att});
             sg_apply_pipeline(state.pip_blur);
@@ -197,9 +190,8 @@ void program_tick()
     sg_apply_bindings(&(sg_bindings){
         .vertex_buffers[0] = state.vertices_texquad,
         .index_buffer      = state.indices_quad,
-        // .images[0]         = state.target_triangle.img,
-        .images[0]   = state.targets_blur[0].img,
-        .samplers[0] = state.smp_linear,
+        .images[0]         = state.targets_blur[0].img,
+        .samplers[0]       = state.smp_linear,
     });
     sg_draw(0, 6, 1);
     sg_end_pass();
