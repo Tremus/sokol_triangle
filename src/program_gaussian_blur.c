@@ -35,11 +35,11 @@ void program_setup()
     {
         sapp_desc app_desc  = sapp_query_desc();
         state.offscreen_img = sg_make_image(&(sg_image_desc){
-            .render_target = true,
-            .width         = state.width,
-            .height        = state.height,
-            .pixel_format  = SG_PIXELFORMAT_RGBA8,
-            .label         = "offscreen-image"});
+            .usage.render_attachment = true,
+            .width                   = state.width,
+            .height                  = state.height,
+            .pixel_format            = SG_PIXELFORMAT_RGBA8,
+            .label                   = "offscreen-image"});
 
         state.offscreen.pass = (sg_pass){
             .attachments = sg_make_attachments(
@@ -64,8 +64,8 @@ void program_setup()
             &(sg_pipeline_desc){// if the vertex layout doesn't have gaps, don't need to provide strides and offsets
                                 .layout =
                                     {.attrs =
-                                         {[ATTR_offscreen_vs_position].format = SG_VERTEXFORMAT_FLOAT2,
-                                          [ATTR_offscreen_vs_colour0].format  = SG_VERTEXFORMAT_FLOAT4}},
+                                         {[ATTR_offscreen_position].format = SG_VERTEXFORMAT_FLOAT2,
+                                          [ATTR_offscreen_colour0].format  = SG_VERTEXFORMAT_FLOAT4}},
                                 .shader = sg_make_shader(offscreen_shader_desc(sg_query_backend())),
                                 .depth =
                                     {
@@ -104,8 +104,11 @@ void program_setup()
         state.display.bind.vertex_buffers[0] =
             sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
 
-        state.display.bind.index_buffer = state.display.bind.index_buffer = sg_make_buffer(
-            &(sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"});
+        state.display.bind.index_buffer = state.display.bind.index_buffer = sg_make_buffer(&(sg_buffer_desc){
+            .usage.index_buffer = true,
+            .usage.immutable    = true,
+            .data               = SG_RANGE(indices),
+            .label              = "quad-indices"});
 
         // a pipeline state object
         state.display.pip = sg_make_pipeline(&(sg_pipeline_desc){
@@ -113,14 +116,14 @@ void program_setup()
             .index_type = SG_INDEXTYPE_UINT16,
             .layout =
                 {.attrs =
-                     {[ATTR_display_vs_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                      [ATTR_display_vs_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                     {[ATTR_display_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                      [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
             .label = "quad-pipeline"});
 
-        state.display.bind.fs.images[SLOT_tex] = state.offscreen_img;
+        state.display.bind.images[SMP_smp] = state.offscreen_img;
 
         // a sampler object
-        state.display.bind.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
+        state.display.bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc){
             .min_filter = SG_FILTER_LINEAR,
             .mag_filter = SG_FILTER_LINEAR,
         });
@@ -136,14 +139,14 @@ void program_event(const sapp_event* e)
         sg_destroy_image(state.offscreen_img);
 
         state.offscreen_img              = sg_make_image(&(sg_image_desc){
-                         .render_target = true,
-                         .width         = e->window_width,
-                         .height        = e->window_height,
-                         .pixel_format  = SG_PIXELFORMAT_RGBA8,
-                         .label         = "offscreen-image"});
+                         .usage.render_attachment = true,
+                         .width                   = e->window_width,
+                         .height                  = e->window_height,
+                         .pixel_format            = SG_PIXELFORMAT_RGBA8,
+                         .label                   = "offscreen-image"});
         state.offscreen.pass.attachments = sg_make_attachments(
             &(sg_attachments_desc){.colors[0].image = state.offscreen_img, .label = "offscreen-attachment"});
-        state.display.bind.fs.images[SLOT_tex] = state.offscreen_img;
+        state.display.bind.images[IMG_tex] = state.offscreen_img;
 
         state.width  = e->window_width;
         state.height = e->window_height;
@@ -173,7 +176,7 @@ void program_tick()
     // };
     // sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_fxaa, &SG_RANGE(fs_fxaa_params));
     fs_blur_t uniforms = {.u_resolution = {state.width, state.height}};
-    sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_blur, &SG_RANGE(uniforms));
+    sg_apply_uniforms(UB_fs_blur, &SG_RANGE(uniforms));
     sg_draw(0, 6, 1);
     sg_end_pass();
 }

@@ -37,9 +37,9 @@ void main() {
 @fs display_fs
 in vec2 uv;
 out vec4 frag_colour;
-uniform texture2D tex;
-uniform sampler smp;
-uniform fs_blur {
+layout(binding=0) uniform texture2D tex;
+layout(binding=0) uniform sampler smp;
+layout(binding=0) uniform fs_blur {
     vec2 u_resolution;
 };
 

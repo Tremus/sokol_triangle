@@ -138,12 +138,13 @@ void program_event(const sapp_event* e)
         sg_destroy_attachments(state.offscreen.pass.attachments);
         sg_destroy_image(state.offscreen_img);
 
-        state.offscreen_img              = sg_make_image(&(sg_image_desc){
-                         .usage.render_attachment = true,
-                         .width                   = e->window_width,
-                         .height                  = e->window_height,
-                         .pixel_format            = SG_PIXELFORMAT_RGBA8,
-                         .label                   = "offscreen-image"});
+        state.offscreen_img = sg_make_image(&(sg_image_desc){
+            .usage.render_attachment = true,
+            .width                   = e->window_width,
+            .height                  = e->window_height,
+            .pixel_format            = SG_PIXELFORMAT_RGBA8,
+            .label                   = "offscreen-image"
+                        });
         state.offscreen.pass.attachments = sg_make_attachments(
             &(sg_attachments_desc){.colors[0].image = state.offscreen_img, .label = "offscreen-attachment"});
         state.display.bind.images[IMG_tex] = state.offscreen_img;
