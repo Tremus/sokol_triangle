@@ -1,4 +1,4 @@
-@vs offscreen_vs
+@vs triangle_vs
 in vec4 position;
 in vec4 colour0;
 
@@ -10,7 +10,7 @@ void main() {
 }
 @end
 
-@fs offscreen_fs
+@fs triangle_fs
 in vec4 colour;
 out vec4 frag_colour;
 
@@ -19,10 +19,7 @@ void main() {
 }
 @end
 
-@program offscreen offscreen_vs offscreen_fs
-
-/* texquad vertex shader */
-@vs display_vs
+@vs texquad_vs
 in vec4 position;
 in vec2 texcoord0;
 out vec2 uv;
@@ -33,62 +30,41 @@ void main() {
 }
 @end
 
-/* texquad fragment shader */
-@fs display_fs
+@fs texquad_fs
+layout(binding=0)uniform texture2D tex;
+layout(binding=0)uniform sampler smp;
+
+in vec2 uv;
+out vec4 frag_color;
+
+void main() {
+    frag_color = texture(sampler2D(tex, smp), uv);
+}
+@end
+
+@fs blur_fs
 in vec2 uv;
 out vec4 frag_colour;
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler smp;
 layout(binding=0) uniform fs_blur {
-    vec2 u_resolution;
+    vec2 u_pixel_size;
 };
 
-// Shader from here:
-// https://www.youtube.com/watch?v=5xUT5QdkPAU
-// https://github.com/SuboptimalEng/shader-tutorials/blob/main/09-gaussian-blur/shader.frag#L19
-
 void main() {
-    vec2 texelSize = 1.0 / u_resolution;
+    // Shader naively yoinked from here:
+    // https://github.com/VitalAudio/visage/blob/main/visage_graphics/shaders/fs_blur.sc
+    // Visage appears to also do some downsampling with their bloom effects. I recall watching YT video about bloom effects where the guy
+    // explaining the effect mentions how he did the same thing, and how downsampling has much better performance too.
+    // TODO: rewatch this YT video
 
-    // ------ Box blur ------
-
-    // const float kernelSize = 0.0;
-    // const float kernelSize = 1.0;
-    // const float kernelSize = 2.0;
-    // const float kernelSize = 3.0;
-    // const float kernelSize = 4.0;
-    const float kernelSize = 5.0;
-    vec3 boxBlurColour = vec3(0.0);
-    // note: if kernelSize == 1.0, then boxBlurDivisor == 9.0
-    float boxBlurDivisor = pow(2.0 * kernelSize + 1.0, 2.0);
-    for (float i = -kernelSize; i <= kernelSize; i++) {
-        for (float j = -kernelSize; j <= kernelSize; j++) {
-            vec4 tex_col = texture(sampler2D(tex, smp), uv + vec2(i, j) * texelSize);
-            boxBlurColour = boxBlurColour + tex_col.rgb;
-        }
-    }
-    boxBlurColour = boxBlurColour / boxBlurDivisor;
-
-    // ------ Gaussian blur ------
-
-    vec3 b0 = texture(sampler2D(tex, smp), uv + vec2(-1, 1) * texelSize).rgb * 1.0;
-    vec3 b1 = texture(sampler2D(tex, smp), uv + vec2(0, 1) * texelSize).rgb * 2.0;
-    vec3 b2 = texture(sampler2D(tex, smp), uv + vec2(1, 1) * texelSize).rgb * 1.0;
-    vec3 b3 = texture(sampler2D(tex, smp), uv + vec2(-1, 0) * texelSize).rgb * 2.0;
-    vec3 b4 = texture(sampler2D(tex, smp), uv + vec2(0, 0) * texelSize).rgb * 4.0;
-    vec3 b5 = texture(sampler2D(tex, smp), uv + vec2(1, 0) * texelSize).rgb * 2.0;
-    vec3 b6 = texture(sampler2D(tex, smp), uv + vec2(-1, -1) * texelSize).rgb * 1.0;
-    vec3 b7 = texture(sampler2D(tex, smp), uv + vec2(0, -1) * texelSize).rgb * 2.0;
-    vec3 b8 = texture(sampler2D(tex, smp), uv + vec2(1, -1) * texelSize).rgb * 1.0;
-    vec3 gaussianBlurColour = b0 + b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8;
-    float gaussianDivisor = 16.0;
-    gaussianBlurColour = gaussianBlurColour / gaussianDivisor;
-
-    frag_colour = vec4(boxBlurColour, 1.0);
-    // frag_colour = vec4(gaussianBlurColour, 1.0);
-    // frag_colour = texture(sampler2D(tex, smp), uv);
+    vec2 offset = 1.3333333333333333 * u_pixel_size.xy;
+    frag_colour = texture(sampler2D(tex, smp), uv) * 0.29411764705882354;
+    frag_colour += texture(sampler2D(tex, smp), uv + offset) * 0.35294117647058826;
+    frag_colour += texture(sampler2D(tex, smp), uv - offset) * 0.35294117647058826;
 }
 @end
 
-/* texquad shader program */
-@program display display_vs display_fs
+@program triangle triangle_vs triangle_fs
+@program texquad texquad_vs texquad_fs
+@program blur texquad_vs blur_fs

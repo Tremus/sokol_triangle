@@ -14216,7 +14216,8 @@ _SOKOL_PRIVATE bool _sg_validate_apply_pipeline(sg_pipeline pip_id) {
                             if (img_alive) {
                                 const _sg_image_t* img = _sg_image_ref_ptr(img_ref);
                                 _SG_VALIDATE(img->slot.state == SG_RESOURCESTATE_VALID, VALIDATE_APIP_COLOR_ATTACHMENT_IMAGE_VALID);
-                                _SG_VALIDATE(pip->cmn.colors[i].pixel_format == img->cmn.pixel_format, VALIDATE_APIP_COLOR_FORMAT);
+                                sg_pixel_format expected_format = pip->cmn.colors[i].pixel_format;
+                                _SG_VALIDATE(expected_format == img->cmn.pixel_format, VALIDATE_APIP_COLOR_FORMAT);
                                 _SG_VALIDATE(pip->cmn.sample_count == img->cmn.sample_count, VALIDATE_APIP_SAMPLE_COUNT);
                             }
                         }
