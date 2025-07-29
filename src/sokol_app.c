@@ -5313,14 +5313,19 @@ _SOKOL_PRIVATE void _sapp_d3d11_create_device_and_swapchain(void)
 #if defined(SOKOL_DEBUG)
     create_flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
+    D3D_FEATURE_LEVEL feature_levels[] = {
+        D3D_FEATURE_LEVEL_11_1, // Required for compute shaders
+        D3D_FEATURE_LEVEL_11_0,
+    };
+       
     D3D_FEATURE_LEVEL feature_level;
     HRESULT           hr = D3D11CreateDeviceAndSwapChain(
         NULL,                         /* pAdapter (use default) */
         D3D_DRIVER_TYPE_HARDWARE,     /* DriverType */
         NULL,                         /* Software */
         create_flags,                 /* Flags */
-        NULL,                         /* pFeatureLevels */
-        0,                            /* FeatureLevels */
+        feature_levels,               /* pFeatureLevels */
+        2,                            /* FeatureLevels */
         D3D11_SDK_VERSION,            /* SDKVersion */
         sc_desc,                      /* pSwapChainDesc */
         &_sapp.d3d11.swap_chain,      /* ppSwapChain */

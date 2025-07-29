@@ -14,6 +14,10 @@
 // Kawase blur https://www.youtube.com/watch?v=ml-5OGZC7vE
 // Dual filter blur. Marius Bjorge - Bandwith-Efficient Rendering, Siggraph 2015
 // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_notes.pdf
+// Cheapest operation I've seen so far.
+// Seems tricky to adapt into a variable blur
+// It may be possible to place iterations of the Kawase blur in the right place while upsampling,
+// or to increase the pixel offset on certain stages of the downsample/upsample chain
 
 typedef struct
 {

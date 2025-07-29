@@ -10,3 +10,4 @@ CALL sokol-shdc.exe --input src\program_draw_rect.glsl              --output src
 CALL sokol-shdc.exe --input src\program_line_stroke_texquad_1D.glsl --output src\program_line_stroke_texquad_1D.h --slang hlsl5
 CALL sokol-shdc.exe --input src\program_gaussian_blur.glsl          --output src\program_gaussian_blur.h          --slang hlsl5
 CALL sokol-shdc.exe --input src\program_dualfilter_blur.glsl        --output src\program_dualfilter_blur.h        --slang hlsl5
+CALL sokol-shdc.exe --input src\program_blur_compute.glsl           --output src\program_blur_compute.h           --slang hlsl5
