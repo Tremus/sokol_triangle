@@ -94,11 +94,6 @@ static struct
 
     Framebuffer fb_blur[2];
 
-    sg_buffer vertices_triangle;
-    sg_buffer vertices_texquad;
-    sg_buffer indices_quad;
-
-    sg_pipeline pip_triangle;
     sg_pipeline pip_lightness_filter;
     sg_pipeline pip_downsample;
     sg_pipeline pip_upsample;
@@ -135,104 +130,35 @@ void program_setup()
     state.fb_blur[0] = make_framebuffer(state.width / 4, state.height / 4);
     state.fb_blur[1] = make_framebuffer(state.width / 4, state.height / 4);
 
-    // clang-format off
-    // 2 Triangles, forming a quad
-    static const float vertices_triangle[] = {
-        // positions      // colors
-         0.0f,  0.5f,     1.0f, 0.0f, 0.0f, 1.0f,
-         0.5f, -0.5f,     0.0f, 1.0f, 0.0f, 1.0f,
-        -0.5f, -0.5f,     0.0f, 0.0f, 1.0f, 1.0f
-    };
-    static const vertex_t texquad_vertices[] = {
-        {-1.0f,  1.0f, 0,     32767},
-        { 1.0f,  1.0f, 32767, 32767},
-        { 1.0f, -1.0f, 32767, 0},
-        {-1.0f, -1.0f, 0,     0},
-    };
-    static const uint16_t quad_indices[] = {
-        0, 1, 2,
-        0, 2, 3,
-    };
-    // clang-format on
-    state.vertices_triangle = sg_make_buffer(
-        &(sg_buffer_desc){.usage.vertex_buffer = true, .usage.immutable = true, .data = SG_RANGE(vertices_triangle)});
-    state.vertices_texquad = sg_make_buffer(
-        &(sg_buffer_desc){.usage.vertex_buffer = true, .usage.immutable = true, .data = SG_RANGE(texquad_vertices)});
-    state.indices_quad = sg_make_buffer(
-        &(sg_buffer_desc){.usage.index_buffer = true, .usage.immutable = true, .data = SG_RANGE(quad_indices)});
-
-    state.pip_triangle         = sg_make_pipeline(&(sg_pipeline_desc){
-                .shader                 = sg_make_shader(triangle_shader_desc(sg_query_backend())),
-                .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-                .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8,
-                .layout                 = {
-                                    .attrs = {
-                [ATTR_triangle_position].format = SG_VERTEXFORMAT_FLOAT2,
-                [ATTR_triangle_colour0].format  = SG_VERTEXFORMAT_FLOAT4}}});
     state.pip_lightness_filter = sg_make_pipeline(&(sg_pipeline_desc){
         .shader                 = sg_make_shader(lightfilter_shader_desc(sg_query_backend())),
         .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-        .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8,
-        .index_type             = SG_INDEXTYPE_UINT16,
-        .layout                 = {
-                            .attrs = {
-                [ATTR_downsample_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                [ATTR_downsample_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}}});
+        .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
     state.pip_downsample       = sg_make_pipeline(&(sg_pipeline_desc){
               .shader                 = sg_make_shader(downsample_shader_desc(sg_query_backend())),
               .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-              .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8,
-              .index_type             = SG_INDEXTYPE_UINT16,
-              .layout                 = {
-                                  .attrs = {
-                [ATTR_downsample_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                [ATTR_downsample_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}}});
+              .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
     state.pip_upsample         = sg_make_pipeline(&(sg_pipeline_desc){
                 .shader                 = sg_make_shader(upsample_shader_desc(sg_query_backend())),
                 .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-                .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8,
-                .index_type             = SG_INDEXTYPE_UINT16,
-                .layout                 = {
-                                    .attrs = {
-                [ATTR_downsample_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                [ATTR_downsample_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}}});
+                .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
     state.pip_blur             = sg_make_pipeline(&(sg_pipeline_desc){
                     .shader                 = sg_make_shader(kawase_blur_shader_desc(sg_query_backend())),
                     .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-                    .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8,
-                    .index_type             = SG_INDEXTYPE_UINT16,
-                    .layout                 = {
-                                        .attrs = {
-                [ATTR_kawase_blur_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                [ATTR_kawase_blur_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}}});
+                    .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
 
     state.pip_texquad_framebuffer = sg_make_pipeline(&(sg_pipeline_desc){
         .shader                 = sg_make_shader(texquad_shader_desc(sg_query_backend())),
         .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-        .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8,
-        .index_type             = SG_INDEXTYPE_UINT16,
-        .layout                 = {
-                            .attrs = {
-                [ATTR_texquad_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                [ATTR_texquad_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}}});
+        .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
     state.pip_texquad_swapchain   = sg_make_pipeline(&(sg_pipeline_desc){
           .shader = sg_make_shader(texquad_shader_desc(sg_query_backend())),
         //   .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-          .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8,
-          .index_type             = SG_INDEXTYPE_UINT16,
-          .layout                 = {
-                              .attrs = {
-                [ATTR_texquad_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                [ATTR_texquad_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}}});
+          .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
     state.pip_bloom               = sg_make_pipeline(&(sg_pipeline_desc){
                       .shader = sg_make_shader(bloom_shader_desc(sg_query_backend())),
         //   .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-                      .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8,
-                      .index_type             = SG_INDEXTYPE_UINT16,
-                      .layout                 = {
-                                          .attrs = {
-                [ATTR_texquad_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                [ATTR_texquad_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}}});
+                      .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
 
     state.smp_linear  = sg_make_sampler(&(sg_sampler_desc){
          .min_filter = SG_FILTER_LINEAR,
@@ -264,16 +190,14 @@ void do_dualfilter(Framebuffer fb[], size_t N)
         });
         sg_apply_pipeline(state.pip_downsample);
         sg_apply_bindings(&(sg_bindings){
-            .vertex_buffers[0] = state.vertices_texquad,
-            .index_buffer      = state.indices_quad,
-            .images[0]         = a->img,
-            .samplers[0]       = state.smp_linear,
+            .images[0]   = a->img,
+            .samplers[0] = state.smp_linear,
         });
         float           halfpixel_x = 0.5f / a->width;
         float           halfpixel_y = 0.5f / a->height;
         fs_downsample_t uniforms    = {.u_offset = {halfpixel_x, halfpixel_y}};
         sg_apply_uniforms(UB_fs_downsample, &SG_RANGE(uniforms));
-        sg_draw(0, 6, 1);
+        sg_draw(0, 3, 1);
         sg_end_pass();
     }
 
@@ -288,24 +212,22 @@ void do_dualfilter(Framebuffer fb[], size_t N)
         });
         sg_apply_pipeline(state.pip_upsample);
         sg_apply_bindings(&(sg_bindings){
-            .vertex_buffers[0] = state.vertices_texquad,
-            .index_buffer      = state.indices_quad,
-            .images[0]         = a->img,
-            .samplers[0]       = state.smp_linear,
+            .images[0]   = a->img,
+            .samplers[0] = state.smp_linear,
         });
         float           halfpixel_x = 0.5f / a->width;
         float           halfpixel_y = 0.5f / a->height;
         fs_downsample_t uniforms    = {.u_offset = {halfpixel_x, halfpixel_y}};
         sg_apply_uniforms(UB_fs_downsample, &SG_RANGE(uniforms));
-        sg_draw(0, 6, 1);
+        sg_draw(0, 3, 1);
         sg_end_pass();
     }
 }
 
 void program_tick()
 {
-    const bool apply_lightfilter = true;
-    const bool apply_bloom       = true;
+    const bool apply_lightfilter = false;
+    const bool apply_bloom       = false;
 
     const float lightfilter_threshold = 0.7;
     const float bloom_amount          = 0.5;
@@ -324,9 +246,6 @@ void program_tick()
             sg_apply_pipeline(state.pip_texquad_framebuffer);
 
         sg_apply_bindings(&(sg_bindings){
-            .vertex_buffers[0] = state.vertices_texquad,
-            .index_buffer      = state.indices_quad,
-
             .images[0]   = src_img,
             .samplers[0] = state.smp_nearest,
         });
@@ -335,7 +254,7 @@ void program_tick()
             fs_lightfilter_t lightfilter_uniforms = {.u_threshold = lightfilter_threshold};
             sg_apply_uniforms(UB_fs_lightfilter, &SG_RANGE(lightfilter_uniforms));
         }
-        sg_draw(0, 6, 1);
+        sg_draw(0, 3, 1);
         sg_end_pass();
     }
 
@@ -355,8 +274,6 @@ void program_tick()
     //         0.0f, 1.0f}}}, .attachments = write_att});
     //     sg_apply_pipeline(state.pip_blur);
     //     sg_apply_bindings(&(sg_bindings){
-    //         .vertex_buffers[0] = state.vertices_texquad,
-    //         .index_buffer      = state.indices_quad,
     //         .images[0]         = read_img,
     //         .samplers[0]       = state.smp_linear,
     //     });
@@ -364,7 +281,7 @@ void program_tick()
     //     fs_blur_t uniforms = {.u_offset = {offset / state.fb_blur[0].width, offset / state.fb_blur[0].height}};
 
     //     sg_apply_uniforms(UB_fs_blur, &SG_RANGE(uniforms));
-    //     sg_draw(0, 6, 1);
+    //     sg_draw(0, 3, 1);
     //     sg_end_pass();
     // }
 
@@ -379,17 +296,15 @@ void program_tick()
         sg_apply_pipeline(state.pip_texquad_swapchain);
 
     sg_apply_bindings(&(sg_bindings){
-        .vertex_buffers[0] = state.vertices_texquad,
-        .index_buffer      = state.indices_quad,
-        .images[0]         = state.fb_dualfilter_stages[0].img,
-        .images[1]         = src_img,
-        .samplers[0]       = state.smp_nearest,
+        .images[0]   = state.fb_dualfilter_stages[0].img,
+        .images[1]   = src_img,
+        .samplers[0] = state.smp_nearest,
     });
     if (apply_bloom)
     {
         fs_bloom_t bloom_uniforms = {.u_amount = bloom_amount};
         sg_apply_uniforms(UB_fs_bloom, &SG_RANGE(bloom_uniforms));
     }
-    sg_draw(0, 6, 1);
+    sg_draw(0, 3, 1);
     sg_end_pass();
 }

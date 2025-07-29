@@ -1,32 +1,12 @@
-@vs triangle_vs
-in vec4 position;
-in vec4 colour0;
+@vs fullscreen_triangle_vs
+const vec2 positions[3] = { vec2(-1, -1), vec2(3, -1), vec2(-1, 3), };
 
-out vec4 colour;
-
-void main() {
-    gl_Position = position;
-    colour = colour0;
-}
-@end
-
-@fs triangle_fs
-in vec4 colour;
-out vec4 frag_colour;
-
-void main() {
-    frag_colour = colour;
-}
-@end
-
-@vs texquad_vs
-in vec4 position;
-in vec2 texcoord0;
 out vec2 uv;
 
 void main() {
-    gl_Position = position;
-    uv = vec2(texcoord0.x, -texcoord0.y);
+    vec2 pos = positions[gl_VertexIndex];
+    gl_Position = vec4(pos, 0, 1);
+    uv = (pos * vec2(1, -1) + 1) * 0.5;
 }
 @end
 
@@ -158,10 +138,9 @@ void main() {
 }
 @end
 
-@program triangle triangle_vs triangle_fs
-@program lightfilter texquad_vs lightfilter_fs
-@program texquad texquad_vs texquad_fs
-@program kawase_blur texquad_vs kawase_blur_fs
-@program downsample texquad_vs downsample_fs
-@program upsample texquad_vs upsample_fs
-@program bloom texquad_vs bloom_fs
+@program lightfilter fullscreen_triangle_vs lightfilter_fs
+@program texquad fullscreen_triangle_vs texquad_fs
+@program kawase_blur fullscreen_triangle_vs kawase_blur_fs
+@program downsample fullscreen_triangle_vs downsample_fs
+@program upsample fullscreen_triangle_vs upsample_fs
+@program bloom fullscreen_triangle_vs bloom_fs
