@@ -10,7 +10,7 @@ void main() {
 }
 @end
 
-@fs texquad_fs
+@fs texread_fs
 layout(binding=0)uniform texture2D tex;
 layout(binding=0)uniform sampler smp;
 
@@ -55,7 +55,6 @@ out vec4 frag_colour;
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler smp;
 layout(binding=0) uniform fs_kawase_blur {
-    // Normalised n + 0.5 pixels, where n is a whole pixel
     vec2 u_offset;
 };
 
@@ -74,7 +73,6 @@ out vec4 frag_colour;
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler smp;
 layout(binding=0) uniform fs_downsample {
-    // Normalised whole pixel value
     vec2 u_offset;
 };
 
@@ -139,7 +137,7 @@ void main() {
 @end
 
 @program lightfilter fullscreen_triangle_vs lightfilter_fs
-@program texquad fullscreen_triangle_vs texquad_fs
+@program texread fullscreen_triangle_vs texread_fs
 @program kawase_blur fullscreen_triangle_vs kawase_blur_fs
 @program downsample fullscreen_triangle_vs downsample_fs
 @program upsample fullscreen_triangle_vs upsample_fs

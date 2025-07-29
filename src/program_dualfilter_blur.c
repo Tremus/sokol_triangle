@@ -18,6 +18,7 @@
 // Seems tricky to adapt into a variable blur
 // It may be possible to place iterations of the Kawase blur in the right place while upsampling,
 // or to increase the pixel offset on certain stages of the downsample/upsample chain
+// TODO: rewrite pixel shaders as compute shaders
 
 typedef struct
 {
@@ -101,8 +102,8 @@ static struct
     sg_pipeline pip_upsample;
     sg_pipeline pip_blur;
     sg_pipeline pip_bloom;
-    sg_pipeline pip_texquad_framebuffer;
-    sg_pipeline pip_texquad_swapchain;
+    sg_pipeline pip_tex_framebuffer;
+    sg_pipeline pip_tex_swapchain;
 
     sg_sampler smp_linear;
     sg_sampler smp_nearest;
@@ -149,18 +150,18 @@ void program_setup()
                     .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
                     .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
 
-    state.pip_texquad_framebuffer = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader                 = sg_make_shader(texquad_shader_desc(sg_query_backend())),
+    state.pip_tex_framebuffer = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader                 = sg_make_shader(texread_shader_desc(sg_query_backend())),
         .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
         .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
-    state.pip_texquad_swapchain   = sg_make_pipeline(&(sg_pipeline_desc){
-          .shader = sg_make_shader(texquad_shader_desc(sg_query_backend())),
+    state.pip_tex_swapchain   = sg_make_pipeline(&(sg_pipeline_desc){
+          .shader = sg_make_shader(texread_shader_desc(sg_query_backend())),
         //   .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
           .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
-    state.pip_bloom               = sg_make_pipeline(&(sg_pipeline_desc){
-                      .shader = sg_make_shader(bloom_shader_desc(sg_query_backend())),
+    state.pip_bloom           = sg_make_pipeline(&(sg_pipeline_desc){
+                  .shader = sg_make_shader(bloom_shader_desc(sg_query_backend())),
         //   .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-                      .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
+                  .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
 
     state.smp_linear  = sg_make_sampler(&(sg_sampler_desc){
          .min_filter = SG_FILTER_LINEAR,
@@ -195,8 +196,9 @@ void do_dualfilter(Framebuffer fb[], size_t N)
             .images[0]   = a->img,
             .samplers[0] = state.smp_linear,
         });
-        float           halfpixel_x = 0.5f / a->width;
-        float           halfpixel_y = 0.5f / a->height;
+        // More numerically stable than 1.0f / a->width
+        float           halfpixel_x = 0.5f / b->width;
+        float           halfpixel_y = 0.5f / b->height;
         fs_downsample_t uniforms    = {.u_offset = {halfpixel_x, halfpixel_y}};
         sg_apply_uniforms(UB_fs_downsample, &SG_RANGE(uniforms));
         sg_draw(0, 3, 1);
@@ -245,7 +247,7 @@ void program_tick()
         if (apply_lightfilter)
             sg_apply_pipeline(state.pip_lightness_filter);
         else
-            sg_apply_pipeline(state.pip_texquad_framebuffer);
+            sg_apply_pipeline(state.pip_tex_framebuffer);
 
         sg_apply_bindings(&(sg_bindings){
             .images[0]   = src_img,
@@ -295,7 +297,7 @@ void program_tick()
     if (apply_bloom)
         sg_apply_pipeline(state.pip_bloom);
     else // blur
-        sg_apply_pipeline(state.pip_texquad_swapchain);
+        sg_apply_pipeline(state.pip_tex_swapchain);
 
     sg_apply_bindings(&(sg_bindings){
         .images[0]   = state.fb_dualfilter_stages[0].img,
