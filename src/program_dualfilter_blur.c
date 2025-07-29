@@ -36,6 +36,8 @@ typedef struct Framebuffer
 Framebuffer make_framebuffer(int width, int height)
 {
     Framebuffer rt = {0};
+    xassert(width > 0);
+    xassert(height > 0);
 
     sg_image img_colour = sg_make_image(&(sg_image_desc){
         .usage.render_attachment = true,
