@@ -13,7 +13,7 @@ void main() {
 in vec2 uv;
 out vec4 frag_color;
 
-uniform fs_uniforms_sdf_shapes {
+layout(binding=0)uniform fs_uniforms_sdf_shapes {
     float feather;
 };
 

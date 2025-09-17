@@ -5,7 +5,6 @@
 
 #include "nanovg_sokol.h"
 
-#include "program_nanovg.h"
 
 NVGcontext* vg = NULL;
 

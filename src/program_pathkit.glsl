@@ -9,7 +9,7 @@ void main() {
 @fs fs
 out vec4 frag_color;
 
-uniform fs_uniforms {
+layout(binding=0)uniform fs_uniforms {
     vec4 col;
 };
 

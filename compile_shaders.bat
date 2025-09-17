@@ -9,5 +9,11 @@ CALL sokol-shdc.exe --input src\program_animated_vertices.glsl      --output src
 CALL sokol-shdc.exe --input src\program_draw_rect.glsl              --output src\program_draw_rect.h              --slang hlsl5
 CALL sokol-shdc.exe --input src\program_line_stroke_texquad_1D.glsl --output src\program_line_stroke_texquad_1D.h --slang hlsl5
 CALL sokol-shdc.exe --input src\program_gaussian_blur.glsl          --output src\program_gaussian_blur.h          --slang hlsl5
+CALL sokol-shdc.exe --input src\program_sdf_shapes.glsl             --output src\program_sdf_shapes.h             --slang hlsl5
+CALL sokol-shdc.exe --input src\program_flatten_quadbez.glsl        --output src\program_flatten_quadbez.h        --slang hlsl5
+CALL sokol-shdc.exe --input src\program_pathkit.glsl                --output src\program_pathkit.h                --slang hlsl5
+CALL sokol-shdc.exe --input src\program_pathkit_msaa.glsl           --output src\program_pathkit_msaa.h           --slang hlsl5
+@REM CALL sokol-shdc.exe --input src\nanovg.glsl                         --output src\nanovg.glsl.h                    --slang hlsl5
+CALL sokol-shdc.exe --input src\program_msdf.glsl                   --output src\program_msdf.glsl.h              --slang hlsl5
 CALL sokol-shdc.exe --input src\program_dualfilter_blur.glsl        --output src\program_dualfilter_blur.h        --slang hlsl5
 CALL sokol-shdc.exe --input src\program_blur_compute.glsl           --output src\program_blur_compute.h           --slang hlsl5

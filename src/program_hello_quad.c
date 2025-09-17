@@ -34,7 +34,7 @@ void program_setup()
         sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
 
     state.bind.index_buffer = sg_make_buffer(
-        &(sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"});
+        &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "quad-indices"});
 
     // a shader (use separate shader sources here
     sg_shader shd = sg_make_shader(hello_quad_shader_desc(sg_query_backend()));
@@ -45,8 +45,8 @@ void program_setup()
         .index_type = SG_INDEXTYPE_UINT16,
         .layout =
             {.attrs =
-                 {[ATTR_vs_position].format = SG_VERTEXFORMAT_FLOAT3,
-                  [ATTR_vs_color0].format   = SG_VERTEXFORMAT_FLOAT4}},
+                 {[ATTR_hello_quad_position].format = SG_VERTEXFORMAT_FLOAT3,
+                  [ATTR_hello_quad_color0].format   = SG_VERTEXFORMAT_FLOAT4}},
         .label = "quad-pipeline"});
 
     // default pass action

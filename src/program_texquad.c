@@ -40,7 +40,7 @@ void program_setup()
         sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
 
     state.bind.index_buffer = sg_make_buffer(
-        &(sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"});
+        &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "quad-indices"});
 
     // a shader (use separate shader sources here
     sg_shader shd = sg_make_shader(texquad_shader_desc(sg_query_backend()));
@@ -51,18 +51,18 @@ void program_setup()
         .index_type = SG_INDEXTYPE_UINT16,
         .layout =
             {.attrs =
-                 {[ATTR_vs_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                  [ATTR_vs_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                 {[ATTR_texquad_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                  [ATTR_texquad_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
         .label = "quad-pipeline"});
 
     // default pass action
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 
-    state.bind.fs.images[SLOT_tex] = sg_alloc_image();
+    state.bind.images[IMG_tex] = sg_alloc_image();
 
     // a sampler object
-    state.bind.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
+    state.bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,
         .mag_filter = SG_FILTER_LINEAR,
     });
@@ -85,7 +85,7 @@ void program_setup()
     }
 
     sg_init_image(
-        state.bind.fs.images[SLOT_tex],
+        state.bind.images[IMG_tex],
         &(sg_image_desc){
             .width               = APP_WIDTH,
             .height              = APP_HEIGHT,

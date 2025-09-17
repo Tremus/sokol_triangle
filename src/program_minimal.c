@@ -33,7 +33,7 @@ void program_setup()
     state.pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = shd,
         // if the vertex layout doesn't have gaps, don't need to provide strides and offsets
-        .layout = {.attrs = {[ATTR_vs_position].format = SG_VERTEXFORMAT_FLOAT2}},
+        .layout = {.attrs = {[ATTR_minimal_position].format = SG_VERTEXFORMAT_FLOAT2}},
         .label  = "triangle-pipeline"});
 
     // a pass action to clear framebuffer to black

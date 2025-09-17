@@ -43,23 +43,23 @@ void program_setup()
         // create a MSAA render target image, this will be rendered to
         // in the offscreen render pass
         state.msaa_image = sg_make_image(&(sg_image_desc){
-            .render_target = true,
-            .width         = app_desc.width,
-            .height        = app_desc.height,
-            .pixel_format  = SG_PIXELFORMAT_RGBA8,
-            .sample_count  = OFFSCREEN_SAMPLE_COUNT,
-            .label         = "msaa-image"});
+            .usage.render_attachment = true,
+            .width                   = app_desc.width,
+            .height                  = app_desc.height,
+            .pixel_format            = SG_PIXELFORMAT_RGBA8,
+            .sample_count            = OFFSCREEN_SAMPLE_COUNT,
+            .label                   = "msaa-image"});
 
         // create a matching resolve-image where the MSAA-rendered content will
         // be resolved to at the end of the offscreen pass, and which will be
         // texture-sampled in the display pass
         state.resolve_image = sg_make_image(&(sg_image_desc){
-            .render_target = true,
-            .width         = app_desc.width,
-            .height        = app_desc.height,
-            .pixel_format  = SG_PIXELFORMAT_RGBA8,
-            .sample_count  = 1,
-            .label         = "resolve-image",
+            .usage.render_attachment = true,
+            .width                   = app_desc.width,
+            .height                  = app_desc.height,
+            .pixel_format            = SG_PIXELFORMAT_RGBA8,
+            .sample_count            = 1,
+            .label                   = "resolve-image",
         });
 
         // finally, create the offscreen attachments object, by setting a resolve-attachment,
@@ -89,8 +89,8 @@ void program_setup()
         state.offscreen.pip = sg_make_pipeline(&(sg_pipeline_desc){
             .layout =
                 {.attrs =
-                     {[ATTR_offscreen_vs_position].format = SG_VERTEXFORMAT_FLOAT2,
-                      [ATTR_offscreen_vs_color0].format   = SG_VERTEXFORMAT_FLOAT4}},
+                     {[ATTR_offscreen_position].format = SG_VERTEXFORMAT_FLOAT2,
+                      [ATTR_offscreen_color0].format   = SG_VERTEXFORMAT_FLOAT4}},
             .shader       = sg_make_shader(offscreen_shader_desc(sg_query_backend())),
             .sample_count = OFFSCREEN_SAMPLE_COUNT,
             .depth =
@@ -130,10 +130,10 @@ void program_setup()
         state.display.bind = (sg_bindings){
             .vertex_buffers[0] =
                 sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"}),
-            .index_buffer          = sg_make_buffer(&(
-                sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"}),
-            .fs.images[SLOT_tex]   = state.resolve_image,
-            .fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
+            .index_buffer = sg_make_buffer(
+                &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "quad-indices"}),
+            .images[IMG_tex]   = state.resolve_image,
+            .samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc){
                 .min_filter = SG_FILTER_LINEAR,
                 .mag_filter = SG_FILTER_LINEAR,
             })};
@@ -143,8 +143,8 @@ void program_setup()
             .index_type = SG_INDEXTYPE_UINT16,
             .layout =
                 {.attrs =
-                     {[ATTR_display_vs_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                      [ATTR_display_vs_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                     {[ATTR_display_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                      [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
             .label = "quad-pipeline"});
     }
 }
@@ -159,19 +159,19 @@ void program_event(const sapp_event* e)
         sg_destroy_image(state.msaa_image);
 
         state.msaa_image    = sg_make_image(&(sg_image_desc){
-               .render_target = true,
-               .width         = e->window_width,
-               .height        = e->window_height,
-               .pixel_format  = SG_PIXELFORMAT_RGBA8,
-               .sample_count  = OFFSCREEN_SAMPLE_COUNT,
-               .label         = "msaa-image"});
+               .usage.render_attachment = true,
+               .width                   = e->window_width,
+               .height                  = e->window_height,
+               .pixel_format            = SG_PIXELFORMAT_RGBA8,
+               .sample_count            = OFFSCREEN_SAMPLE_COUNT,
+               .label                   = "msaa-image"});
         state.resolve_image = sg_make_image(&(sg_image_desc){
-            .render_target = true,
-            .width         = e->window_width,
-            .height        = e->window_height,
-            .pixel_format  = SG_PIXELFORMAT_RGBA8,
-            .sample_count  = 1,
-            .label         = "resolve-image",
+            .usage.render_attachment = true,
+            .width                   = e->window_width,
+            .height                  = e->window_height,
+            .pixel_format            = SG_PIXELFORMAT_RGBA8,
+            .sample_count            = 1,
+            .label                   = "resolve-image",
         });
 
         state.offscreen.pass.attachments = sg_make_attachments(&(sg_attachments_desc){
@@ -180,7 +180,7 @@ void program_event(const sapp_event* e)
             .label             = "offscreen-attachments",
         });
 
-        state.display.bind.fs.images[SLOT_tex] = state.resolve_image;
+        state.display.bind.images[IMG_tex] = state.resolve_image;
     }
 }
 

@@ -2,11 +2,12 @@
 
 #include <xhl/debug.h>
 #include <xhl/files.h>
+#include <math.h>
 
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 
-#define STB_IMAGE_IMPLEMENTATION
+// #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 #include "program_blur_compute.h"

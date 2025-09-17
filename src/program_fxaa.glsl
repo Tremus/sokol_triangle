@@ -47,10 +47,10 @@ void main() {
 in vec2 tex_uv;
 out vec4 frag_color;
 
-uniform texture2D tex;
-uniform sampler smp;
+layout(binding = 0)uniform texture2D tex;
+layout(binding = 0)uniform sampler smp;
 
-uniform fs_fxaa {
+layout(binding = 0) uniform fs_fxaa {
     vec2 tex_size;
     float fxaa_span_max;
     float fxaa_reduce_min;

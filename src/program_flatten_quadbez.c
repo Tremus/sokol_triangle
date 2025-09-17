@@ -6,7 +6,7 @@
 
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
-#include "xhl_time.h"
+#include <xhl/time.h>
 
 #include "program_flatten_quadbez.h"
 
@@ -108,12 +108,12 @@ void program_setup()
     state.window_height = APP_HEIGHT;
 
     state.bind.vertex_buffers[0] = sg_make_buffer(
-        &(sg_buffer_desc){.size = sizeof(BIG_VERTICES_BUFFER), .usage = SG_USAGE_STREAM, .label = "quad-vertices"});
+        &(sg_buffer_desc){.size = sizeof(BIG_VERTICES_BUFFER), .usage.stream_update = true, .label = "quad-vertices"});
     state.bind.index_buffer = sg_make_buffer(&(sg_buffer_desc){
-        .type  = SG_BUFFERTYPE_INDEXBUFFER,
-        .size  = sizeof(BIG_VERTICES_BUFFER),
-        .usage = SG_USAGE_STREAM,
-        .label = "quad-indices"});
+        .usage.index_buffer  = true,
+        .usage.stream_update = true,
+        .size                = sizeof(BIG_VERTICES_BUFFER),
+        .label               = "quad-indices"});
 
     sg_shader shd = sg_make_shader(draw_rect_shader_desc(sg_query_backend()));
 
@@ -122,8 +122,8 @@ void program_setup()
         .index_type = SG_INDEXTYPE_UINT16,
         .layout =
             {.attrs =
-                 {[ATTR_vs_position].format = SG_VERTEXFORMAT_FLOAT2,
-                  [ATTR_vs_color0].format   = SG_VERTEXFORMAT_UBYTE4N}},
+                 {[ATTR_draw_rect_position].format = SG_VERTEXFORMAT_FLOAT2,
+                  [ATTR_draw_rect_color0].format   = SG_VERTEXFORMAT_UBYTE4N}},
         .label = "quad-pipeline"});
 
     state.pass_action =

@@ -13,11 +13,11 @@
 // @module nanovg_aa
 
 @vs vs_aa
-@include program_nanovg_vs.glsl
+@include nanovg_vs.glsl
 @end
 
 @fs fs_aa
-@include program_nanovg_fs.glsl
+@include nanovg_fs.glsl
 @end
 
 @program nvg_aa vs_aa fs_aa

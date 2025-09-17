@@ -6,7 +6,7 @@
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 
-#define STB_IMAGE_IMPLEMENTATION
+// #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 #include "program_dualfilter_blur.h"
@@ -290,9 +290,10 @@ void program_tick()
     // }
 
     // Draw to swapchain
+    sg_swapchain my_swap = sglue_swapchain();
     sg_begin_pass(&(sg_pass){
         .action    = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
-        .swapchain = sglue_swapchain()});
+        .swapchain = my_swap});
 
     if (apply_bloom)
         sg_apply_pipeline(state.pip_bloom);

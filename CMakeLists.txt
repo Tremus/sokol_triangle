@@ -33,10 +33,11 @@ target_include_directories(pathkit PRIVATE modules/pathkit/)
 # set(SRC_FILE program_flatten_quadbez.c)
 # set(SRC_FILE program_pathkit.cpp)
 # set(SRC_FILE program_pathkit_msaa.cpp)
+# NOTE: nanovg doesn't work in its current state. The sokol backend still needs a bit of work
 # set(SRC_FILE program_nanovg.c)
 # set(SRC_FILE program_msdf.c)
-set(SRC_FILE program_dualfilter_blur.c)
-# set(SRC_FILE program_blur_compute.c)
+# set(SRC_FILE program_dualfilter_blur.c)
+set(SRC_FILE program_blur_compute.c)
 
 string(REPLACE ".cpp" "" FILENAME ${SRC_FILE})
 string(REPLACE ".c" "" FILENAME ${FILENAME})
@@ -45,7 +46,7 @@ set(LIBS pathkit)
 set(SOURCES
     src/main.c
     src/${SRC_FILE}
-    # src/nanovg.c
+    src/nanovg.c
     )
 set(COMPILE_SHADER_CMD "")
 

@@ -9,7 +9,7 @@ void main() {
 @fs fs_pathkit
 out vec4 frag_color;
 
-uniform fs_uniforms {
+layout(binding=0)uniform fs_uniforms {
     vec4 col;
 };
 
@@ -34,8 +34,8 @@ void main() {
 
 /* texquad fragment shader */
 @fs fs_display
-uniform texture2D tex;
-uniform sampler smp;
+layout(binding=0)uniform texture2D tex;
+layout(binding=0)uniform sampler smp;
 
 in vec2 uv;
 out vec4 frag_color;

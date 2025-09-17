@@ -26,13 +26,13 @@ static float vertices[] = {
 void program_setup()
 {
     state.bind.vertex_buffers[0] =
-        sg_make_buffer(&(sg_buffer_desc){.size = sizeof(vertices), .usage = SG_USAGE_STREAM, .label = "triangle"});
+        sg_make_buffer(&(sg_buffer_desc){.size = sizeof(vertices), .usage.stream_update = true, .label = "triangle"});
 
     sg_shader shd = sg_make_shader(animated_vertices_shader_desc(sg_query_backend()));
 
     state.pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = shd,
-        .layout = {.attrs = {[ATTR_vs_position].format = SG_VERTEXFORMAT_FLOAT2}},
+        .layout = {.attrs = {[ATTR_animated_vertices_position].format = SG_VERTEXFORMAT_FLOAT2}},
         .label  = "pipeline"});
 
     state.pass_action =

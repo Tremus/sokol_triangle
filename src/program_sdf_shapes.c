@@ -45,7 +45,7 @@ void program_setup()
         sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
 
     state.bind.index_buffer = sg_make_buffer(
-        &(sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"});
+        &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "quad-indices"});
 
     // a pipeline state object
     state.pip = sg_make_pipeline(&(sg_pipeline_desc){
@@ -53,8 +53,8 @@ void program_setup()
         .index_type = SG_INDEXTYPE_UINT16,
         .layout =
             {.attrs =
-                 {[ATTR_vs_position].format = SG_VERTEXFORMAT_FLOAT2,
-                  [ATTR_vs_texcoord0].format   = SG_VERTEXFORMAT_SHORT2N}},
+                 {[ATTR_sdf_sahpes_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                  [ATTR_sdf_sahpes_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
         .label = "quad-pipeline"});
 
     state.pass_action =
@@ -76,11 +76,9 @@ void program_tick()
     sg_apply_pipeline(state.pip);
     sg_apply_bindings(&state.bind);
 
-    uint32_t largest_dimension = state.width > state.height ? state.width : state.height;
-    fs_uniforms_sdf_shapes_t uniforms = {
-        .feather = 4.0f / (float)largest_dimension
-    };
-    sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_uniforms_sdf_shapes, &SG_RANGE(uniforms));
+    uint32_t                 largest_dimension = state.width > state.height ? state.width : state.height;
+    fs_uniforms_sdf_shapes_t uniforms          = {.feather = 4.0f / (float)largest_dimension};
+    sg_apply_uniforms(UB_fs_uniforms_sdf_shapes, &SG_RANGE(uniforms));
 
     sg_draw(0, 6, 1);
     sg_end_pass();

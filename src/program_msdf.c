@@ -4,7 +4,7 @@
 #include "sokol_glue.h"
 #include "stb_image.h"
 
-#include "program_msdf.h"
+#include "program_msdf.glsl.h"
 
 #include <xhl/debug.h>
 
@@ -45,7 +45,7 @@ void program_setup()
         sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
 
     state.bind.index_buffer = sg_make_buffer(
-        &(sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"});
+        &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "quad-indices"});
 
     // a shader (use separate shader sources here
     sg_shader shd = sg_make_shader(msdf_shader_desc(sg_query_backend()));
@@ -56,18 +56,18 @@ void program_setup()
         .index_type = SG_INDEXTYPE_UINT16,
         .layout =
             {.attrs =
-                 {[ATTR_vs_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                  [ATTR_vs_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                 {[ATTR_msdf_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                  [ATTR_msdf_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
         .label = "quad-pipeline"});
 
     // default pass action
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 
-    state.bind.fs.images[SLOT_tex] = sg_alloc_image();
+    state.bind.images[IMG_tex] = sg_alloc_image();
 
     // a sampler object
-    state.bind.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
+    state.bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,
         .mag_filter = SG_FILTER_LINEAR,
     });
@@ -91,7 +91,7 @@ void program_setup()
     xassert(data);
 
     sg_init_image(
-        state.bind.fs.images[SLOT_tex],
+        state.bind.images[IMG_tex],
         &(sg_image_desc){
             .width               = tex_width,
             .height              = tex_height,
@@ -111,7 +111,7 @@ void program_tick()
     sg_apply_bindings(&state.bind);
     const fs_uniforms_t uniforms = {.texSize = {tex_width, tex_height}};
     sg_range            u_range  = SG_RANGE(uniforms);
-    sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_uniforms, &u_range);
+    sg_apply_uniforms(UB_fs_uniforms, &u_range);
     sg_draw(0, 6, 1);
     sg_end_pass();
 }

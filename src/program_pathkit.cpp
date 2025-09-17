@@ -2,7 +2,7 @@
 
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
-#include "xhl_time.h"
+#include <xhl/time.h>
 
 #include "program_pathkit.h"
 
@@ -34,16 +34,16 @@ void program_setup()
     state.window_height = APP_HEIGHT;
 
     auto buffer_desc = (sg_buffer_desc){
-        .size  = BIG_VERTICES_BUFFER_CAP * sizeof(float),
-        .usage = SG_USAGE_STREAM,
-        .label = "quad-vertices"};
+        .size                = BIG_VERTICES_BUFFER_CAP * sizeof(float),
+        .usage.stream_update = true,
+        .label               = "quad-vertices"};
     state.bind.vertex_buffers[0] = sg_make_buffer(&buffer_desc);
 
     sg_shader shd = sg_make_shader(pathkit_shader_desc(sg_query_backend()));
 
     auto pipeline_desc = (sg_pipeline_desc){
         .shader = shd,
-        .layout = {.attrs = {[ATTR_vs_position].format = SG_VERTEXFORMAT_FLOAT2}},
+        .layout = {.attrs = {[ATTR_pathkit_position].format = SG_VERTEXFORMAT_FLOAT2}},
         .label  = "quad-pipeline"};
     state.pip = sg_make_pipeline(&pipeline_desc);
 
@@ -110,7 +110,7 @@ void program_tick()
 
         const fs_uniforms_t uniforms = {.col = {1., 0., 1., 1.}};
         sg_range            u_range  = SG_RANGE(uniforms);
-        sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_uniforms, &u_range);
+        sg_apply_uniforms(UB_fs_uniforms, &u_range);
 
         sg_draw(0, num_triangles, 1);
     }

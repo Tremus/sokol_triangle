@@ -14,7 +14,7 @@ void main() {
 in vec2 uv;
 out vec4 frag_color;
 
-uniform fs_uniforms {
+layout(binding=0) uniform fs_uniforms {
     float buffer_max_idx;
     float quad_height_max_idx;
 };
@@ -23,7 +23,7 @@ struct buffer_item {
     float y;
 };
 
-readonly buffer storage_buffer {
+layout(binding=0)readonly buffer storage_buffer {
     buffer_item sine_buffer[];
 };
 

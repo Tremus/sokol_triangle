@@ -2,7 +2,7 @@
 
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
-#include "xhl_time.h"
+#include <xhl/time.h>
 
 #include <math.h>
 
@@ -46,21 +46,21 @@ float mapf(float v, float s1, float e1, float s2, float e2) { return s2 + ((e2 -
 void setup_images()
 {
     sg_image_desc img_desc = (sg_image_desc){
-        .render_target = true,
-        .width         = state.window_width,
-        .height        = state.window_height,
-        .pixel_format  = SG_PIXELFORMAT_RGBA8,
-        .sample_count  = OFFSCREEN_SAMPLE_COUNT,
-        .label         = "msaa-image"};
+        .usage.render_attachment = true,
+        .width                   = state.window_width,
+        .height                  = state.window_height,
+        .pixel_format            = SG_PIXELFORMAT_RGBA8,
+        .sample_count            = OFFSCREEN_SAMPLE_COUNT,
+        .label                   = "msaa-image"};
     state.msaa_image = sg_make_image(&img_desc);
 
     img_desc = (sg_image_desc){
-        .render_target = true,
-        .width         = state.window_width,
-        .height        = state.window_height,
-        .pixel_format  = SG_PIXELFORMAT_RGBA8,
-        .sample_count  = 1,
-        .label         = "resolve-image",
+        .usage.render_attachment = true,
+        .width                   = state.window_width,
+        .height                  = state.window_height,
+        .pixel_format            = SG_PIXELFORMAT_RGBA8,
+        .sample_count            = 1,
+        .label                   = "resolve-image",
     };
     state.resolve_image = sg_make_image(&img_desc);
 
@@ -88,20 +88,20 @@ void program_setup()
         setup_images();
 
         sg_buffer_desc buffer_desc = (sg_buffer_desc){
-            .size  = BIG_VERTICES_BUFFER_CAP * sizeof(float),
-            .usage = SG_USAGE_STREAM,
-            .label = "quad-vertices"};
+            .size                = BIG_VERTICES_BUFFER_CAP * sizeof(float),
+            .usage.stream_update = true,
+            .label               = "quad-vertices"};
         state.offscreen.bind.vertex_buffers[0] = sg_make_buffer(&buffer_desc);
 
         sg_pipeline_desc pip_desc;
         memset(&pip_desc, 0, sizeof(pip_desc));
-        pip_desc.shader             = sg_make_shader(pathkit_shader_desc(sg_query_backend()));
-        pip_desc.sample_count       = OFFSCREEN_SAMPLE_COUNT;
-        pip_desc.depth.pixel_format = SG_PIXELFORMAT_NONE;
-        pip_desc.layout.attrs[ATTR_vs_pathkit_position].format = SG_VERTEXFORMAT_FLOAT2;
-        pip_desc.label                                         = "quad-pipeline";
-        pip_desc.colors[0].pixel_format                        = SG_PIXELFORMAT_RGBA8;
-        state.offscreen.pip                                    = sg_make_pipeline(&pip_desc);
+        pip_desc.shader                                     = sg_make_shader(pathkit_shader_desc(sg_query_backend()));
+        pip_desc.sample_count                               = OFFSCREEN_SAMPLE_COUNT;
+        pip_desc.depth.pixel_format                         = SG_PIXELFORMAT_NONE;
+        pip_desc.layout.attrs[ATTR_pathkit_position].format = SG_VERTEXFORMAT_FLOAT2;
+        pip_desc.label                                      = "quad-pipeline";
+        pip_desc.colors[0].pixel_format                     = SG_PIXELFORMAT_RGBA8;
+        state.offscreen.pip                                 = sg_make_pipeline(&pip_desc);
     }
 
     // Display
@@ -130,25 +130,25 @@ void program_setup()
         // clang-format on
         sg_buffer_desc vbuf_desc = (sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"};
         sg_buffer_desc ibuf_desc =
-            (sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"};
+            (sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "quad-indices"};
         sg_sampler_desc smpl_desc = (sg_sampler_desc){
             .min_filter = SG_FILTER_LINEAR,
             .mag_filter = SG_FILTER_LINEAR,
         };
         state.display.bind = (sg_bindings){
-            .vertex_buffers[0]     = sg_make_buffer(&vbuf_desc),
-            .index_buffer          = sg_make_buffer(&ibuf_desc),
-            .fs.images[SLOT_tex]   = state.resolve_image,
-            .fs.samplers[SLOT_smp] = sg_make_sampler(&smpl_desc)};
+            .vertex_buffers[0] = sg_make_buffer(&vbuf_desc),
+            .index_buffer      = sg_make_buffer(&ibuf_desc),
+            .images[IMG_tex]   = state.resolve_image,
+            .samplers[SMP_smp] = sg_make_sampler(&smpl_desc)};
 
         sg_pipeline_desc pip_desc;
         memset(&pip_desc, 0, sizeof(pip_desc));
-        pip_desc.shader     = sg_make_shader(display_shader_desc(sg_query_backend()));
-        pip_desc.index_type = SG_INDEXTYPE_UINT16;
-        pip_desc.layout.attrs[ATTR_vs_display_position].format  = SG_VERTEXFORMAT_FLOAT2;
-        pip_desc.layout.attrs[ATTR_vs_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N;
-        pip_desc.label                                          = "quad-pipeline";
-        state.display.pip                                       = sg_make_pipeline(&pip_desc);
+        pip_desc.shader                                      = sg_make_shader(display_shader_desc(sg_query_backend()));
+        pip_desc.index_type                                  = SG_INDEXTYPE_UINT16;
+        pip_desc.layout.attrs[ATTR_display_position].format  = SG_VERTEXFORMAT_FLOAT2;
+        pip_desc.layout.attrs[ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N;
+        pip_desc.label                                       = "quad-pipeline";
+        state.display.pip                                    = sg_make_pipeline(&pip_desc);
     }
 }
 
@@ -165,7 +165,7 @@ void program_event(const sapp_event* e)
 
         setup_images();
 
-        state.display.bind.fs.images[SLOT_tex] = state.resolve_image;
+        state.display.bind.images[IMG_tex] = state.resolve_image;
     }
 }
 
@@ -218,7 +218,7 @@ void program_tick()
 
         const fs_uniforms_t uniforms = {.col = {1., 0., 1., 1.}};
         sg_range            u_range  = SG_RANGE(uniforms);
-        sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_uniforms, &u_range);
+        sg_apply_uniforms(UB_fs_uniforms, &u_range);
 
         sg_draw(0, num_triangles, 1);
     }

@@ -48,25 +48,25 @@ void program_setup()
         sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
 
     state.bind.index_buffer = sg_make_buffer(
-        &(sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "quad-indices"});
+        &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "quad-indices"});
 
     state.pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader     = sg_make_shader(line_stroke_shader_desc(sg_query_backend())),
         .index_type = SG_INDEXTYPE_UINT16,
         .layout =
             {.attrs =
-                 {[ATTR_vs_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                  [ATTR_vs_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                 {[ATTR_line_stroke_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                  [ATTR_line_stroke_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
         .label = "quad-pipeline"});
 
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 
-    state.bind.fs.storage_buffers[SLOT_storage_buffer] = sg_make_buffer(&(sg_buffer_desc){
-        .type  = SG_BUFFERTYPE_STORAGEBUFFER,
-        .usage = SG_USAGE_STREAM,
-        .size  = sizeof(SINE_BUFFER),
-        .label = "sine-buffer",
+    state.bind.storage_buffers[SBUF_storage_buffer] = sg_make_buffer(&(sg_buffer_desc){
+        .usage.storage_buffer = true,
+        .usage.stream_update  = true,
+        .size                 = sizeof(SINE_BUFFER),
+        .label                = "sine-buffer",
     });
 }
 
@@ -99,7 +99,7 @@ void program_tick()
     START_PHASE -= (int)START_PHASE;
 
     sg_update_buffer(
-        state.bind.fs.storage_buffers[SLOT_storage_buffer],
+        state.bind.storage_buffers[SBUF_storage_buffer],
         &(sg_range){.ptr = SINE_BUFFER, sizeof(SINE_BUFFER)});
 
     sg_apply_pipeline(state.pip);
@@ -107,7 +107,7 @@ void program_tick()
 
     const size_t        buf_maxidx = ARRLEN(SINE_BUFFER) - 1;
     const fs_uniforms_t uniforms   = {.buffer_max_idx = buf_maxidx, .quad_height_max_idx = state.window_height - 1};
-    sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_uniforms, &SG_RANGE(uniforms));
+    sg_apply_uniforms(UB_fs_uniforms, &SG_RANGE(uniforms));
 
     sg_draw(0, 6, 1);
     sg_end_pass();
