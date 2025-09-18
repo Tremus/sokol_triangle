@@ -21,13 +21,17 @@ void program_setup()
         // positions            colors
         -0.5f,  0.5f, 0.5f,     1.0f, 0.0f, 0.0f, 1.0f,
          0.5f,  0.5f, 0.5f,     0.0f, 1.0f, 0.0f, 1.0f,
-         0.5f, -0.5f, 0.5f,     0.0f, 0.0f, 1.0f, 1.0f,
-        -0.5f, -0.5f, 0.5f,     1.0f, 1.0f, 0.0f, 1.0f,
+        -0.5f, -0.5f, 0.5f,     0.0f, 0.0f, 1.0f, 1.0f,
+         0.5f, -0.5f, 0.5f,     1.0f, 1.0f, 0.0f, 1.0f,
     };
     // an index buffer with 2 triangles
     uint16_t indices[] = {
+        // 0, 1, 2,
+        // 0, 2, 3,
+        // 0, 1, 2,
+        // 0, 1, 2,
         0, 1, 2,
-        0, 2, 3,
+        1, 2, 3,
     };
     // clang-format on
     state.bind.vertex_buffers[0] =
