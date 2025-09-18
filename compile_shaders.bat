@@ -17,3 +17,4 @@ CALL sokol-shdc.exe --input src\program_pathkit_msaa.glsl           --output src
 CALL sokol-shdc.exe --input src\program_msdf.glsl                   --output src\program_msdf.glsl.h              --slang hlsl5
 CALL sokol-shdc.exe --input src\program_dualfilter_blur.glsl        --output src\program_dualfilter_blur.h        --slang hlsl5
 CALL sokol-shdc.exe --input src\program_blur_compute.glsl           --output src\program_blur_compute.h           --slang hlsl5
+CALL sokol-shdc.exe --input src\program_vertex_pull.glsl            --output src\program_vertex_pull.h            --slang hlsl5
