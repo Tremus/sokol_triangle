@@ -19,3 +19,4 @@ CALL sokol-shdc.exe --input src\program_dualfilter_blur.glsl        --output src
 CALL sokol-shdc.exe --input src\program_blur_compute.glsl           --output src\program_blur_compute.h           --slang hlsl5
 CALL sokol-shdc.exe --input src\program_vertex_pull.glsl            --output src\program_vertex_pull.h            --slang hlsl5
 CALL sokol-shdc.exe --input src\program_vertex_pull_square.glsl     --output src\program_vertex_pull_square.h     --slang hlsl5
+CALL sokol-shdc.exe --input src\program_vertex_pull_sdf.glsl        --output src\program_vertex_pull_sdf.h        --slang hlsl5
