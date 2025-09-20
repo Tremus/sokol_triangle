@@ -21,6 +21,7 @@ layout(binding=0) uniform vs_params {
 };
 
 out vec2 uv;
+out flat vec2 uv_xy_scale;
 out flat vec4 colour1;
 out flat uint type;
 out flat float feather;
@@ -30,44 +31,46 @@ void main() {
     uint v_idx = gl_VertexIndex / 6u;
     uint i_idx = gl_VertexIndex - v_idx * 6;
 
+    myvertex vert = vtx[v_idx];
+
     //  0.5f,  0.5f,
     // -0.5f, -0.5f,
     //  0.5f, -0.5f,
     // -0.5f,  0.5f,
     // 0, 1, 2,
     // 1, 2, 3,
-    myvertex vert = vtx[v_idx];
 
-    vec2 pos = vert.topleft;
-    uv       = vec2(-1);
+    // Is odd
+    bool is_right = (gl_VertexIndex & 1) == 1;
+    bool is_bottom = i_idx >= 2 && i_idx <= 4;
 
-    uint is_odd = gl_VertexIndex & 1;
-    if (is_odd == 1)
-    {
-        pos.x = vert.bottomright.x;
-        uv.x = -uv.x;
-    }
-    if (i_idx >= 2 && i_idx <= 4) // idx 2/3/4
-    {
-        pos.y = vert.bottomright.y;
-        uv.y = -uv.y;
-    }
+    vec2 pos = vec2(
+        is_right  ? vert.bottomright.x : vert.topleft.x,
+        is_bottom ? vert.bottomright.y : vert.topleft.y
+    );
 
     pos = (pos + pos) / size - vec2(1);
     pos.y = -pos.y;
 
-    float max_dimension = max(vert.bottomright.x - vert.topleft.x, vert.bottomright.y - vert.topleft.y);
+    float vw = vert.bottomright.x - vert.topleft.x;
+    float vh = vert.bottomright.y - vert.topleft.y;
+
+    float max_dimension = max(size.x, size.y);
 
     gl_Position = vec4(pos, 1, 1);
+
+    uv = vec2(is_right  ? 1 : -1, is_bottom ? -1 : 1);
+    uv_xy_scale = vec2(vw > vh ? vw / vh : 1, vh > vw ? vh / vw : 1);
     colour1 = unpackUnorm4x8(vert.colour1).abgr; // swizzle
     type = vtx[v_idx].type;
-    feather = 4.0 / max_dimension;
-    stroke_width = 2 * vert.stroke_width / max_dimension;
+    feather = 16.0 / max_dimension;
+    stroke_width = 2 * vert.stroke_width / max(vw, vh);
 }
 @end
 
 @fs fs
 in vec2 uv;
+in flat vec2 uv_xy_scale;
 in flat vec4 colour1;
 in flat uint type;
 in flat float feather;
@@ -75,18 +78,50 @@ in flat float stroke_width;
 
 out vec4 frag_color;
 
-#define SDF_TYPE_CIRCLE_FILL   0
-#define SDF_TYPE_CIRCLE_STROKE 1
+#define SDF_TYPE_RECTANGLE_FILL   0
+#define SDF_TYPE_RECTANGLE_STROKE 1
+#define SDF_TYPE_CIRCLE_FILL      2
+#define SDF_TYPE_CIRCLE_STROKE    3
+
+float sdRoundBox( in vec2 p, in vec2 b, in vec4 r ) 
+{
+    r.xy = (p.x>0.0)?r.xy : r.zw;
+    r.x  = (p.y>0.0)?r.x  : r.y;
+    vec2 q = abs(p)-b+r.x;
+    return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - r.x;
+}
 
 void main()
 {
-    vec4 col = vec4(colour1);
+    vec4 col = colour1;
 
-    if (type == SDF_TYPE_CIRCLE_FILL)
+    float shape = 1;
+    if (type == SDF_TYPE_RECTANGLE_FILL)
+    {
+        vec2 b = uv_xy_scale;
+        vec4 r = vec4(0.5);
+        float d = sdRoundBox(uv * uv_xy_scale, b, r);
+
+        shape = smoothstep(0, feather, abs(d));
+        shape = d > 0 ? 0 : shape;
+    }
+    else if (type == SDF_TYPE_RECTANGLE_STROKE)
+    {
+        vec2 b = uv_xy_scale;
+        vec4 r = vec4(0.5);
+        float d = sdRoundBox(uv * uv_xy_scale, b, r);
+
+        float rect_fill = smoothstep(0, feather, abs(d));
+        rect_fill = d > 0 ? 0 : rect_fill;
+        float rect_stroke = smoothstep(stroke_width + feather, stroke_width, abs(d));
+        rect_stroke = d > 0 ? 0 : rect_stroke;
+        shape = rect_fill * rect_stroke;
+    }
+    else if (type == SDF_TYPE_CIRCLE_FILL)
     {
         float len = 1 - length(uv);
         float circle_fill = smoothstep(0, feather, len);
-        col.rgb *= vec3(circle_fill);
+        shape = circle_fill;
     }
     else if (type == SDF_TYPE_CIRCLE_STROKE)
     {
@@ -94,9 +129,9 @@ void main()
 
         float circle_fill   = smoothstep(0, feather, len);
         float circle_stroke = smoothstep(stroke_width + feather, stroke_width, len);
-        col.rgb *= vec3(circle_fill * circle_stroke);
+        shape = circle_fill * circle_stroke;
     }
-    // TODO more shapes
+    col.rgb *= vec3(shape);
 
     frag_color = col;
 }

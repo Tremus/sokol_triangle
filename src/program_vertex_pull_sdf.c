@@ -16,6 +16,30 @@ static struct
     int            window_height;
 } state;
 
+// TODO do scissoring
+
+// Playing with code from here:
+// https://iquilezles.org/articles/distfunctions2d/
+enum
+{
+    SDF_TYPE_RECTANGLE_FILL,
+    SDF_TYPE_RECTANGLE_STROKE,
+    SDF_TYPE_CIRCLE_FILL,
+    SDF_TYPE_CIRCLE_STROKE,
+    // SDF_TYPE_TRIANGLE_FILL,
+    // SDF_TYPE_TRIANGLE_STROKE,
+    // SDF_TYPE_PIE_FILL,
+    // SDF_TYPE_PIE_STROKE,
+    // SDF_TYPE_ARC_ROUND_FILL,
+    // SDF_TYPE_ARC_ROUND_STROKE,
+    // SDF_TYPE_ARC_BUTT_FILL,
+    // SDF_TYPE_ARC_BUTT_STROKE,
+    // SDF_TYPE_HEART_FILL,
+    // SDF_TYPE_HEART_STROKE,
+    // SDF_TYPE_PENTAGRAM_FILL,
+    // SDF_TYPE_PENTAGRAM_STROKE,
+};
+
 // clang-format off
 // Compressed squares
 static const myvertex_t vertices[] ={
@@ -23,17 +47,28 @@ static const myvertex_t vertices[] ={
         .topleft = {10, 10},
         .bottomright = {80, 80},
         .colour1 = 0xffff00ff,
-        .type = 0,
-        // .texid = 0,
+        .type = SDF_TYPE_CIRCLE_FILL,
     },
     {
         .topleft = {10, 110},
         .bottomright = {80, 180},
         .colour1 = 0xff00ffff,
-        .type = 1,
+        .type = SDF_TYPE_CIRCLE_STROKE,
         .stroke_width = 4,
-        // .texid = 0,
-    }
+    },
+    {
+        .topleft = {110, 10},
+        .bottomright = {210, 80},
+        .colour1 = 0xff00ffff,
+        .type = SDF_TYPE_RECTANGLE_FILL,
+    },
+    {
+        .topleft = {110, 110},
+        .bottomright = {410, 180},
+        .colour1 = 0xff00ffff,
+        .type = SDF_TYPE_RECTANGLE_STROKE,
+        .stroke_width = 4,
+    },
 };
 // clang-format on
 
