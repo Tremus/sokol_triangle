@@ -59,13 +59,13 @@ static const myvertex_t vertices[] ={
     {
         .topleft = {110, 10},
         .bottomright = {210, 80},
-        .colour1 = 0xff00ffff,
+        .colour1 = 0x00ffffff,
         .type = SDF_TYPE_RECTANGLE_FILL,
     },
     {
         .topleft = {110, 110},
         .bottomright = {410, 180},
-        .colour1 = 0xff00ffff,
+        .colour1 = 0x00ff00ff,
         .type = SDF_TYPE_RECTANGLE_STROKE,
         .stroke_width = 4,
     },

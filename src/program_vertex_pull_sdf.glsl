@@ -55,15 +55,13 @@ void main() {
     float vw = vert.bottomright.x - vert.topleft.x;
     float vh = vert.bottomright.y - vert.topleft.y;
 
-    float max_dimension = max(size.x, size.y);
-
     gl_Position = vec4(pos, 1, 1);
 
     uv = vec2(is_right  ? 1 : -1, is_bottom ? -1 : 1);
     uv_xy_scale = vec2(vw > vh ? vw / vh : 1, vh > vw ? vh / vw : 1);
     colour1 = unpackUnorm4x8(vert.colour1).abgr; // swizzle
     type = vtx[v_idx].type;
-    feather = 16.0 / max_dimension;
+    feather = 16.0 / max(size.x, size.y);
     stroke_width = 2 * vert.stroke_width / max(vw, vh);
 }
 @end
@@ -108,14 +106,10 @@ void main()
     else if (type == SDF_TYPE_RECTANGLE_STROKE)
     {
         vec2 b = uv_xy_scale;
-        vec4 r = vec4(0.5);
-        float d = sdRoundBox(uv * uv_xy_scale, b, r);
-
-        float rect_fill = smoothstep(0, feather, abs(d));
-        rect_fill = d > 0 ? 0 : rect_fill;
+        vec4 r = vec4(1);
+        float d = sdRoundBox(uv * uv_xy_scale, b - stroke_width, r);
         float rect_stroke = smoothstep(stroke_width + feather, stroke_width, abs(d));
-        rect_stroke = d > 0 ? 0 : rect_stroke;
-        shape = rect_fill * rect_stroke;
+        shape = rect_stroke;
     }
     else if (type == SDF_TYPE_CIRCLE_FILL)
     {
