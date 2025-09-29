@@ -1,11 +1,12 @@
 @vs vs
-in vec4 position;
-in vec2 texcoord0;
+const vec2 positions[3] = { vec2(-1, -1), vec2(3, -1), vec2(-1, 3), };
+
 out vec2 uv;
 
 void main() {
-    gl_Position = position;
-    uv = texcoord0;
+    vec2 pos = positions[gl_VertexIndex];
+    gl_Position = vec4(pos, 0, 1);
+    uv = (pos * vec2(1, -1) + 1) * 0.5;
 }
 @end
 
@@ -15,6 +16,7 @@ in vec2 uv;
 out vec4 frag_color;
 
 layout(binding=0) uniform fs_uniforms {
+    vec2  mouse_xy;
     float buffer_max_idx;
     float quad_height_max_idx;
 };
@@ -38,8 +40,10 @@ void main() {
 
     float y_distance = abs(sine_denorm - pixel_y_denorm);
 
+    float mouse_distance = abs(distance(uv, mouse_xy));
+
     // Stroke with of 6 (3 pixels in both N & S directions)
-    float v = y_distance < 3 ? uv.x : 0;
+    float v = y_distance < 3 ? (1 - mouse_distance) : 0;
 
     frag_color = vec4(v, v, v, 1);
 }

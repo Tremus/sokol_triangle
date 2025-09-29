@@ -12,10 +12,12 @@ static struct
     int window_width;
     int window_height;
 
+    float mouse_xy[2];
+
     sg_pipeline    pip;
     sg_bindings    bind;
     sg_pass_action pass_action;
-} state;
+} state = {0};
 
 typedef struct
 {
@@ -30,34 +32,11 @@ void program_setup()
     state.window_width  = APP_WIDTH;
     state.window_height = APP_HEIGHT;
 
-    // clang-format off
-    vertex_t vertices[] = {
-        // xy          uv
-        {-1.0f,  1.0f, 0,     32767},
-        { 1.0f,  1.0f, 32767, 32767},
-        { 1.0f, -1.0f, 32767, 0},
-        {-1.0f, -1.0f, 0,     0},
-    };
-    uint16_t indices[] = {
-        0, 1, 2,
-        0, 2, 3,
-    };
-    // clang-format on
+    state.mouse_xy[0] = 1;
+    state.mouse_xy[1] = 0.5;
 
-    state.bind.vertex_buffers[0] =
-        sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
-
-    state.bind.index_buffer = sg_make_buffer(
-        &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "quad-indices"});
-
-    state.pip = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader     = sg_make_shader(line_stroke_shader_desc(sg_query_backend())),
-        .index_type = SG_INDEXTYPE_UINT16,
-        .layout =
-            {.attrs =
-                 {[ATTR_line_stroke_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                  [ATTR_line_stroke_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
-        .label = "quad-pipeline"});
+    state.pip = sg_make_pipeline(&(
+        sg_pipeline_desc){.shader = sg_make_shader(line_stroke_shader_desc(sg_query_backend())), .label = "pipeline"});
 
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
@@ -76,6 +55,13 @@ void program_event(const sapp_event* e)
     {
         state.window_width  = e->window_width;
         state.window_height = e->window_height;
+    }
+    else if (
+        e->type == SAPP_EVENTTYPE_MOUSE_MOVE || e->type == SAPP_EVENTTYPE_MOUSE_ENTER ||
+        e->type == SAPP_EVENTTYPE_MOUSE_LEAVE)
+    {
+        state.mouse_xy[0] = e->mouse_x / (float)state.window_width;
+        state.mouse_xy[1] = e->mouse_y / (float)state.window_height;
     }
 }
 
@@ -106,7 +92,11 @@ void program_tick()
     sg_apply_bindings(&state.bind);
 
     const size_t        buf_maxidx = ARRLEN(SINE_BUFFER) - 1;
-    const fs_uniforms_t uniforms   = {.buffer_max_idx = buf_maxidx, .quad_height_max_idx = state.window_height - 1};
+    const fs_uniforms_t uniforms   = {
+          .mouse_xy[0]         = state.mouse_xy[0],
+          .mouse_xy[1]         = state.mouse_xy[1],
+          .buffer_max_idx      = buf_maxidx,
+          .quad_height_max_idx = state.window_height - 1};
     sg_apply_uniforms(UB_fs_uniforms, &SG_RANGE(uniforms));
 
     sg_draw(0, 6, 1);
