@@ -8,6 +8,7 @@ struct myvertex
     uint type;
     uint colour1;
     float stroke_width;
+    float feather;
     // TODO
     // uint  texid;
 };
@@ -61,7 +62,13 @@ void main() {
     uv_xy_scale = vec2(vw > vh ? vw / vh : 1, vh > vw ? vh / vw : 1);
     colour1 = unpackUnorm4x8(vert.colour1).abgr; // swizzle
     type = vtx[v_idx].type;
-    feather = 16.0 / max(size.x, size.y);
+    // Good artical on setting the right feather size
+    // https://bohdon.com/docs/smooth-sdf-shape-edges/
+    // feather = 16.0 / min(size.x, size.y);
+    // feather = 0.01 * (vw > vh ? size.x / vw : size.y / vh);
+    // feather = 0.01;
+    feather = vert.feather;
+    // stroke_width = 0.5 * vert.stroke_width / min(vw, vh);
     stroke_width = 2 * vert.stroke_width / max(vw, vh);
 }
 @end
@@ -81,7 +88,7 @@ out vec4 frag_color;
 #define SDF_TYPE_CIRCLE_FILL      2
 #define SDF_TYPE_CIRCLE_STROKE    3
 
-float sdRoundBox( in vec2 p, in vec2 b, in vec4 r ) 
+float sdRoundBox(in vec2 p, in vec2 b, in vec4 r)
 {
     r.xy = (p.x>0.0)?r.xy : r.zw;
     r.x  = (p.y>0.0)?r.x  : r.y;
@@ -125,7 +132,7 @@ void main()
         float circle_stroke = smoothstep(stroke_width + feather, stroke_width, len);
         shape = circle_fill * circle_stroke;
     }
-    col.rgb *= vec3(shape);
+    col.a = shape;
 
     frag_color = col;
 }

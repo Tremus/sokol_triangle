@@ -2,6 +2,7 @@
 
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
+#include <xhl/debug.h>
 #include <xhl/vector.h>
 
 #include "program_vertex_pull_sdf.h"
@@ -48,6 +49,7 @@ static const myvertex_t vertices[] ={
         .bottomright = {80, 80},
         .colour1 = 0xffff00ff,
         .type = SDF_TYPE_CIRCLE_FILL,
+        .feather = 0.04,
     },
     {
         .topleft = {10, 110},
@@ -55,12 +57,14 @@ static const myvertex_t vertices[] ={
         .colour1 = 0xff00ffff,
         .type = SDF_TYPE_CIRCLE_STROKE,
         .stroke_width = 4,
+        .feather = 0.05,
     },
     {
         .topleft = {110, 10},
         .bottomright = {210, 80},
         .colour1 = 0x00ffffff,
         .type = SDF_TYPE_RECTANGLE_FILL,
+        .feather = 0.04,
     },
     {
         .topleft = {110, 110},
@@ -68,6 +72,7 @@ static const myvertex_t vertices[] ={
         .colour1 = 0x00ff00ff,
         .type = SDF_TYPE_RECTANGLE_STROKE,
         .stroke_width = 4,
+        .feather = 0.05,
     },
 };
 // clang-format on
@@ -76,6 +81,13 @@ void program_setup()
 {
     state.window_width  = APP_WIDTH;
     state.window_height = APP_HEIGHT;
+
+    for (int i = 0; i < ARRLEN(vertices); i++)
+    {
+        const myvertex_t* v = vertices + i;
+        xassert(v->topleft[0] < v->bottomright[0]);
+        xassert(v->topleft[1] < v->bottomright[1]);
+    }
 
     sg_buffer sbuf = sg_make_buffer(&(sg_buffer_desc){
         .usage.storage_buffer = true,
@@ -86,8 +98,19 @@ void program_setup()
     state.bind.storage_buffers[SBUF_ssbo] = sbuf;
 
     // Note we don't pass any index type or vertex layout
-    state.pip = sg_make_pipeline(
-        &(sg_pipeline_desc){.shader = sg_make_shader(vertexpull_shader_desc(sg_query_backend())), .label = "pipeline"});
+    state.pip =
+        sg_make_pipeline(&(sg_pipeline_desc){.shader = sg_make_shader(vertexpull_shader_desc(sg_query_backend())),
+                                             .colors[0] =
+                                                 {.write_mask = SG_COLORMASK_RGBA,
+                                                  .blend =
+                                                      {
+                                                          .enabled          = true,
+                                                          .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                                                          .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                                                          .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                                                          .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                                                      }},
+                                             .label = "pipeline"});
 
     // a pass action to clear framebuffer to black
     state.pass_action =
