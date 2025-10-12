@@ -21,3 +21,4 @@ sokol-shdc --input src/program_dualfilter_blur.glsl        --output src/program_
 sokol-shdc --input src/program_vertex_pull.glsl            --output src/program_vertex_pull.h            --slang metal_macos
 sokol-shdc --input src/program_vertex_pull_square.glsl     --output src/program_vertex_pull_square.h     --slang metal_macos
 sokol-shdc --input src/program_vertex_pull_sdf.glsl        --output src/program_vertex_pull_sdf.h        --slang metal_macos
+sokol-shdc --input src/program_square_no_vbuf.glsl         --output src/program_square_no_vbuf.h         --slang metal_macos
