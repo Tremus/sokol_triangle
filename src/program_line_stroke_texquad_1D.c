@@ -14,6 +14,7 @@ static struct
 
     float mouse_xy[2];
 
+    sg_buffer      buf;
     sg_pipeline    pip;
     sg_bindings    bind;
     sg_pass_action pass_action;
@@ -41,12 +42,14 @@ void program_setup()
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 
-    state.bind.storage_buffers[SBUF_storage_buffer] = sg_make_buffer(&(sg_buffer_desc){
+    state.buf = sg_make_buffer(&(sg_buffer_desc){
         .usage.storage_buffer = true,
         .usage.stream_update  = true,
         .size                 = sizeof(SINE_BUFFER),
         .label                = "sine-buffer",
     });
+
+    state.bind.views[VIEW_storage_buffer] = sg_make_view(&(sg_view_desc){.storage_buffer = state.buf});
 }
 
 void program_event(const sapp_event* e)
@@ -84,9 +87,7 @@ void program_tick()
     START_PHASE += 0.5f / 60.0f;
     START_PHASE -= (int)START_PHASE;
 
-    sg_update_buffer(
-        state.bind.storage_buffers[SBUF_storage_buffer],
-        &(sg_range){.ptr = SINE_BUFFER, sizeof(SINE_BUFFER)});
+    sg_update_buffer(state.buf, &(sg_range){.ptr = SINE_BUFFER, sizeof(SINE_BUFFER)});
 
     sg_apply_pipeline(state.pip);
     sg_apply_bindings(&state.bind);

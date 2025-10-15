@@ -9,6 +9,8 @@
 static struct
 {
     sg_image offscreen_img;
+    sg_view  offscreen_img_colview;
+    sg_view  offscreen_img_texview;
 
     struct
     {
@@ -31,15 +33,17 @@ void program_setup()
     {
         sapp_desc app_desc  = sapp_query_desc();
         state.offscreen_img = sg_make_image(&(sg_image_desc){
-            .usage.render_attachment = true,
-            .width                   = app_desc.width,
-            .height                  = app_desc.height,
-            .pixel_format            = SG_PIXELFORMAT_RGBA8,
-            .label                   = "offscreen-image"});
+            .usage.color_attachment = true,
+            .width                  = app_desc.width,
+            .height                 = app_desc.height,
+            .pixel_format           = SG_PIXELFORMAT_RGBA8,
+            .label                  = "offscreen-image"});
+
+        state.offscreen_img_colview = sg_make_view(&(sg_view_desc){.color_attachment = state.offscreen_img});
+        state.offscreen_img_texview = sg_make_view(&(sg_view_desc){.texture = state.offscreen_img});
 
         state.offscreen.pass = (sg_pass){
-            .attachments = sg_make_attachments(
-                &(sg_attachments_desc){.colors[0].image = state.offscreen_img, .label = "offscreen-attachment"}),
+            .attachments.colors[0] = state.offscreen_img_colview,
             .action = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
             .label  = "offscreen-pass"};
 
@@ -120,7 +124,7 @@ void program_setup()
                       [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
             .label = "quad-pipeline"});
 
-        state.display.bind.images[IMG_tex] = state.offscreen_img;
+        state.display.bind.views[VIEW_tex] = state.offscreen_img_texview;
 
         // a sampler object
         state.display.bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc){
@@ -135,19 +139,21 @@ void program_event(const sapp_event* e)
     if (e->type == SAPP_EVENTTYPE_RESIZED)
     {
         // print("Resized %d %d", e->window_width, e->window_height);
-        sg_destroy_attachments(state.offscreen.pass.attachments);
+        sg_destroy_view(state.offscreen_img_colview);
+        sg_destroy_view(state.offscreen_img_texview);
         sg_destroy_image(state.offscreen_img);
 
-        state.offscreen_img = sg_make_image(&(sg_image_desc){
-            .usage.render_attachment = true,
-            .width                   = e->window_width,
-            .height                  = e->window_height,
-            .pixel_format            = SG_PIXELFORMAT_RGBA8,
-            .label                   = "offscreen-image"
-                        });
-        state.offscreen.pass.attachments = sg_make_attachments(
-            &(sg_attachments_desc){.colors[0].image = state.offscreen_img, .label = "offscreen-attachment"});
-        state.display.bind.images[IMG_tex] = state.offscreen_img;
+        state.offscreen_img         = sg_make_image(&(sg_image_desc){
+                    .usage.color_attachment = true,
+                    .width                  = e->window_width,
+                    .height                 = e->window_height,
+                    .pixel_format           = SG_PIXELFORMAT_RGBA8,
+                    .label                  = "offscreen-image"});
+        state.offscreen_img_colview = sg_make_view(&(sg_view_desc){.color_attachment = state.offscreen_img});
+        state.offscreen_img_texview = sg_make_view(&(sg_view_desc){.texture = state.offscreen_img});
+
+        state.offscreen.pass.attachments.colors[0] = state.offscreen_img_colview;
+        state.display.bind.views[VIEW_tex]         = state.offscreen_img_texview;
     }
 }
 

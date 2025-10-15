@@ -59,8 +59,6 @@ void program_setup()
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 
-    state.bind.images[IMG_tex] = sg_alloc_image();
-
     // a sampler object
     state.bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,
@@ -79,21 +77,20 @@ void program_setup()
     for (int i = 0; i < ARRLEN(img_buf); i++)
     {
         // img_buf[i].abgr = 0xffffffff; // white image
-        // img_buf[i].abgr = 0xff00ffff; // yellow image
-        img_buf[i].abgr = 0xffff00ff; // fuscia image
+        img_buf[i].abgr = 0xff00ffff; // yellow image
+        // img_buf[i].abgr = 0xffff00ff; // fuscia image
         // img_buf[i].abgr = 0xffffff00; // cyan image
     }
 
-    sg_init_image(
-        state.bind.images[IMG_tex],
-        &(sg_image_desc){
-            .width               = APP_WIDTH,
-            .height              = APP_HEIGHT,
-            .pixel_format        = SG_PIXELFORMAT_RGBA8,
-            .data.subimage[0][0] = {
-                .ptr  = img_buf,
-                .size = sizeof(img_buf),
-            }});
+    sg_image img               = sg_make_image(&(sg_image_desc){
+                      .width              = APP_WIDTH,
+                      .height             = APP_HEIGHT,
+                      .pixel_format       = SG_PIXELFORMAT_RGBA8,
+                      .data.mip_levels[0] = {
+                          .ptr  = img_buf,
+                          .size = sizeof(img_buf),
+        }});
+    state.bind.views[VIEW_tex] = sg_make_view(&(sg_view_desc){.texture = img});
 }
 
 void program_event(const sapp_event* event) {}
