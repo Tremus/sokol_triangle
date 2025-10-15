@@ -49,12 +49,12 @@ void program_setup()
 
     // a pipeline state object
     state.pip = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader     = sg_make_shader(sdf_sahpes_shader_desc(sg_query_backend())),
+        .shader     = sg_make_shader(sdf_shapes_shader_desc(sg_query_backend())),
         .index_type = SG_INDEXTYPE_UINT16,
         .layout =
             {.attrs =
-                 {[ATTR_sdf_sahpes_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                  [ATTR_sdf_sahpes_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                 {[ATTR_sdf_shapes_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                  [ATTR_sdf_shapes_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
         .label = "quad-pipeline"});
 
     state.pass_action =

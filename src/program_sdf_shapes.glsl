@@ -31,4 +31,4 @@ void main() {
 }
 @end
 
-@program sdf_sahpes vs fs
+@program sdf_shapes vs fs
