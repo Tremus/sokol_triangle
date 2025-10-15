@@ -21,7 +21,10 @@ static struct
     int window_height;
 
     sg_image msaa_image;
+    sg_view  msaa_colview;
     sg_image resolve_image;
+    sg_view  resolve_colview;
+    sg_view  resolve_texview;
 
     struct
     {
@@ -46,30 +49,38 @@ float mapf(float v, float s1, float e1, float s2, float e2) { return s2 + ((e2 -
 void setup_images()
 {
     sg_image_desc img_desc = (sg_image_desc){
-        .usage.render_attachment = true,
-        .width                   = state.window_width,
-        .height                  = state.window_height,
-        .pixel_format            = SG_PIXELFORMAT_RGBA8,
-        .sample_count            = OFFSCREEN_SAMPLE_COUNT,
-        .label                   = "msaa-image"};
-    state.msaa_image = sg_make_image(&img_desc);
+        .usage.color_attachment = true,
+        .width                  = state.window_width,
+        .height                 = state.window_height,
+        .pixel_format           = SG_PIXELFORMAT_RGBA8,
+        .sample_count           = OFFSCREEN_SAMPLE_COUNT,
+        .label                  = "msaa-image"};
+    state.msaa_image                 = sg_make_image(&img_desc);
+    sg_view_desc msaa_image_viewdesc = {
+        .color_attachment.image = state.msaa_image,
+    };
+    state.msaa_colview = sg_make_view(&msaa_image_viewdesc);
 
     img_desc = (sg_image_desc){
-        .usage.render_attachment = true,
-        .width                   = state.window_width,
-        .height                  = state.window_height,
-        .pixel_format            = SG_PIXELFORMAT_RGBA8,
-        .sample_count            = 1,
-        .label                   = "resolve-image",
+        .usage.resolve_attachment = true,
+        .width                    = state.window_width,
+        .height                   = state.window_height,
+        .pixel_format             = SG_PIXELFORMAT_RGBA8,
+        .sample_count             = 1,
+        .label                    = "resolve-image",
     };
-    state.resolve_image = sg_make_image(&img_desc);
+    state.resolve_image                    = sg_make_image(&img_desc);
+    sg_view_desc resolve_image_colviewdesc = {
+        .resolve_attachment.image = state.resolve_image,
+    };
+    state.resolve_colview                  = sg_make_view(&resolve_image_colviewdesc);
+    sg_view_desc resolve_image_texviewdesc = {
+        .texture.image = state.resolve_image,
+    };
+    state.resolve_texview = sg_make_view(&resolve_image_texviewdesc);
 
-    sg_attachments_desc att_desc = (sg_attachments_desc){
-        .colors[0].image   = state.msaa_image,
-        .resolves[0].image = state.resolve_image,
-        .label             = "offscreen-attachments",
-    };
-    state.offscreen.pass.attachments = sg_make_attachments(&att_desc);
+    state.offscreen.pass.attachments.colors[0]   = state.msaa_colview;
+    state.offscreen.pass.attachments.resolves[0] = state.resolve_colview;
 }
 
 void program_setup()
@@ -138,7 +149,7 @@ void program_setup()
         state.display.bind = (sg_bindings){
             .vertex_buffers[0] = sg_make_buffer(&vbuf_desc),
             .index_buffer      = sg_make_buffer(&ibuf_desc),
-            .images[IMG_tex]   = state.resolve_image,
+            .views[VIEW_tex]   = state.resolve_texview,
             .samplers[SMP_smp] = sg_make_sampler(&smpl_desc)};
 
         sg_pipeline_desc pip_desc;
@@ -159,13 +170,15 @@ void program_event(const sapp_event* e)
         state.window_width  = e->window_width;
         state.window_height = e->window_height;
 
-        sg_destroy_attachments(state.offscreen.pass.attachments);
+        sg_destroy_view(state.resolve_colview);
+        sg_destroy_view(state.resolve_texview);
+        sg_destroy_view(state.msaa_colview);
         sg_destroy_image(state.resolve_image);
         sg_destroy_image(state.msaa_image);
 
         setup_images();
 
-        state.display.bind.images[IMG_tex] = state.resolve_image;
+        state.display.bind.views[VIEW_tex] = state.resolve_texview;
     }
 }
 

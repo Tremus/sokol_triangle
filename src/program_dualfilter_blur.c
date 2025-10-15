@@ -28,10 +28,11 @@ typedef struct
 
 typedef struct Framebuffer
 {
-    sg_image       img;
-    sg_attachments att;
-    int            width;
-    int            height;
+    sg_image img;
+    sg_view  img_texview;
+    sg_view  img_colview;
+    int      width;
+    int      height;
 } Framebuffer;
 
 Framebuffer make_framebuffer(int width, int height)
@@ -41,17 +42,22 @@ Framebuffer make_framebuffer(int width, int height)
     xassert(height > 0);
 
     sg_image img_colour = sg_make_image(&(sg_image_desc){
-        .usage.render_attachment = true,
-        .width                   = width,
-        .height                  = height,
-        .pixel_format            = SG_PIXELFORMAT_BGRA8,
-        .sample_count            = 1,
-        .label                   = "Framebuffer image"});
+        .usage.color_attachment = true,
+        .width                  = width,
+        .height                 = height,
+        .pixel_format           = SG_PIXELFORMAT_BGRA8,
+        .sample_count           = 1,
+        .label                  = "Framebuffer image"});
 
-    rt.img = img_colour;
-    rt.att = sg_make_attachments(&(sg_attachments_desc){.colors[0].image = rt.img, .label = "Framebuffer attachment"});
-    rt.width  = width;
-    rt.height = height;
+    rt.img         = img_colour;
+    rt.img_texview = sg_make_view(&(sg_view_desc){
+        .texture.image = img_colour,
+    });
+    rt.img_colview = sg_make_view(&(sg_view_desc){
+        .color_attachment = img_colour,
+    });
+    rt.width       = width;
+    rt.height      = height;
 
     return rt;
 }
@@ -59,6 +65,7 @@ Framebuffer make_framebuffer(int width, int height)
 typedef struct Image
 {
     sg_image img;
+    sg_view  texview;
     int      width;
     int      height;
 } Image;
@@ -70,14 +77,15 @@ bool load_image_file(const char* path, Image* img)
     print("%s. size %dx%d", path, img->width, img->height);
     xassert(data);
 
-    img->img = sg_make_image(&(sg_image_desc){
-        .width               = img->width,
-        .height              = img->height,
-        .pixel_format        = SG_PIXELFORMAT_RGBA8,
-        .data.subimage[0][0] = {
-            .ptr  = data,
-            .size = 4 * img->width * img->height,
+    img->img     = sg_make_image(&(sg_image_desc){
+            .width              = img->width,
+            .height             = img->height,
+            .pixel_format       = SG_PIXELFORMAT_RGBA8,
+            .data.mip_levels[0] = {
+                .ptr  = data,
+                .size = 4 * img->width * img->height,
         }});
+    img->texview = sg_make_view(&(sg_view_desc){.texture.image = img->img});
 
     free(data);
 
@@ -189,12 +197,13 @@ void do_dualfilter(Framebuffer fb[], size_t N)
 
         sg_begin_pass(&(sg_pass){
             .action = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
-            .attachments = b->att,
-        });
+            .attachments = {
+                .colors[0] = b->img_colview,
+            }});
         sg_apply_pipeline(state.pip_downsample);
         sg_apply_bindings(&(sg_bindings){
-            .images[0]   = a->img,
-            .samplers[0] = state.smp_linear,
+            .views[VIEW_tex] = a->img_texview,
+            .samplers[0]     = state.smp_linear,
         });
         // More numerically stable than 1.0f / a->width
         float           halfpixel_x = 0.5f / b->width;
@@ -212,11 +221,12 @@ void do_dualfilter(Framebuffer fb[], size_t N)
 
         sg_begin_pass(&(sg_pass){
             .action      = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
-            .attachments = b->att,
-        });
+            .attachments = {
+                .colors[0] = b->img_colview,
+            }});
         sg_apply_pipeline(state.pip_upsample);
         sg_apply_bindings(&(sg_bindings){
-            .images[0]   = a->img,
+            .views[0]    = a->img_texview,
             .samplers[0] = state.smp_linear,
         });
         float           halfpixel_x = 0.5f / a->width;
@@ -236,13 +246,13 @@ void program_tick()
     const float lightfilter_threshold = 0.7;
     const float bloom_amount          = 0.5;
 
-    sg_image src_img = state.n64.img; // colourful
-    // sg_image src_img = state.brain.img; // greyscale
+    Image* img = &state.n64;
+    // Image* img = &state.brain;
 
     {
         sg_begin_pass(&(sg_pass){
             .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-            .attachments = state.fb_dualfilter_stages[0].att,
+            .attachments = {.colors[0] = state.fb_dualfilter_stages[0].img_colview},
         });
         if (apply_lightfilter)
             sg_apply_pipeline(state.pip_lightness_filter);
@@ -250,7 +260,7 @@ void program_tick()
             sg_apply_pipeline(state.pip_tex_framebuffer);
 
         sg_apply_bindings(&(sg_bindings){
-            .images[0]   = src_img,
+            .views[0]    = img->texview,
             .samplers[0] = state.smp_nearest,
         });
         if (apply_lightfilter)
@@ -301,9 +311,9 @@ void program_tick()
         sg_apply_pipeline(state.pip_tex_swapchain);
 
     sg_apply_bindings(&(sg_bindings){
-        .images[0]   = state.fb_dualfilter_stages[0].img,
-        .images[1]   = src_img,
-        .samplers[0] = state.smp_nearest,
+        .views[VIEW_tex_wet] = state.fb_dualfilter_stages[0].img_texview,
+        .views[VIEW_tex_dry] = img->texview,
+        .samplers[0]         = state.smp_nearest,
     });
     if (apply_bloom)
     {
