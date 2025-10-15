@@ -1,4 +1,4 @@
-#if defined(SOKOL_IMPL) && ! defined(SOKOL_APP_IMPL)
+#if defined(SOKOL_IMPL) && !defined(SOKOL_APP_IMPL)
 #define SOKOL_APP_IMPL
 #endif
 #ifndef SOKOL_APP_INCLUDED
@@ -27,18 +27,20 @@
 
     Optionally provide the following defines with your own implementations:
 
-        SOKOL_ASSERT(c)     - your own assert macro (default: assert(c))
-        SOKOL_UNREACHABLE() - a guard macro for unreachable code (default: assert(false))
-        SOKOL_WIN32_FORCE_MAIN  - define this on Win32 to use a main() entry point instead of WinMain
-        SOKOL_NO_ENTRY      - define this if sokol_app.h shouldn't "hijack" the main() function
-        SOKOL_APP_API_DECL  - public function declaration prefix (default: extern)
-        SOKOL_API_DECL      - same as SOKOL_APP_API_DECL
-        SOKOL_API_IMPL      - public function implementation prefix (default: -)
+        SOKOL_ASSERT(c)             - your own assert macro (default: assert(c))
+        SOKOL_UNREACHABLE()         - a guard macro for unreachable code (default: assert(false))
+        SOKOL_WIN32_FORCE_MAIN      - define this on Win32 to add a main() entry point
+        SOKOL_WIN32_FORCE_WINMAIN   - define this on Win32 to add a WinMain() entry point (enabled by default unless
+                                      SOKOL_WIN32_FORCE_MAIN or SOKOL_NO_ENTRY is defined)
+        SOKOL_NO_ENTRY              - define this if sokol_app.h shouldn't "hijack" the main() function
+        SOKOL_APP_API_DECL          - public function declaration prefix (default: extern)
+        SOKOL_API_DECL              - same as SOKOL_APP_API_DECL
+        SOKOL_API_IMPL              - public function implementation prefix (default: -)
 
     Optionally define the following to force debug checks and validations
     even in release mode:
 
-        SOKOL_DEBUG         - by default this is defined if _DEBUG is defined
+        SOKOL_DEBUG         - by default this is defined if NDEBUG is not defined
 
     If sokol_app.h is compiled as a DLL, define the following before
     including the declaration or implementation:
@@ -47,6 +49,9 @@
 
     On Windows, SOKOL_DLL will define SOKOL_APP_API_DECL as __declspec(dllexport)
     or __declspec(dllimport) as needed.
+
+    if SOKOL_WIN32_FORCE_MAIN and SOKOL_WIN32_FORCE_WINMAIN are both defined,
+    it is up to the developer to define the desired subsystem.
 
     On Linux, SOKOL_GLCORE can use either GLX or EGL.
     GLX is default, set SOKOL_FORCE_EGL to override.
@@ -60,23 +65,40 @@
 
     Link with the following system libraries:
 
-    - on macOS with Metal: Cocoa, QuartzCore, Metal, MetalKit
-    - on macOS with GL: Cocoa, QuartzCore, OpenGL
-    - on iOS with Metal: Foundation, UIKit, Metal, MetalKit
-    - on iOS with GL: Foundation, UIKit, OpenGLES, GLKit
-    - on Linux with EGL: X11, Xi, Xcursor, EGL, GL (or GLESv2), dl, pthread, m(?)
-    - on Linux with GLX: X11, Xi, Xcursor, GL, dl, pthread, m(?)
+    - on macOS:
+        - all backends: Foundation, Cocoa, QuartzCore
+        - with SOKOL_METAL: Metal, MetalKit
+        - with SOKOL_GLCORE: OpenGL
+        - with SOKOL_WGPU: a WebGPU implementation library (tested with webgpu_dawn)
+    - on iOS:
+        - all backends: Foundation, UIKit
+        - with SOKOL_METAL: Metal, MetalKit
+        - with SOKOL_GLES3: OpenGLES, GLKit
+    - on Linux:
+        - all backends: X11, Xi, Xcursor, dl, pthread, m
+        - with SOKOL_GLCORE: GL
+        - with SOKOL_GLES3: GLESv2
+        - with SOKOL_WGPU: a WebGPU implementation library (tested with webgpu_dawn)
+        - with EGL: EGL
     - on Android: GLESv3, EGL, log, android
-    - on Windows with the MSVC or Clang toolchains: no action needed, libs are defined in-source via pragma-comment-lib
-    - on Windows with MINGW/MSYS2 gcc: compile with '-mwin32' so that _WIN32 is defined
-        - link with the following libs: -lkernel32 -luser32 -lshell32
-        - additionally with the GL backend: -lgdi32
-        - additionally with the D3D11 backend: -ld3d11 -ldxgi
+    - on Windows:
+        - with MSVC or Clang: library dependencies are defined via `#pragma comment`
+        - with SOKOL_WGPU: a WebGPU implementation library (tested with webgpu_dawn)
+        - with MINGW/MSYS2 gcc:
+            - compile with '-mwin32' so that _WIN32 is defined
+            - link with the following libs: -lkernel32 -luser32 -lshell32
+            - additionally with the GL backend: -lgdi32
+            - additionally with the D3D11 backend: -ld3d11 -ldxgi
 
     On Linux, you also need to use the -pthread compiler and linker option, otherwise weird
     things will happen, see here for details: https://github.com/floooh/sokol/issues/376
 
     On macOS and iOS, the implementation must be compiled as Objective-C.
+
+    On Emscripten:
+        - for WebGL2: add the linker option `-s USE_WEBGL2=1`
+        - for WebGPU: compile and link with `--use-port=emdawnwebgpu`
+          (for more exotic situations read: https://dawn.googlesource.com/dawn/+/refs/heads/main/src/emdawnwebgpu/pkg/README.md)
 
     FEATURE OVERVIEW
     ================
@@ -84,20 +106,22 @@
     implements the 'application-wrapper' parts of a 3D application:
 
     - a common application entry function
-    - creates a window and 3D-API context/device with a 'default framebuffer'
+    - creates a window and 3D-API context/device with a swapchain
+      surface, depth-stencil-buffer surface and optionally MSAA surface
     - makes the rendered frame visible
     - provides keyboard-, mouse- and low-level touch-events
     - platforms: MacOS, iOS, HTML5, Win32, Linux/RaspberryPi, Android
-    - 3D-APIs: Metal, D3D11, GL4.1, GL4.3, GLES3, WebGL, WebGL2, NOAPI
+    - 3D-APIs: Metal, D3D11, GL4.1, GL4.3, GLES3, WebGL2, WebGPU, NOAPI
 
     FEATURE/PLATFORM MATRIX
     =======================
                         | Windows | macOS | Linux |  iOS  | Android |  HTML5
     --------------------+---------+-------+-------+-------+---------+--------
-    gl 3.x              | YES     | YES   | YES   | ---   | ---     |  ---
+    gl 4.x              | YES     | YES   | YES   | ---   | ---     |  ---
     gles3/webgl2        | ---     | ---   | YES(2)| YES   | YES     |  YES
     metal               | ---     | YES   | ---   | YES   | ---     |  ---
     d3d11               | YES     | ---   | ---   | ---   | ---     |  ---
+    webgpu              | YES(4)  | YES(4)| YES(4)| NO    | NO      |  YES
     noapi               | YES     | TODO  | TODO  | ---   | TODO    |  ---
     KEY_DOWN            | YES     | YES   | YES   | SOME  | TODO    |  YES
     KEY_UP              | YES     | YES   | YES   | SOME  | TODO    |  YES
@@ -123,7 +147,7 @@
     IME                 | TODO    | TODO? | TODO  | ???   | TODO    |  ???
     key repeat flag     | YES     | YES   | YES   | ---   | ---     |  YES
     windowed            | YES     | YES   | YES   | ---   | ---     |  YES
-    fullscreen          | YES     | YES   | YES   | YES   | YES     |  ---
+    fullscreen          | YES     | YES   | YES   | YES   | YES     |  YES(3)
     mouse hide          | YES     | YES   | YES   | ---   | ---     |  YES
     mouse lock          | YES     | YES   | YES   | ---   | ---     |  YES
     set cursor type     | YES     | YES   | YES   | ---   | ---     |  YES
@@ -137,6 +161,9 @@
 
     (1) macOS has no regular window icons, instead the dock icon is changed
     (2) supported with EGL only (not GLX)
+    (3) fullscreen in the browser not supported on iphones
+    (4) WebGPU on native desktop platforms should be considered experimental
+        and mainly useful for debugging and benchmarking
 
     STEP BY STEP
     ============
@@ -275,10 +302,9 @@
             to various Metal API objects required for rendering, otherwise
             they return a null pointer. These void pointers are actually
             Objective-C ids converted with a (ARC) __bridge cast so that
-            the ids can be tunnel through C code. Also note that the returned
-            pointers to the renderpass-descriptor and drawable may change from one
-            frame to the next, only the Metal device object is guaranteed to
-            stay the same.
+            the ids can be tunneled through C code. Also note that the returned
+            pointers may change from one frame to the next, only the Metal device
+            object is guaranteed to stay the same.
 
         const void* sapp_macos_get_window(void)
             On macOS, get the NSWindow object pointer, otherwise a null pointer.
@@ -307,6 +333,16 @@
             HWND has been cast to a void pointer in order to be tunneled
             through code which doesn't include Windows.h.
 
+        const void* sapp_x11_get_window(void)
+            On Linux, get the X11 Window, otherwise a null pointer. The
+            Window has been cast to a void pointer in order to be tunneled
+            through code which doesn't include X11/Xlib.h.
+
+        const void* sapp_x11_get_display(void)
+            On Linux, get the X11 Display, otherwise a null pointer. The
+            Display has been cast to a void pointer in order to be tunneled
+            through code which doesn't include X11/Xlib.h.
+
         const void* sapp_wgpu_get_device(void)
         const void* sapp_wgpu_get_render_view(void)
         const void* sapp_wgpu_get_resolve_view(void)
@@ -321,8 +357,9 @@
 
         int sapp_gl_get_major_version(void)
         int sapp_gl_get_minor_version(void)
-            Returns the major and minor version of the GL context
-            (only for SOKOL_GLCORE, all other backends return zero here, including SOKOL_GLES3)
+        bool sapp_gl_is_gles(void)
+            Returns the major and minor version of the GL context and
+            whether the GL context is a GLES context
 
         const void* sapp_android_get_native_activity(void);
             On Android, get the native activity ANativeActivity pointer, otherwise
@@ -338,7 +375,8 @@
     --- Optionally implement the event-callback to handle input events.
         sokol-app provides the following type of input events:
             - a 'virtual key' was pressed down or released
-            - a single text character was entered (provided as UTF-32 code point)
+            - a single text character was entered (provided as UTF-32 encoded
+              UNICODE code point)
             - a mouse button was pressed down or released (left, right, middle)
             - mouse-wheel or 2D scrolling events
             - the mouse was moved
@@ -428,14 +466,15 @@
 
         if (sapp_mouse_locked()) { ... }
 
-    On native platforms, the sapp_lock_mouse() and sapp_mouse_locked()
-    functions work as expected (mouse lock is activated or deactivated
-    immediately when sapp_lock_mouse() is called, and sapp_mouse_locked()
-    also immediately returns the new state after sapp_lock_mouse()
-    is called.
+    Note that mouse-lock state may not change immediately after sapp_lock_mouse(true/false)
+    is called, instead on some platforms the actual state switch may be delayed
+    to the end of the current frame or even to a later frame.
 
-    On the web platform, sapp_lock_mouse() and sapp_mouse_locked() behave
-    differently, as dictated by the limitations of the HTML5 Pointer Lock API:
+    The mouse may also be unlocked automatically without calling sapp_lock_mouse(false),
+    most notably when the application window becomes inactive.
+
+    On the web platform there are further restrictions to be aware of, caused
+    by the limitations of the HTML5 Pointer Lock API:
 
         - sapp_lock_mouse(true) can be called at any time, but it will
           only take effect in a 'short-lived input event handler of a specific
@@ -485,6 +524,13 @@
                 default:
                     break;
             }
+        }
+
+    For a 'first person shooter mouse' the following code inside the sokol-app event handler
+    is recommended somewhere in your frame callback:
+
+        if (!sapp_mouse_locked()) {
+            sapp_lock_mouse(true);
         }
 
     CLIPBOARD SUPPORT
@@ -657,8 +703,7 @@
                 const size_t num_bytes = response->data.size;
                 // and the pointer to the data (same as 'buf' in the fetch-call):
                 const void* ptr = response->data.ptr;
-            }
-            else {
+            } else {
                 // on error check the error code:
                 switch (response->error_code) {
                     case SAPP_HTML5_FETCH_ERROR_BUFFER_TOO_SMALL:
@@ -835,6 +880,15 @@
     To check if the application window is currently in fullscreen mode,
     call sapp_is_fullscreen().
 
+    On the web, sapp_desc.fullscreen will have no effect, and the application
+    will always start in non-fullscreen mode. Call sapp_toggle_fullscreen()
+    from within or 'near' an input event to switch to fullscreen programatically.
+    Note that on the web, the fullscreen state may change back to windowed at
+    any time (either because the browser had rejected switching into fullscreen,
+    or the user leaves fullscreen via Esc), this means that the result
+    of sapp_is_fullscreen() may change also without calling sapp_toggle_fullscreen()!
+
+
     WINDOW ICON SUPPORT
     ===================
     Some sokol_app.h backends allow to change the window icon programmatically:
@@ -844,6 +898,8 @@
         - on Linux: highly dependent on the used window manager, but usually
           the window's title bar icon and/or the task bar icon
         - on HTML5: the favicon shown in the page's browser tab
+        - on macOS: the application icon shown in the dock, but only
+          for currently running applications
 
     NOTE that it is not possible to set the actual application icon which is
     displayed by the operating system on the desktop or 'home screen'. Those
@@ -974,7 +1030,7 @@
       the browser will not generate UNICODE character events)
     - all other key events *do not* bubble up by default (this prevents side effects
       like F1 opening help, or F7 starting 'caret browsing')
-    - character events do no bubble up (although I haven't noticed any side effects
+    - character events do not bubble up (although I haven't noticed any side effects
       otherwise)
 
     Event bubbling can be enabled for input event categories during initialization
@@ -991,9 +1047,91 @@
             };
         }
 
-    This basically opens the floodgates lets *all* input events bubble up to the browser.
+    This basically opens the floodgates and lets *all* input events bubble up to the browser.
+
     To prevent individual events from bubbling, call sapp_consume_event() from within
-    the sokol_app.h event callback.
+    the sokol_app.h event callback when that specific event is reported.
+
+
+    SETTING THE CANVAS OBJECT ON THE WEB PLATFORM
+    =============================================
+    On the web, sokol_app.h and the Emscripten SDK functions need to find
+    the WebGL/WebGPU canvas intended for rendering and attaching event
+    handlers. This can happen in four ways:
+
+    1. do nothing and just set the id of the canvas object to 'canvas' (preferred)
+    2. via a CSS Selector string (preferred)
+    3. by setting the `Module.canvas` property to the canvas object
+    4. by adding the canvas object to the global variable `specialHTMLTargets[]`
+       (this is a special variable used by the Emscripten runtime to lookup
+       event target objects for which document.querySelector() cannot be used)
+
+    The easiest way is to just name your canvas object 'canvas':
+
+        <canvas id="canvas" ...></canvas>
+
+    This works because the default css selector string used by sokol_app.h
+    is '#canvas'.
+
+    If you name your canvas differently, you need to communicate that name to
+    sokol_app.h via `sapp_desc.html5_canvas_selector` as a regular css selector
+    string that's compatible with `document.querySelector()`. E.g. if your canvas
+    object looks like this:
+
+        <canvas id="bla" ...></canvas>
+
+    The `sapp_desc.html5_canvas_selector` string must be set to '#bla':
+
+        .html5_canvas_selector = "#bla"
+
+    If the canvas object cannot be looked up via `document.querySelector()` you
+    need to use one of the alternative methods, both involve the special
+    Emscripten runtime `Module` object which is usually setup in the index.html
+    like this before the WASM blob is loaded and instantiated:
+
+        <script type='text/javascript'>
+            var Module = {
+                // ...
+            };
+        </script>
+
+    The first option is to set the `Module.canvas` property to your canvas object:
+
+        <script type='text/javascript'>
+            var Module = {
+                canvas: my_canvas_object,
+            };
+        </script>
+
+    When sokol_app.h initializes, it will check the global Module object whether
+    a `Module.canvas` property exists and is an object. This method will add
+    a new entry to the `specialHTMLTargets[]` object
+
+    The other option is to add the canvas under a name chosen by you to the
+    special `specialHTMLTargets[]` map, which is used by the Emscripten runtime
+    to lookup 'event target objects' which are not visible to `document.querySelector()`.
+    Note that `specialHTMLTargets[]` must be updated after the Emscripten runtime
+    has started but before the WASM code is running. A good place for this is
+    the special `Module.preRun` array in index.html:
+
+        <script type='text/javascript'>
+            var Module = {
+                preRun: [
+                    () => {
+                        specialHTMLTargets['my_canvas'] = my_canvas_object;
+                    }
+                ],
+            };
+        </script>
+
+    In that case, pass the same string to sokol_app.h which is used as key
+    in the specialHTMLTargets[] map:
+
+        .html5_canvas_selector = "my_canvas"
+
+    If sokol_app.h can't find your canvas for some reason check for warning
+    messages on the browser console.
+
 
     OPTIONAL: DON'T HIJACK main() (#define SOKOL_NO_ENTRY)
     ======================================================
@@ -1144,7 +1282,6 @@
     the standard logger in sokol_log.h instead, otherwise you won't see any warnings or
     errors.
 
-
     TEMP NOTE DUMP
     ==============
     - sapp_desc needs a bool whether to initialize depth-stencil surface
@@ -1180,11 +1317,11 @@
         distribution.
 */
 #define SOKOL_APP_INCLUDED (1)
-#include <stdbool.h>
 #include <stddef.h> // size_t
 #include <stdint.h>
+#include <stdbool.h>
 
-#if defined(SOKOL_API_DECL) && ! defined(SOKOL_APP_API_DECL)
+#if defined(SOKOL_API_DECL) && !defined(SOKOL_APP_API_DECL)
 #define SOKOL_APP_API_DECL SOKOL_API_DECL
 #endif
 #ifndef SOKOL_APP_API_DECL
@@ -1202,12 +1339,11 @@ extern "C" {
 #endif
 
 /* misc constants */
-enum
-{
-    SAPP_MAX_TOUCHPOINTS  = 8,
+enum {
+    SAPP_MAX_TOUCHPOINTS = 8,
     SAPP_MAX_MOUSEBUTTONS = 3,
-    SAPP_MAX_KEYCODES     = 512,
-    SAPP_MAX_ICONIMAGES   = 8,
+    SAPP_MAX_KEYCODES = 512,
+    SAPP_MAX_ICONIMAGES = 8,
 };
 
 /*
@@ -1218,8 +1354,7 @@ enum
     input events, but also notify the application about state changes
     or other user-invoked actions.
 */
-typedef enum sapp_event_type
-{
+typedef enum sapp_event_type {
     SAPP_EVENTTYPE_INVALID,
     SAPP_EVENTTYPE_KEY_DOWN,
     SAPP_EVENTTYPE_KEY_UP,
@@ -1256,129 +1391,128 @@ typedef enum sapp_event_type
 
     Note that the keycode values are identical with GLFW.
 */
-typedef enum sapp_keycode
-{
-    SAPP_KEYCODE_INVALID       = 0,
-    SAPP_KEYCODE_SPACE         = 32,
-    SAPP_KEYCODE_APOSTROPHE    = 39, /* ' */
-    SAPP_KEYCODE_COMMA         = 44, /* , */
-    SAPP_KEYCODE_MINUS         = 45, /* - */
-    SAPP_KEYCODE_PERIOD        = 46, /* . */
-    SAPP_KEYCODE_SLASH         = 47, /* / */
-    SAPP_KEYCODE_0             = 48,
-    SAPP_KEYCODE_1             = 49,
-    SAPP_KEYCODE_2             = 50,
-    SAPP_KEYCODE_3             = 51,
-    SAPP_KEYCODE_4             = 52,
-    SAPP_KEYCODE_5             = 53,
-    SAPP_KEYCODE_6             = 54,
-    SAPP_KEYCODE_7             = 55,
-    SAPP_KEYCODE_8             = 56,
-    SAPP_KEYCODE_9             = 57,
-    SAPP_KEYCODE_SEMICOLON     = 59, /* ; */
-    SAPP_KEYCODE_EQUAL         = 61, /* = */
-    SAPP_KEYCODE_A             = 65,
-    SAPP_KEYCODE_B             = 66,
-    SAPP_KEYCODE_C             = 67,
-    SAPP_KEYCODE_D             = 68,
-    SAPP_KEYCODE_E             = 69,
-    SAPP_KEYCODE_F             = 70,
-    SAPP_KEYCODE_G             = 71,
-    SAPP_KEYCODE_H             = 72,
-    SAPP_KEYCODE_I             = 73,
-    SAPP_KEYCODE_J             = 74,
-    SAPP_KEYCODE_K             = 75,
-    SAPP_KEYCODE_L             = 76,
-    SAPP_KEYCODE_M             = 77,
-    SAPP_KEYCODE_N             = 78,
-    SAPP_KEYCODE_O             = 79,
-    SAPP_KEYCODE_P             = 80,
-    SAPP_KEYCODE_Q             = 81,
-    SAPP_KEYCODE_R             = 82,
-    SAPP_KEYCODE_S             = 83,
-    SAPP_KEYCODE_T             = 84,
-    SAPP_KEYCODE_U             = 85,
-    SAPP_KEYCODE_V             = 86,
-    SAPP_KEYCODE_W             = 87,
-    SAPP_KEYCODE_X             = 88,
-    SAPP_KEYCODE_Y             = 89,
-    SAPP_KEYCODE_Z             = 90,
-    SAPP_KEYCODE_LEFT_BRACKET  = 91,  /* [ */
-    SAPP_KEYCODE_BACKSLASH     = 92,  /* \ */
-    SAPP_KEYCODE_RIGHT_BRACKET = 93,  /* ] */
-    SAPP_KEYCODE_GRAVE_ACCENT  = 96,  /* ` */
-    SAPP_KEYCODE_WORLD_1       = 161, /* non-US #1 */
-    SAPP_KEYCODE_WORLD_2       = 162, /* non-US #2 */
-    SAPP_KEYCODE_ESCAPE        = 256,
-    SAPP_KEYCODE_ENTER         = 257,
-    SAPP_KEYCODE_TAB           = 258,
-    SAPP_KEYCODE_BACKSPACE     = 259,
-    SAPP_KEYCODE_INSERT        = 260,
-    SAPP_KEYCODE_DELETE        = 261,
-    SAPP_KEYCODE_RIGHT         = 262,
-    SAPP_KEYCODE_LEFT          = 263,
-    SAPP_KEYCODE_DOWN          = 264,
-    SAPP_KEYCODE_UP            = 265,
-    SAPP_KEYCODE_PAGE_UP       = 266,
-    SAPP_KEYCODE_PAGE_DOWN     = 267,
-    SAPP_KEYCODE_HOME          = 268,
-    SAPP_KEYCODE_END           = 269,
-    SAPP_KEYCODE_CAPS_LOCK     = 280,
-    SAPP_KEYCODE_SCROLL_LOCK   = 281,
-    SAPP_KEYCODE_NUM_LOCK      = 282,
-    SAPP_KEYCODE_PRINT_SCREEN  = 283,
-    SAPP_KEYCODE_PAUSE         = 284,
-    SAPP_KEYCODE_F1            = 290,
-    SAPP_KEYCODE_F2            = 291,
-    SAPP_KEYCODE_F3            = 292,
-    SAPP_KEYCODE_F4            = 293,
-    SAPP_KEYCODE_F5            = 294,
-    SAPP_KEYCODE_F6            = 295,
-    SAPP_KEYCODE_F7            = 296,
-    SAPP_KEYCODE_F8            = 297,
-    SAPP_KEYCODE_F9            = 298,
-    SAPP_KEYCODE_F10           = 299,
-    SAPP_KEYCODE_F11           = 300,
-    SAPP_KEYCODE_F12           = 301,
-    SAPP_KEYCODE_F13           = 302,
-    SAPP_KEYCODE_F14           = 303,
-    SAPP_KEYCODE_F15           = 304,
-    SAPP_KEYCODE_F16           = 305,
-    SAPP_KEYCODE_F17           = 306,
-    SAPP_KEYCODE_F18           = 307,
-    SAPP_KEYCODE_F19           = 308,
-    SAPP_KEYCODE_F20           = 309,
-    SAPP_KEYCODE_F21           = 310,
-    SAPP_KEYCODE_F22           = 311,
-    SAPP_KEYCODE_F23           = 312,
-    SAPP_KEYCODE_F24           = 313,
-    SAPP_KEYCODE_F25           = 314,
-    SAPP_KEYCODE_KP_0          = 320,
-    SAPP_KEYCODE_KP_1          = 321,
-    SAPP_KEYCODE_KP_2          = 322,
-    SAPP_KEYCODE_KP_3          = 323,
-    SAPP_KEYCODE_KP_4          = 324,
-    SAPP_KEYCODE_KP_5          = 325,
-    SAPP_KEYCODE_KP_6          = 326,
-    SAPP_KEYCODE_KP_7          = 327,
-    SAPP_KEYCODE_KP_8          = 328,
-    SAPP_KEYCODE_KP_9          = 329,
-    SAPP_KEYCODE_KP_DECIMAL    = 330,
-    SAPP_KEYCODE_KP_DIVIDE     = 331,
-    SAPP_KEYCODE_KP_MULTIPLY   = 332,
-    SAPP_KEYCODE_KP_SUBTRACT   = 333,
-    SAPP_KEYCODE_KP_ADD        = 334,
-    SAPP_KEYCODE_KP_ENTER      = 335,
-    SAPP_KEYCODE_KP_EQUAL      = 336,
-    SAPP_KEYCODE_LEFT_SHIFT    = 340,
-    SAPP_KEYCODE_LEFT_CONTROL  = 341,
-    SAPP_KEYCODE_LEFT_ALT      = 342,
-    SAPP_KEYCODE_LEFT_SUPER    = 343,
-    SAPP_KEYCODE_RIGHT_SHIFT   = 344,
-    SAPP_KEYCODE_RIGHT_CONTROL = 345,
-    SAPP_KEYCODE_RIGHT_ALT     = 346,
-    SAPP_KEYCODE_RIGHT_SUPER   = 347,
-    SAPP_KEYCODE_MENU          = 348,
+typedef enum sapp_keycode {
+    SAPP_KEYCODE_INVALID          = 0,
+    SAPP_KEYCODE_SPACE            = 32,
+    SAPP_KEYCODE_APOSTROPHE       = 39,  /* ' */
+    SAPP_KEYCODE_COMMA            = 44,  /* , */
+    SAPP_KEYCODE_MINUS            = 45,  /* - */
+    SAPP_KEYCODE_PERIOD           = 46,  /* . */
+    SAPP_KEYCODE_SLASH            = 47,  /* / */
+    SAPP_KEYCODE_0                = 48,
+    SAPP_KEYCODE_1                = 49,
+    SAPP_KEYCODE_2                = 50,
+    SAPP_KEYCODE_3                = 51,
+    SAPP_KEYCODE_4                = 52,
+    SAPP_KEYCODE_5                = 53,
+    SAPP_KEYCODE_6                = 54,
+    SAPP_KEYCODE_7                = 55,
+    SAPP_KEYCODE_8                = 56,
+    SAPP_KEYCODE_9                = 57,
+    SAPP_KEYCODE_SEMICOLON        = 59,  /* ; */
+    SAPP_KEYCODE_EQUAL            = 61,  /* = */
+    SAPP_KEYCODE_A                = 65,
+    SAPP_KEYCODE_B                = 66,
+    SAPP_KEYCODE_C                = 67,
+    SAPP_KEYCODE_D                = 68,
+    SAPP_KEYCODE_E                = 69,
+    SAPP_KEYCODE_F                = 70,
+    SAPP_KEYCODE_G                = 71,
+    SAPP_KEYCODE_H                = 72,
+    SAPP_KEYCODE_I                = 73,
+    SAPP_KEYCODE_J                = 74,
+    SAPP_KEYCODE_K                = 75,
+    SAPP_KEYCODE_L                = 76,
+    SAPP_KEYCODE_M                = 77,
+    SAPP_KEYCODE_N                = 78,
+    SAPP_KEYCODE_O                = 79,
+    SAPP_KEYCODE_P                = 80,
+    SAPP_KEYCODE_Q                = 81,
+    SAPP_KEYCODE_R                = 82,
+    SAPP_KEYCODE_S                = 83,
+    SAPP_KEYCODE_T                = 84,
+    SAPP_KEYCODE_U                = 85,
+    SAPP_KEYCODE_V                = 86,
+    SAPP_KEYCODE_W                = 87,
+    SAPP_KEYCODE_X                = 88,
+    SAPP_KEYCODE_Y                = 89,
+    SAPP_KEYCODE_Z                = 90,
+    SAPP_KEYCODE_LEFT_BRACKET     = 91,  /* [ */
+    SAPP_KEYCODE_BACKSLASH        = 92,  /* \ */
+    SAPP_KEYCODE_RIGHT_BRACKET    = 93,  /* ] */
+    SAPP_KEYCODE_GRAVE_ACCENT     = 96,  /* ` */
+    SAPP_KEYCODE_WORLD_1          = 161, /* non-US #1 */
+    SAPP_KEYCODE_WORLD_2          = 162, /* non-US #2 */
+    SAPP_KEYCODE_ESCAPE           = 256,
+    SAPP_KEYCODE_ENTER            = 257,
+    SAPP_KEYCODE_TAB              = 258,
+    SAPP_KEYCODE_BACKSPACE        = 259,
+    SAPP_KEYCODE_INSERT           = 260,
+    SAPP_KEYCODE_DELETE           = 261,
+    SAPP_KEYCODE_RIGHT            = 262,
+    SAPP_KEYCODE_LEFT             = 263,
+    SAPP_KEYCODE_DOWN             = 264,
+    SAPP_KEYCODE_UP               = 265,
+    SAPP_KEYCODE_PAGE_UP          = 266,
+    SAPP_KEYCODE_PAGE_DOWN        = 267,
+    SAPP_KEYCODE_HOME             = 268,
+    SAPP_KEYCODE_END              = 269,
+    SAPP_KEYCODE_CAPS_LOCK        = 280,
+    SAPP_KEYCODE_SCROLL_LOCK      = 281,
+    SAPP_KEYCODE_NUM_LOCK         = 282,
+    SAPP_KEYCODE_PRINT_SCREEN     = 283,
+    SAPP_KEYCODE_PAUSE            = 284,
+    SAPP_KEYCODE_F1               = 290,
+    SAPP_KEYCODE_F2               = 291,
+    SAPP_KEYCODE_F3               = 292,
+    SAPP_KEYCODE_F4               = 293,
+    SAPP_KEYCODE_F5               = 294,
+    SAPP_KEYCODE_F6               = 295,
+    SAPP_KEYCODE_F7               = 296,
+    SAPP_KEYCODE_F8               = 297,
+    SAPP_KEYCODE_F9               = 298,
+    SAPP_KEYCODE_F10              = 299,
+    SAPP_KEYCODE_F11              = 300,
+    SAPP_KEYCODE_F12              = 301,
+    SAPP_KEYCODE_F13              = 302,
+    SAPP_KEYCODE_F14              = 303,
+    SAPP_KEYCODE_F15              = 304,
+    SAPP_KEYCODE_F16              = 305,
+    SAPP_KEYCODE_F17              = 306,
+    SAPP_KEYCODE_F18              = 307,
+    SAPP_KEYCODE_F19              = 308,
+    SAPP_KEYCODE_F20              = 309,
+    SAPP_KEYCODE_F21              = 310,
+    SAPP_KEYCODE_F22              = 311,
+    SAPP_KEYCODE_F23              = 312,
+    SAPP_KEYCODE_F24              = 313,
+    SAPP_KEYCODE_F25              = 314,
+    SAPP_KEYCODE_KP_0             = 320,
+    SAPP_KEYCODE_KP_1             = 321,
+    SAPP_KEYCODE_KP_2             = 322,
+    SAPP_KEYCODE_KP_3             = 323,
+    SAPP_KEYCODE_KP_4             = 324,
+    SAPP_KEYCODE_KP_5             = 325,
+    SAPP_KEYCODE_KP_6             = 326,
+    SAPP_KEYCODE_KP_7             = 327,
+    SAPP_KEYCODE_KP_8             = 328,
+    SAPP_KEYCODE_KP_9             = 329,
+    SAPP_KEYCODE_KP_DECIMAL       = 330,
+    SAPP_KEYCODE_KP_DIVIDE        = 331,
+    SAPP_KEYCODE_KP_MULTIPLY      = 332,
+    SAPP_KEYCODE_KP_SUBTRACT      = 333,
+    SAPP_KEYCODE_KP_ADD           = 334,
+    SAPP_KEYCODE_KP_ENTER         = 335,
+    SAPP_KEYCODE_KP_EQUAL         = 336,
+    SAPP_KEYCODE_LEFT_SHIFT       = 340,
+    SAPP_KEYCODE_LEFT_CONTROL     = 341,
+    SAPP_KEYCODE_LEFT_ALT         = 342,
+    SAPP_KEYCODE_LEFT_SUPER       = 343,
+    SAPP_KEYCODE_RIGHT_SHIFT      = 344,
+    SAPP_KEYCODE_RIGHT_CONTROL    = 345,
+    SAPP_KEYCODE_RIGHT_ALT        = 346,
+    SAPP_KEYCODE_RIGHT_SUPER      = 347,
+    SAPP_KEYCODE_MENU             = 348,
 } sapp_keycode;
 
 /*
@@ -1391,12 +1525,11 @@ typedef enum sapp_keycode
 
     See https://developer.android.com/reference/android/view/MotionEvent#TOOL_TYPE_UNKNOWN
 */
-typedef enum sapp_android_tooltype
-{
-    SAPP_ANDROIDTOOLTYPE_UNKNOWN = 0, // TOOL_TYPE_UNKNOWN
-    SAPP_ANDROIDTOOLTYPE_FINGER  = 1, // TOOL_TYPE_FINGER
-    SAPP_ANDROIDTOOLTYPE_STYLUS  = 2, // TOOL_TYPE_STYLUS
-    SAPP_ANDROIDTOOLTYPE_MOUSE   = 3, // TOOL_TYPE_MOUSE
+typedef enum sapp_android_tooltype {
+    SAPP_ANDROIDTOOLTYPE_UNKNOWN = 0,   // TOOL_TYPE_UNKNOWN
+    SAPP_ANDROIDTOOLTYPE_FINGER = 1,    // TOOL_TYPE_FINGER
+    SAPP_ANDROIDTOOLTYPE_STYLUS = 2,    // TOOL_TYPE_STYLUS
+    SAPP_ANDROIDTOOLTYPE_MOUSE = 3,     // TOOL_TYPE_MOUSE
 } sapp_android_tooltype;
 
 /*
@@ -1408,13 +1541,12 @@ typedef enum sapp_android_tooltype
     Touch points are stored in the nested array sapp_event.touches[],
     and the number of touches is stored in sapp_event.num_touches.
 */
-typedef struct sapp_touchpoint
-{
-    uintptr_t             identifier;
-    float                 pos_x;
-    float                 pos_y;
+typedef struct sapp_touchpoint {
+    uintptr_t identifier;
+    float pos_x;
+    float pos_y;
     sapp_android_tooltype android_tooltype; // only valid on Android
-    bool                  changed;
+    bool changed;
 } sapp_touchpoint;
 
 /*
@@ -1423,11 +1555,10 @@ typedef struct sapp_touchpoint
     The currently pressed mouse button in the events MOUSE_DOWN
     and MOUSE_UP, stored in the struct field sapp_event.mouse_button.
 */
-typedef enum sapp_mousebutton
-{
-    SAPP_MOUSEBUTTON_LEFT    = 0x0,
-    SAPP_MOUSEBUTTON_RIGHT   = 0x1,
-    SAPP_MOUSEBUTTON_MIDDLE  = 0x2,
+typedef enum sapp_mousebutton {
+    SAPP_MOUSEBUTTON_LEFT = 0x0,
+    SAPP_MOUSEBUTTON_RIGHT = 0x1,
+    SAPP_MOUSEBUTTON_MIDDLE = 0x2,
     SAPP_MOUSEBUTTON_INVALID = 0x100,
 } sapp_mousebutton;
 
@@ -1435,15 +1566,14 @@ typedef enum sapp_mousebutton
     These are currently pressed modifier keys (and mouse buttons) which are
     passed in the event struct field sapp_event.modifiers.
 */
-enum
-{
-    SAPP_MODIFIER_SHIFT = 0x1,   // left or right shift key
-    SAPP_MODIFIER_CTRL  = 0x2,   // left or right control key
-    SAPP_MODIFIER_ALT   = 0x4,   // left or right alt key
-    SAPP_MODIFIER_SUPER = 0x8,   // left or right 'super' key
-    SAPP_MODIFIER_LMB   = 0x100, // left mouse button
-    SAPP_MODIFIER_RMB   = 0x200, // right mouse button
-    SAPP_MODIFIER_MMB   = 0x400, // middle mouse button
+enum {
+    SAPP_MODIFIER_SHIFT = 0x1,      // left or right shift key
+    SAPP_MODIFIER_CTRL  = 0x2,      // left or right control key
+    SAPP_MODIFIER_ALT   = 0x4,      // left or right alt key
+    SAPP_MODIFIER_SUPER = 0x8,      // left or right 'super' key
+    SAPP_MODIFIER_LMB   = 0x100,    // left mouse button
+    SAPP_MODIFIER_RMB   = 0x200,    // right mouse button
+    SAPP_MODIFIER_MMB   = 0x400,    // middle mouse button
 };
 
 /*
@@ -1455,29 +1585,26 @@ enum
     should first check the event type before reading other struct
     fields.
 */
-typedef struct sapp_event
-{
-    uint64_t frame_count;  // current frame counter, always valid, useful for checking if two events were issued in the
-                           // same frame
-    sapp_event_type  type; // the event type, always valid
-    sapp_keycode     key_code;     // the virtual key code, only valid in KEY_UP, KEY_DOWN
-    uint32_t         char_code;    // the UTF-32 character code, only valid in CHAR events
-    bool             key_repeat;   // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
-    uint32_t         modifiers;    // current modifier keys, valid in all key-, char- and mouse-events
-    sapp_mousebutton mouse_button; // mouse button that was pressed or released, valid in MOUSE_DOWN, MOUSE_UP
-    float            mouse_x;      // current horizontal mouse position in pixels, always valid except during mouse lock
-    float            mouse_y;      // current vertical mouse position in pixels, always valid except during mouse lock
-    float            mouse_dx;     // relative horizontal mouse movement since last frame, always valid
-    float            mouse_dy;     // relative vertical mouse movement since last frame, always valid
-    float            scroll_x;     // horizontal mouse wheel scroll distance, valid in MOUSE_SCROLL events
-    float            scroll_y;     // vertical mouse wheel scroll distance, valid in MOUSE_SCROLL events
-    int              num_touches;  // number of valid items in the touches[] array
-    sapp_touchpoint
-        touches[SAPP_MAX_TOUCHPOINTS]; // current touch points, valid in TOUCHES_BEGIN, TOUCHES_MOVED, TOUCHES_ENDED
-    int window_width;                  // current window- and framebuffer sizes in pixels, always valid
+typedef struct sapp_event {
+    uint64_t frame_count;               // current frame counter, always valid, useful for checking if two events were issued in the same frame
+    sapp_event_type type;               // the event type, always valid
+    sapp_keycode key_code;              // the virtual key code, only valid in KEY_UP, KEY_DOWN
+    uint32_t char_code;                 // the UTF-32 character code, only valid in CHAR events
+    bool key_repeat;                    // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
+    uint32_t modifiers;                 // current modifier keys, valid in all key-, char- and mouse-events
+    sapp_mousebutton mouse_button;      // mouse button that was pressed or released, valid in MOUSE_DOWN, MOUSE_UP
+    float mouse_x;                      // current horizontal mouse position in pixels, always valid except during mouse lock
+    float mouse_y;                      // current vertical mouse position in pixels, always valid except during mouse lock
+    float mouse_dx;                     // relative horizontal mouse movement since last frame, always valid
+    float mouse_dy;                     // relative vertical mouse movement since last frame, always valid
+    float scroll_x;                     // horizontal mouse wheel scroll distance, valid in MOUSE_SCROLL events
+    float scroll_y;                     // vertical mouse wheel scroll distance, valid in MOUSE_SCROLL events
+    int num_touches;                    // number of valid items in the touches[] array
+    sapp_touchpoint touches[SAPP_MAX_TOUCHPOINTS];  // current touch points, valid in TOUCHES_BEGIN, TOUCHES_MOVED, TOUCHES_ENDED
+    int window_width;                   // current window- and framebuffer sizes in pixels, always valid
     int window_height;
-    int framebuffer_width;  // = window_width * dpi_scale
-    int framebuffer_height; // = window_height * dpi_scale
+    int framebuffer_width;              // = window_width * dpi_scale
+    int framebuffer_height;             // = window_height * dpi_scale
 } sapp_event;
 
 /*
@@ -1486,39 +1613,36 @@ typedef struct sapp_event
     A general pointer/size-pair struct and constructor macros for passing binary blobs
     into sokol_app.h.
 */
-typedef struct sapp_range
-{
+typedef struct sapp_range {
     const void* ptr;
-    size_t      size;
+    size_t size;
 } sapp_range;
 // disabling this for every includer isn't great, but the warnings are also quite pointless
 #if defined(_MSC_VER)
-#pragma warning(disable : 4221) /* /W4 only: nonstandard extension used: 'x': cannot be initialized using address of   \
-                                   automatic variable 'y' */
-#pragma warning(disable : 4204) /* VS2015: nonstandard extension used: non-constant aggregate initializer */
+#pragma warning(disable:4221)   /* /W4 only: nonstandard extension used: 'x': cannot be initialized using address of automatic variable 'y' */
+#pragma warning(disable:4204)   /* VS2015: nonstandard extension used: non-constant aggregate initializer */
 #endif
 #if defined(__cplusplus)
-#define SAPP_RANGE(x)                                                                                                  \
-    sapp_range { &x, sizeof(x) }
+#define SAPP_RANGE(x) sapp_range{ &x, sizeof(x) }
 #else
-#define SAPP_RANGE(x)                                                                                                  \
-    (sapp_range) { &x, sizeof(x) }
+#define SAPP_RANGE(x) (sapp_range){ &x, sizeof(x) }
 #endif
 
 /*
     sapp_image_desc
 
-    This is used to describe image data to sokol_app.h (at first, window
-    icons, later maybe cursor images).
+    This is used to describe image data to sokol_app.h (window icons and cursor images).
 
-    Note that the actual image pixel format depends on the use case:
+    The pixel format is RGBA8.
 
-    - window icon pixels are RGBA8
+    cursor_hotspot_x and _y are used only for cursors, to define which pixel
+    of the image should be aligned with the mouse position.
 */
-typedef struct sapp_image_desc
-{
-    int        width;
-    int        height;
+typedef struct sapp_image_desc {
+    int width;
+    int height;
+    int cursor_hotspot_x;
+    int cursor_hotspot_y;
     sapp_range pixels;
 } sapp_image_desc;
 
@@ -1540,9 +1664,8 @@ typedef struct sapp_image_desc
     If both the sokol_default flag is set to true, any image candidates
     will be ignored and the sokol_app.h default icon will be set.
 */
-typedef struct sapp_icon_desc
-{
-    bool            sokol_default;
+typedef struct sapp_icon_desc {
+    bool sokol_default;
     sapp_image_desc images[SAPP_MAX_ICONIMAGES];
 } sapp_icon_desc;
 
@@ -1554,8 +1677,7 @@ typedef struct sapp_icon_desc
     alloc_fn and free_fn function must be provided (e.g. it's not valid to
     override one function but not the other).
 */
-typedef struct sapp_allocator
-{
+typedef struct sapp_allocator {
     void* (*alloc_fn)(size_t size, void* user_data);
     void (*free_fn)(void* ptr, void* user_data);
     void* user_data;
@@ -1568,150 +1690,114 @@ typedef struct sapp_allocator
     'sapp_log_item', and in debug mode to corresponding
     human readable error messages.
 */
-#define _SAPP_LOG_ITEMS                                                                                                \
-    _SAPP_LOGITEM_XMACRO(OK, "Ok")                                                                                     \
-    _SAPP_LOGITEM_XMACRO(MALLOC_FAILED, "memory allocation failed")                                                    \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        MACOS_INVALID_NSOPENGL_PROFILE,                                                                                \
-        "macos: invalid NSOpenGLProfile (valid choices are 1.0 and 4.1)")                                              \
-    _SAPP_LOGITEM_XMACRO(WIN32_LOAD_OPENGL32_DLL_FAILED, "failed loading opengl32.dll")                                \
-    _SAPP_LOGITEM_XMACRO(WIN32_CREATE_HELPER_WINDOW_FAILED, "failed to create helper window")                          \
-    _SAPP_LOGITEM_XMACRO(WIN32_HELPER_WINDOW_GETDC_FAILED, "failed to get helper window DC")                           \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WIN32_DUMMY_CONTEXT_SET_PIXELFORMAT_FAILED,                                                                    \
-        "failed to set pixel format for dummy GL context")                                                             \
-    _SAPP_LOGITEM_XMACRO(WIN32_CREATE_DUMMY_CONTEXT_FAILED, "failed to create dummy GL context")                       \
-    _SAPP_LOGITEM_XMACRO(WIN32_DUMMY_CONTEXT_MAKE_CURRENT_FAILED, "failed to make dummy GL context current")           \
-    _SAPP_LOGITEM_XMACRO(WIN32_GET_PIXELFORMAT_ATTRIB_FAILED, "failed to get WGL pixel format attribute")              \
-    _SAPP_LOGITEM_XMACRO(WIN32_WGL_FIND_PIXELFORMAT_FAILED, "failed to find matching WGL pixel format")                \
-    _SAPP_LOGITEM_XMACRO(WIN32_WGL_DESCRIBE_PIXELFORMAT_FAILED, "failed to get pixel format descriptor")               \
-    _SAPP_LOGITEM_XMACRO(WIN32_WGL_SET_PIXELFORMAT_FAILED, "failed to set selected pixel format")                      \
-    _SAPP_LOGITEM_XMACRO(WIN32_WGL_ARB_CREATE_CONTEXT_REQUIRED, "ARB_create_context required")                         \
-    _SAPP_LOGITEM_XMACRO(WIN32_WGL_ARB_CREATE_CONTEXT_PROFILE_REQUIRED, "ARB_create_context_profile required")         \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WIN32_WGL_OPENGL_VERSION_NOT_SUPPORTED,                                                                        \
-        "requested OpenGL version not supported by GL driver (ERROR_INVALID_VERSION_ARB)")                             \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WIN32_WGL_OPENGL_PROFILE_NOT_SUPPORTED,                                                                        \
-        "requested OpenGL profile not support by GL driver (ERROR_INVALID_PROFILE_ARB)")                               \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WIN32_WGL_INCOMPATIBLE_DEVICE_CONTEXT,                                                                         \
-        "CreateContextAttribsARB failed with ERROR_INCOMPATIBLE_DEVICE_CONTEXTS_ARB")                                  \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WIN32_WGL_CREATE_CONTEXT_ATTRIBS_FAILED_OTHER,                                                                 \
-        "CreateContextAttribsARB failed for other reason")                                                             \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WIN32_D3D11_CREATE_DEVICE_AND_SWAPCHAIN_WITH_DEBUG_FAILED,                                                     \
-        "D3D11CreateDeviceAndSwapChain() with D3D11_CREATE_DEVICE_DEBUG failed, retrying without debug flag.")         \
-    _SAPP_LOGITEM_XMACRO(WIN32_D3D11_GET_IDXGIFACTORY_FAILED, "could not obtain IDXGIFactory object")                  \
-    _SAPP_LOGITEM_XMACRO(WIN32_D3D11_GET_IDXGIADAPTER_FAILED, "could not obtain IDXGIAdapter object")                  \
-    _SAPP_LOGITEM_XMACRO(WIN32_D3D11_QUERY_INTERFACE_IDXGIDEVICE1_FAILED, "could not obtain IDXGIDevice1 interface")   \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WIN32_REGISTER_RAW_INPUT_DEVICES_FAILED_MOUSE_LOCK,                                                            \
-        "RegisterRawInputDevices() failed (on mouse lock)")                                                            \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WIN32_REGISTER_RAW_INPUT_DEVICES_FAILED_MOUSE_UNLOCK,                                                          \
-        "RegisterRawInputDevices() failed (on mouse unlock)")                                                          \
-    _SAPP_LOGITEM_XMACRO(WIN32_GET_RAW_INPUT_DATA_FAILED, "GetRawInputData() failed")                                  \
-    _SAPP_LOGITEM_XMACRO(LINUX_GLX_LOAD_LIBGL_FAILED, "failed to load libGL")                                          \
-    _SAPP_LOGITEM_XMACRO(LINUX_GLX_LOAD_ENTRY_POINTS_FAILED, "failed to load GLX entry points")                        \
-    _SAPP_LOGITEM_XMACRO(LINUX_GLX_EXTENSION_NOT_FOUND, "GLX extension not found")                                     \
-    _SAPP_LOGITEM_XMACRO(LINUX_GLX_QUERY_VERSION_FAILED, "failed to query GLX version")                                \
-    _SAPP_LOGITEM_XMACRO(LINUX_GLX_VERSION_TOO_LOW, "GLX version too low (need at least 1.3)")                         \
-    _SAPP_LOGITEM_XMACRO(LINUX_GLX_NO_GLXFBCONFIGS, "glXGetFBConfigs() returned no configs")                           \
-    _SAPP_LOGITEM_XMACRO(LINUX_GLX_NO_SUITABLE_GLXFBCONFIG, "failed to find a suitable GLXFBConfig")                   \
-    _SAPP_LOGITEM_XMACRO(LINUX_GLX_GET_VISUAL_FROM_FBCONFIG_FAILED, "glXGetVisualFromFBConfig failed")                 \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        LINUX_GLX_REQUIRED_EXTENSIONS_MISSING,                                                                         \
-        "GLX extensions ARB_create_context and ARB_create_context_profile missing")                                    \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        LINUX_GLX_CREATE_CONTEXT_FAILED,                                                                               \
-        "Failed to create GL context via glXCreateContextAttribsARB")                                                  \
-    _SAPP_LOGITEM_XMACRO(LINUX_GLX_CREATE_WINDOW_FAILED, "glXCreateWindow() failed")                                   \
-    _SAPP_LOGITEM_XMACRO(LINUX_X11_CREATE_WINDOW_FAILED, "XCreateWindow() failed")                                     \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_BIND_OPENGL_API_FAILED, "eglBindAPI(EGL_OPENGL_API) failed")                        \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_BIND_OPENGL_ES_API_FAILED, "eglBindAPI(EGL_OPENGL_ES_API) failed")                  \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_GET_DISPLAY_FAILED, "eglGetDisplay() failed")                                       \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_INITIALIZE_FAILED, "eglInitialize() failed")                                        \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_NO_CONFIGS, "eglChooseConfig() returned no configs")                                \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_NO_NATIVE_VISUAL, "eglGetConfigAttrib() for EGL_NATIVE_VISUAL_ID failed")           \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_GET_VISUAL_INFO_FAILED, "XGetVisualInfo() failed")                                  \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_CREATE_WINDOW_SURFACE_FAILED, "eglCreateWindowSurface() failed")                    \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_CREATE_CONTEXT_FAILED, "eglCreateContext() failed")                                 \
-    _SAPP_LOGITEM_XMACRO(LINUX_EGL_MAKE_CURRENT_FAILED, "eglMakeCurrent() failed")                                     \
-    _SAPP_LOGITEM_XMACRO(LINUX_X11_OPEN_DISPLAY_FAILED, "XOpenDisplay() failed")                                       \
+#define _SAPP_LOG_ITEMS \
+    _SAPP_LOGITEM_XMACRO(OK, "Ok") \
+    _SAPP_LOGITEM_XMACRO(MALLOC_FAILED, "memory allocation failed") \
+    _SAPP_LOGITEM_XMACRO(MACOS_INVALID_NSOPENGL_PROFILE, "macos: invalid NSOpenGLProfile (valid choices are 1.0 and 4.1)") \
+    _SAPP_LOGITEM_XMACRO(WIN32_LOAD_OPENGL32_DLL_FAILED, "failed loading opengl32.dll") \
+    _SAPP_LOGITEM_XMACRO(WIN32_CREATE_HELPER_WINDOW_FAILED, "failed to create helper window") \
+    _SAPP_LOGITEM_XMACRO(WIN32_HELPER_WINDOW_GETDC_FAILED, "failed to get helper window DC") \
+    _SAPP_LOGITEM_XMACRO(WIN32_DUMMY_CONTEXT_SET_PIXELFORMAT_FAILED, "failed to set pixel format for dummy GL context") \
+    _SAPP_LOGITEM_XMACRO(WIN32_CREATE_DUMMY_CONTEXT_FAILED, "failed to create dummy GL context") \
+    _SAPP_LOGITEM_XMACRO(WIN32_DUMMY_CONTEXT_MAKE_CURRENT_FAILED, "failed to make dummy GL context current") \
+    _SAPP_LOGITEM_XMACRO(WIN32_GET_PIXELFORMAT_ATTRIB_FAILED, "failed to get WGL pixel format attribute") \
+    _SAPP_LOGITEM_XMACRO(WIN32_WGL_FIND_PIXELFORMAT_FAILED, "failed to find matching WGL pixel format") \
+    _SAPP_LOGITEM_XMACRO(WIN32_WGL_DESCRIBE_PIXELFORMAT_FAILED, "failed to get pixel format descriptor") \
+    _SAPP_LOGITEM_XMACRO(WIN32_WGL_SET_PIXELFORMAT_FAILED, "failed to set selected pixel format") \
+    _SAPP_LOGITEM_XMACRO(WIN32_WGL_ARB_CREATE_CONTEXT_REQUIRED, "ARB_create_context required") \
+    _SAPP_LOGITEM_XMACRO(WIN32_WGL_ARB_CREATE_CONTEXT_PROFILE_REQUIRED, "ARB_create_context_profile required") \
+    _SAPP_LOGITEM_XMACRO(WIN32_WGL_OPENGL_VERSION_NOT_SUPPORTED, "requested OpenGL version not supported by GL driver (ERROR_INVALID_VERSION_ARB)") \
+    _SAPP_LOGITEM_XMACRO(WIN32_WGL_OPENGL_PROFILE_NOT_SUPPORTED, "requested OpenGL profile not support by GL driver (ERROR_INVALID_PROFILE_ARB)") \
+    _SAPP_LOGITEM_XMACRO(WIN32_WGL_INCOMPATIBLE_DEVICE_CONTEXT, "CreateContextAttribsARB failed with ERROR_INCOMPATIBLE_DEVICE_CONTEXTS_ARB") \
+    _SAPP_LOGITEM_XMACRO(WIN32_WGL_CREATE_CONTEXT_ATTRIBS_FAILED_OTHER, "CreateContextAttribsARB failed for other reason") \
+    _SAPP_LOGITEM_XMACRO(WIN32_D3D11_CREATE_DEVICE_AND_SWAPCHAIN_WITH_DEBUG_FAILED, "D3D11CreateDeviceAndSwapChain() with D3D11_CREATE_DEVICE_DEBUG failed, retrying without debug flag.") \
+    _SAPP_LOGITEM_XMACRO(WIN32_D3D11_GET_IDXGIFACTORY_FAILED, "could not obtain IDXGIFactory object") \
+    _SAPP_LOGITEM_XMACRO(WIN32_D3D11_GET_IDXGIADAPTER_FAILED, "could not obtain IDXGIAdapter object") \
+    _SAPP_LOGITEM_XMACRO(WIN32_D3D11_QUERY_INTERFACE_IDXGIDEVICE1_FAILED, "could not obtain IDXGIDevice1 interface") \
+    _SAPP_LOGITEM_XMACRO(WIN32_REGISTER_RAW_INPUT_DEVICES_FAILED_MOUSE_LOCK, "RegisterRawInputDevices() failed (on mouse lock)") \
+    _SAPP_LOGITEM_XMACRO(WIN32_REGISTER_RAW_INPUT_DEVICES_FAILED_MOUSE_UNLOCK, "RegisterRawInputDevices() failed (on mouse unlock)") \
+    _SAPP_LOGITEM_XMACRO(WIN32_GET_RAW_INPUT_DATA_FAILED, "GetRawInputData() failed") \
+    _SAPP_LOGITEM_XMACRO(WIN32_DESTROYICON_FOR_CURSOR_FAILED, "DestroyIcon() for a cursor image failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_LOAD_LIBGL_FAILED, "failed to load libGL") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_LOAD_ENTRY_POINTS_FAILED, "failed to load GLX entry points") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_EXTENSION_NOT_FOUND, "GLX extension not found") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_QUERY_VERSION_FAILED, "failed to query GLX version") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_VERSION_TOO_LOW, "GLX version too low (need at least 1.3)") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_NO_GLXFBCONFIGS, "glXGetFBConfigs() returned no configs") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_NO_SUITABLE_GLXFBCONFIG, "failed to find a suitable GLXFBConfig") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_GET_VISUAL_FROM_FBCONFIG_FAILED, "glXGetVisualFromFBConfig failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_REQUIRED_EXTENSIONS_MISSING, "GLX extensions ARB_create_context and ARB_create_context_profile missing") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_CREATE_CONTEXT_FAILED, "Failed to create GL context via glXCreateContextAttribsARB") \
+    _SAPP_LOGITEM_XMACRO(LINUX_GLX_CREATE_WINDOW_FAILED, "glXCreateWindow() failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_X11_CREATE_WINDOW_FAILED, "XCreateWindow() failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_BIND_OPENGL_API_FAILED, "eglBindAPI(EGL_OPENGL_API) failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_BIND_OPENGL_ES_API_FAILED, "eglBindAPI(EGL_OPENGL_ES_API) failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_GET_DISPLAY_FAILED, "eglGetDisplay() failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_INITIALIZE_FAILED, "eglInitialize() failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_NO_CONFIGS, "eglChooseConfig() returned no configs") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_NO_NATIVE_VISUAL, "eglGetConfigAttrib() for EGL_NATIVE_VISUAL_ID failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_GET_VISUAL_INFO_FAILED, "XGetVisualInfo() failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_CREATE_WINDOW_SURFACE_FAILED, "eglCreateWindowSurface() failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_CREATE_CONTEXT_FAILED, "eglCreateContext() failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_EGL_MAKE_CURRENT_FAILED, "eglMakeCurrent() failed") \
+    _SAPP_LOGITEM_XMACRO(LINUX_X11_OPEN_DISPLAY_FAILED, "XOpenDisplay() failed") \
     _SAPP_LOGITEM_XMACRO(LINUX_X11_QUERY_SYSTEM_DPI_FAILED, "failed to query system dpi value, assuming default 96.0") \
-    _SAPP_LOGITEM_XMACRO(LINUX_X11_DROPPED_FILE_URI_WRONG_SCHEME, "dropped file URL doesn't start with 'file://'")     \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        LINUX_X11_FAILED_TO_BECOME_OWNER_OF_CLIPBOARD,                                                                 \
-        "X11: Failed to become owner of clipboard selection")                                                          \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        ANDROID_UNSUPPORTED_INPUT_EVENT_INPUT_CB,                                                                      \
-        "unsupported input event encountered in _sapp_android_input_cb()")                                             \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        ANDROID_UNSUPPORTED_INPUT_EVENT_MAIN_CB,                                                                       \
-        "unsupported input event encountered in _sapp_android_main_cb()")                                              \
-    _SAPP_LOGITEM_XMACRO(ANDROID_READ_MSG_FAILED, "failed to read message in _sapp_android_main_cb()")                 \
-    _SAPP_LOGITEM_XMACRO(ANDROID_WRITE_MSG_FAILED, "failed to write message in _sapp_android_msg")                     \
-    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_CREATE, "MSG_CREATE")                                                             \
-    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_RESUME, "MSG_RESUME")                                                             \
-    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_PAUSE, "MSG_PAUSE")                                                               \
-    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_FOCUS, "MSG_FOCUS")                                                               \
-    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_NO_FOCUS, "MSG_NO_FOCUS")                                                         \
-    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_SET_NATIVE_WINDOW, "MSG_SET_NATIVE_WINDOW")                                       \
-    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_SET_INPUT_QUEUE, "MSG_SET_INPUT_QUEUE")                                           \
-    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_DESTROY, "MSG_DESTROY")                                                           \
-    _SAPP_LOGITEM_XMACRO(ANDROID_UNKNOWN_MSG, "unknown msg type received")                                             \
-    _SAPP_LOGITEM_XMACRO(ANDROID_LOOP_THREAD_STARTED, "loop thread started")                                           \
-    _SAPP_LOGITEM_XMACRO(ANDROID_LOOP_THREAD_DONE, "loop thread done")                                                 \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONSTART, "NativeActivity onStart()")                                  \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONRESUME, "NativeActivity onResume")                                  \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONSAVEINSTANCESTATE, "NativeActivity onSaveInstanceState")            \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONWINDOWFOCUSCHANGED, "NativeActivity onWindowFocusChanged")          \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONPAUSE, "NativeActivity onPause")                                    \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONSTOP, "NativeActivity onStop()")                                    \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONNATIVEWINDOWCREATED, "NativeActivity onNativeWindowCreated")        \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONNATIVEWINDOWDESTROYED, "NativeActivity onNativeWindowDestroyed")    \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONINPUTQUEUECREATED, "NativeActivity onInputQueueCreated")            \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONINPUTQUEUEDESTROYED, "NativeActivity onInputQueueDestroyed")        \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONCONFIGURATIONCHANGED, "NativeActivity onConfigurationChanged")      \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONLOWMEMORY, "NativeActivity onLowMemory")                            \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONDESTROY, "NativeActivity onDestroy")                                \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_DONE, "NativeActivity done")                                          \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONCREATE, "NativeActivity onCreate")                                  \
-    _SAPP_LOGITEM_XMACRO(ANDROID_CREATE_THREAD_PIPE_FAILED, "failed to create thread pipe")                            \
-    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_CREATE_SUCCESS, "NativeActivity successfully created")                \
-    _SAPP_LOGITEM_XMACRO(WGPU_SWAPCHAIN_CREATE_SURFACE_FAILED, "wgpu: failed to create surface for swapchain")         \
-    _SAPP_LOGITEM_XMACRO(WGPU_SWAPCHAIN_CREATE_SWAPCHAIN_FAILED, "wgpu: failed to create swapchain object")            \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WGPU_SWAPCHAIN_CREATE_DEPTH_STENCIL_TEXTURE_FAILED,                                                            \
-        "wgpu: failed to create depth-stencil texture for swapchain")                                                  \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WGPU_SWAPCHAIN_CREATE_DEPTH_STENCIL_VIEW_FAILED,                                                               \
-        "wgpu: failed to create view object for swapchain depth-stencil texture")                                      \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WGPU_SWAPCHAIN_CREATE_MSAA_TEXTURE_FAILED,                                                                     \
-        "wgpu: failed to create msaa texture for swapchain")                                                           \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WGPU_SWAPCHAIN_CREATE_MSAA_VIEW_FAILED,                                                                        \
-        "wgpu: failed to create view object for swapchain msaa texture")                                               \
-    _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_DEVICE_STATUS_ERROR, "wgpu: requesting device failed with status 'error'")       \
-    _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_DEVICE_STATUS_UNKNOWN, "wgpu: requesting device failed with status 'unknown'")   \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        WGPU_REQUEST_ADAPTER_STATUS_UNAVAILABLE,                                                                       \
-        "wgpu: requesting adapter failed with 'unavailable'")                                                          \
-    _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_ADAPTER_STATUS_ERROR, "wgpu: requesting adapter failed with status 'error'")     \
+    _SAPP_LOGITEM_XMACRO(LINUX_X11_DROPPED_FILE_URI_WRONG_SCHEME, "dropped file URL doesn't start with 'file://'") \
+    _SAPP_LOGITEM_XMACRO(LINUX_X11_FAILED_TO_BECOME_OWNER_OF_CLIPBOARD, "X11: Failed to become owner of clipboard selection") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_UNSUPPORTED_INPUT_EVENT_INPUT_CB, "unsupported input event encountered in _sapp_android_input_cb()") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_UNSUPPORTED_INPUT_EVENT_MAIN_CB, "unsupported input event encountered in _sapp_android_main_cb()") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_READ_MSG_FAILED, "failed to read message in _sapp_android_main_cb()") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_WRITE_MSG_FAILED, "failed to write message in _sapp_android_msg") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_CREATE, "MSG_CREATE") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_RESUME, "MSG_RESUME") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_PAUSE, "MSG_PAUSE") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_FOCUS, "MSG_FOCUS") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_NO_FOCUS, "MSG_NO_FOCUS") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_SET_NATIVE_WINDOW, "MSG_SET_NATIVE_WINDOW") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_SET_INPUT_QUEUE, "MSG_SET_INPUT_QUEUE") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_MSG_DESTROY, "MSG_DESTROY") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_UNKNOWN_MSG, "unknown msg type received") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_LOOP_THREAD_STARTED, "loop thread started") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_LOOP_THREAD_DONE, "loop thread done") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONSTART, "NativeActivity onStart()") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONRESUME, "NativeActivity onResume") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONSAVEINSTANCESTATE, "NativeActivity onSaveInstanceState") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONWINDOWFOCUSCHANGED, "NativeActivity onWindowFocusChanged") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONPAUSE, "NativeActivity onPause") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONSTOP, "NativeActivity onStop()") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONNATIVEWINDOWCREATED, "NativeActivity onNativeWindowCreated") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONNATIVEWINDOWDESTROYED, "NativeActivity onNativeWindowDestroyed") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONINPUTQUEUECREATED, "NativeActivity onInputQueueCreated") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONINPUTQUEUEDESTROYED, "NativeActivity onInputQueueDestroyed") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONCONFIGURATIONCHANGED, "NativeActivity onConfigurationChanged") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONLOWMEMORY, "NativeActivity onLowMemory") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONDESTROY, "NativeActivity onDestroy") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_DONE, "NativeActivity done") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_ONCREATE, "NativeActivity onCreate") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_CREATE_THREAD_PIPE_FAILED, "failed to create thread pipe") \
+    _SAPP_LOGITEM_XMACRO(ANDROID_NATIVE_ACTIVITY_CREATE_SUCCESS, "NativeActivity successfully created") \
+    _SAPP_LOGITEM_XMACRO(WGPU_DEVICE_LOST, "wgpu: device lost") \
+    _SAPP_LOGITEM_XMACRO(WGPU_DEVICE_LOG, "wgpu: device log") \
+    _SAPP_LOGITEM_XMACRO(WGPU_DEVICE_UNCAPTURED_ERROR, "wgpu: uncaptured error") \
+    _SAPP_LOGITEM_XMACRO(WGPU_SWAPCHAIN_CREATE_SURFACE_FAILED, "wgpu: failed to create surface for swapchain") \
+    _SAPP_LOGITEM_XMACRO(WGPU_SWAPCHAIN_SURFACE_GET_CAPABILITIES_FAILED, "wgpu: wgpuSurfaceGetCapabilities failed") \
+    _SAPP_LOGITEM_XMACRO(WGPU_SWAPCHAIN_CREATE_DEPTH_STENCIL_TEXTURE_FAILED, "wgpu: failed to create depth-stencil texture for swapchain") \
+    _SAPP_LOGITEM_XMACRO(WGPU_SWAPCHAIN_CREATE_DEPTH_STENCIL_VIEW_FAILED, "wgpu: failed to create view object for swapchain depth-stencil texture") \
+    _SAPP_LOGITEM_XMACRO(WGPU_SWAPCHAIN_CREATE_MSAA_TEXTURE_FAILED, "wgpu: failed to create msaa texture for swapchain") \
+    _SAPP_LOGITEM_XMACRO(WGPU_SWAPCHAIN_CREATE_MSAA_VIEW_FAILED, "wgpu: failed to create view object for swapchain msaa texture") \
+    _SAPP_LOGITEM_XMACRO(WGPU_SWAPCHAIN_GETCURRENTTEXTURE_FAILED, "wgpu: wgpuSurfaceGetCurrentTexture() failed") \
+    _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_DEVICE_STATUS_ERROR, "wgpu: requesting device failed with status 'error'") \
+    _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_DEVICE_STATUS_UNKNOWN, "wgpu: requesting device failed with status 'unknown'") \
+    _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_ADAPTER_STATUS_UNAVAILABLE, "wgpu: requesting adapter failed with 'unavailable'") \
+    _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_ADAPTER_STATUS_ERROR, "wgpu: requesting adapter failed with status 'error'") \
     _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_ADAPTER_STATUS_UNKNOWN, "wgpu: requesting adapter failed with status 'unknown'") \
-    _SAPP_LOGITEM_XMACRO(WGPU_CREATE_INSTANCE_FAILED, "wgpu: failed to create instance")                               \
-    _SAPP_LOGITEM_XMACRO(IMAGE_DATA_SIZE_MISMATCH, "image data size mismatch (must be width*height*4 bytes)")          \
-    _SAPP_LOGITEM_XMACRO(                                                                                              \
-        DROPPED_FILE_PATH_TOO_LONG,                                                                                    \
-        "dropped file path too long (sapp_desc.max_dropped_filed_path_length)")                                        \
-    _SAPP_LOGITEM_XMACRO(CLIPBOARD_STRING_TOO_BIG, "clipboard string didn't fit into clipboard buffer")
+    _SAPP_LOGITEM_XMACRO(WGPU_CREATE_INSTANCE_FAILED, "wgpu: failed to create instance") \
+    _SAPP_LOGITEM_XMACRO(IMAGE_DATA_SIZE_MISMATCH, "image data size mismatch (must be width*height*4 bytes)") \
+    _SAPP_LOGITEM_XMACRO(DROPPED_FILE_PATH_TOO_LONG, "dropped file path too long (sapp_desc.max_dropped_filed_path_length)") \
+    _SAPP_LOGITEM_XMACRO(CLIPBOARD_STRING_TOO_BIG, "clipboard string didn't fit into clipboard buffer") \
 
-#define _SAPP_LOGITEM_XMACRO(item, msg) SAPP_LOGITEM_##item,
-typedef enum sapp_log_item
-{
+#define _SAPP_LOGITEM_XMACRO(item,msg) SAPP_LOGITEM_##item,
+typedef enum sapp_log_item {
     _SAPP_LOG_ITEMS
 } sapp_log_item;
 #undef _SAPP_LOGITEM_XMACRO
@@ -1725,101 +1811,96 @@ typedef enum sapp_log_item
     debug mode (e.g. NDEBUG *not* defined) and install a logger (for instance
     the standard logging function from sokol_log.h).
 */
-typedef struct sapp_logger
-{
+typedef struct sapp_logger {
     void (*func)(
-        const char* tag,              // always "sapp"
-        uint32_t    log_level,        // 0=panic, 1=error, 2=warning, 3=info
-        uint32_t    log_item_id,      // SAPP_LOGITEM_*
-        const char* message_or_null,  // a message string, may be nullptr in release mode
-        uint32_t    line_nr,          // line number in sokol_app.h
-        const char* filename_or_null, // source filename, may be nullptr in release mode
-        void*       user_data);
+        const char* tag,                // always "sapp"
+        uint32_t log_level,             // 0=panic, 1=error, 2=warning, 3=info
+        uint32_t log_item_id,           // SAPP_LOGITEM_*
+        const char* message_or_null,    // a message string, may be nullptr in release mode
+        uint32_t line_nr,               // line number in sokol_app.h
+        const char* filename_or_null,   // source filename, may be nullptr in release mode
+        void* user_data);
     void* user_data;
 } sapp_logger;
 
-typedef struct sapp_desc
-{
-    void (*init_cb)(void); // these are the user-provided callbacks without user data
+/*
+    sokol-app initialization options, used as return value of sokol_main()
+    or sapp_run() argument.
+*/
+typedef struct sapp_desc {
+    void (*init_cb)(void);                  // these are the user-provided callbacks without user data
     void (*frame_cb)(void);
     void (*cleanup_cb)(void);
     void (*event_cb)(const sapp_event*);
 
-    void* user_data; // these are the user-provided callbacks with user data
+    void* user_data;                        // these are the user-provided callbacks with user data
     void (*init_userdata_cb)(void*);
     void (*frame_userdata_cb)(void*);
     void (*cleanup_userdata_cb)(void*);
     void (*event_userdata_cb)(const sapp_event*, void*);
 
-    int            width;            // the preferred width of the window / canvas
-    int            height;           // the preferred height of the window / canvas
-    int            sample_count;     // MSAA sample count
-    int            swap_interval;    // the preferred swap interval (ignored on some platforms)
-    bool           high_dpi;         // whether the rendering canvas is full-resolution on HighDPI displays
-    bool           fullscreen;       // whether the window should be created in fullscreen mode
-    bool           alpha;            // whether the framebuffer should have an alpha channel (ignored on some platforms)
-    const char*    window_title;     // the window title as UTF-8 encoded string
-    bool           enable_clipboard; // enable clipboard access, default is false
-    int            clipboard_size;   // max size of clipboard content in bytes
-    bool           enable_dragndrop; // enable file dropping (drag'n'drop), default is false
-    int            max_dropped_files;            // max number of dropped files to process (default: 1)
-    int            max_dropped_file_path_length; // max length in bytes of a dropped UTF-8 file path (default: 2048)
-    sapp_icon_desc icon;                         // the initial window icon to set
-    sapp_allocator allocator;                    // optional memory allocation overrides (default: malloc/free)
-    sapp_logger    logger;                       // logging callback override (default: NO LOGGING!)
+    int width;                          // the preferred width of the window / canvas
+    int height;                         // the preferred height of the window / canvas
+    int sample_count;                   // MSAA sample count
+    int swap_interval;                  // the preferred swap interval (ignored on some platforms)
+    bool high_dpi;                      // whether the rendering canvas is full-resolution on HighDPI displays
+    bool fullscreen;                    // whether the window should be created in fullscreen mode
+    bool alpha;                         // whether the framebuffer should have an alpha channel (ignored on some platforms)
+    const char* window_title;           // the window title as UTF-8 encoded string
+    bool enable_clipboard;              // enable clipboard access, default is false
+    int clipboard_size;                 // max size of clipboard content in bytes
+    bool enable_dragndrop;              // enable file dropping (drag'n'drop), default is false
+    int max_dropped_files;              // max number of dropped files to process (default: 1)
+    int max_dropped_file_path_length;   // max length in bytes of a dropped UTF-8 file path (default: 2048)
+    sapp_icon_desc icon;                // the initial window icon to set
+    sapp_allocator allocator;           // optional memory allocation overrides (default: malloc/free)
+    sapp_logger logger;                 // logging callback override (default: NO LOGGING!)
 
     // backend-specific options
-    int gl_major_version; // override GL major and minor version (the default GL version is 4.1 on macOS, 4.3 elsewhere)
+    int gl_major_version;               // override GL/GLES major and minor version (defaults: GL4.1 (macOS) or GL4.3, GLES3.1 (Android) or GLES3.0
     int gl_minor_version;
-    bool        win32_console_utf8;   // if true, set the output console codepage to UTF-8
-    bool        win32_console_create; // if true, attach stdout/stderr to a new console window
-    bool        win32_console_attach; // if true, attach stdout/stderr to parent process
-    const char* html5_canvas_name;    // the name (id) of the HTML5 canvas element, default is "canvas"
-    bool html5_canvas_resize; // if true, the HTML5 canvas size is set to sapp_desc.width/height, otherwise canvas size
-                              // is tracked
+    bool win32_console_utf8;            // if true, set the output console codepage to UTF-8
+    bool win32_console_create;          // if true, attach stdout/stderr to a new console window
+    bool win32_console_attach;          // if true, attach stdout/stderr to parent process
+    const char* html5_canvas_selector;  // css selector of the HTML5 canvas element, default is "#canvas"
+    bool html5_canvas_resize;           // if true, the HTML5 canvas size is set to sapp_desc.width/height, otherwise canvas size is tracked
     bool html5_preserve_drawing_buffer; // HTML5 only: whether to preserve default framebuffer content between frames
     bool html5_premultiplied_alpha;     // HTML5 only: whether the rendered pixels use premultiplied alpha convention
-    bool html5_ask_leave_site;          // initial state of the internal html5_ask_leave_site flag (see
-                                        // sapp_html5_ask_leave_site())
+    bool html5_ask_leave_site;          // initial state of the internal html5_ask_leave_site flag (see sapp_html5_ask_leave_site())
+    bool html5_update_document_title;   // if true, update the HTML document.title with sapp_desc.window_title
     bool html5_bubble_mouse_events;     // if true, mouse events will bubble up to the web page
     bool html5_bubble_touch_events;     // same for touch events
     bool html5_bubble_wheel_events;     // same for wheel events
-    bool html5_bubble_key_events;  // if true, bubble up *all* key events to browser, not just key events that represent
-                                   // characters
-    bool html5_bubble_char_events; // if true, bubble up character events to browser
-    bool html5_use_emsc_set_main_loop;                    // if true, use emscripten_set_main_loop() instead of
-                                                          // emscripten_request_animation_frame_loop()
-    bool html5_emsc_set_main_loop_simulate_infinite_loop; // this will be passed as the simulate_infinite_loop arg to
-                                                          // emscripten_set_main_loop()
-    bool ios_keyboard_resizes_canvas;                     // if true, showing the iOS keyboard shrinks the canvas
+    bool html5_bubble_key_events;       // if true, bubble up *all* key events to browser, not just key events that represent characters
+    bool html5_bubble_char_events;      // if true, bubble up character events to browser
+    bool html5_use_emsc_set_main_loop;  // if true, use emscripten_set_main_loop() instead of emscripten_request_animation_frame_loop()
+    bool html5_emsc_set_main_loop_simulate_infinite_loop;   // this will be passed as the simulate_infinite_loop arg to emscripten_set_main_loop()
+    bool ios_keyboard_resizes_canvas;   // if true, showing the iOS keyboard shrinks the canvas
 } sapp_desc;
 
 /* HTML5 specific: request and response structs for
    asynchronously loading dropped-file content.
 */
-typedef enum sapp_html5_fetch_error
-{
+typedef enum sapp_html5_fetch_error {
     SAPP_HTML5_FETCH_ERROR_NO_ERROR,
     SAPP_HTML5_FETCH_ERROR_BUFFER_TOO_SMALL,
     SAPP_HTML5_FETCH_ERROR_OTHER,
 } sapp_html5_fetch_error;
 
-typedef struct sapp_html5_fetch_response
-{
-    bool                   succeeded; // true if the loading operation has succeeded
+typedef struct sapp_html5_fetch_response {
+    bool succeeded;         // true if the loading operation has succeeded
     sapp_html5_fetch_error error_code;
-    int                    file_index; // index of the dropped file (0..sapp_get_num_dropped_filed()-1)
-    sapp_range data;      // pointer and size of the fetched data (data.ptr == buffer.ptr, data.size <= buffer.size)
-    sapp_range buffer;    // the user-provided buffer ptr/size pair (buffer.ptr == data.ptr, buffer.size >= data.size)
-    void*      user_data; // user-provided user data pointer
+    int file_index;         // index of the dropped file (0..sapp_get_num_dropped_filed()-1)
+    sapp_range data;        // pointer and size of the fetched data (data.ptr == buffer.ptr, data.size <= buffer.size)
+    sapp_range buffer;      // the user-provided buffer ptr/size pair (buffer.ptr == data.ptr, buffer.size >= data.size)
+    void* user_data;        // user-provided user data pointer
 } sapp_html5_fetch_response;
 
-typedef struct sapp_html5_fetch_request
-{
-    int dropped_file_index;                             // 0..sapp_get_num_dropped_files()-1
-    void (*callback)(const sapp_html5_fetch_response*); // response callback function pointer (required)
-    sapp_range buffer;                                  // ptr/size of a memory buffer to load the data into
-    void*      user_data;                               // optional userdata pointer
+typedef struct sapp_html5_fetch_request {
+    int dropped_file_index; // 0..sapp_get_num_dropped_files()-1
+    void (*callback)(const sapp_html5_fetch_response*);     // response callback function pointer (required)
+    sapp_range buffer;      // ptr/size of a memory buffer to load the data into
+    void* user_data;        // optional userdata pointer
 } sapp_html5_fetch_request;
 
 /*
@@ -1827,9 +1908,8 @@ typedef struct sapp_html5_fetch_request
 
     Predefined cursor image definitions, set with sapp_set_mouse_cursor(sapp_mouse_cursor cursor)
 */
-typedef enum sapp_mouse_cursor
-{
-    SAPP_MOUSECURSOR_DEFAULT = 0, // equivalent with system default cursor
+typedef enum sapp_mouse_cursor {
+    SAPP_MOUSECURSOR_DEFAULT = 0,   // equivalent with system default cursor
     SAPP_MOUSECURSOR_ARROW,
     SAPP_MOUSECURSOR_IBEAM,
     SAPP_MOUSECURSOR_CROSSHAIR,
@@ -1840,6 +1920,22 @@ typedef enum sapp_mouse_cursor
     SAPP_MOUSECURSOR_RESIZE_NESW,
     SAPP_MOUSECURSOR_RESIZE_ALL,
     SAPP_MOUSECURSOR_NOT_ALLOWED,
+    SAPP_MOUSECURSOR_CUSTOM_0,
+    SAPP_MOUSECURSOR_CUSTOM_1,
+    SAPP_MOUSECURSOR_CUSTOM_2,
+    SAPP_MOUSECURSOR_CUSTOM_3,
+    SAPP_MOUSECURSOR_CUSTOM_4,
+    SAPP_MOUSECURSOR_CUSTOM_5,
+    SAPP_MOUSECURSOR_CUSTOM_6,
+    SAPP_MOUSECURSOR_CUSTOM_7,
+    SAPP_MOUSECURSOR_CUSTOM_8,
+    SAPP_MOUSECURSOR_CUSTOM_9,
+    SAPP_MOUSECURSOR_CUSTOM_10,
+    SAPP_MOUSECURSOR_CUSTOM_11,
+    SAPP_MOUSECURSOR_CUSTOM_12,
+    SAPP_MOUSECURSOR_CUSTOM_13,
+    SAPP_MOUSECURSOR_CUSTOM_14,
+    SAPP_MOUSECURSOR_CUSTOM_15,
     _SAPP_MOUSECURSOR_NUM,
 } sapp_mouse_cursor;
 
@@ -1886,6 +1982,10 @@ SOKOL_APP_API_DECL bool sapp_mouse_locked(void);
 SOKOL_APP_API_DECL void sapp_set_mouse_cursor(sapp_mouse_cursor cursor);
 /* get current mouse cursor type */
 SOKOL_APP_API_DECL sapp_mouse_cursor sapp_get_mouse_cursor(void);
+/* associate a custom mouse cursor image to a sapp_mouse_cursor enum entry */
+SOKOL_APP_API_DECL sapp_mouse_cursor sapp_bind_mouse_cursor_image(sapp_mouse_cursor cursor, const sapp_image_desc* desc);
+/* restore the sapp_mouse_cursor enum entry to it's default system appearance */
+SOKOL_APP_API_DECL void sapp_unbind_mouse_cursor_image(sapp_mouse_cursor cursor);
 /* return the userdata pointer optionally provided in sapp_desc */
 SOKOL_APP_API_DECL void* sapp_userdata(void);
 /* return a copy of the sapp_desc structure */
@@ -1969,10 +2069,17 @@ SOKOL_APP_API_DECL const void* sapp_wgpu_get_depth_stencil_view(void);
 
 /* GL: get framebuffer object */
 SOKOL_APP_API_DECL uint32_t sapp_gl_get_framebuffer(void);
-/* GL: get major version (only valid for desktop GL) */
+/* GL: get major version */
 SOKOL_APP_API_DECL int sapp_gl_get_major_version(void);
-/* GL: get minor version (only valid for desktop GL) */
+/* GL: get minor version */
 SOKOL_APP_API_DECL int sapp_gl_get_minor_version(void);
+/* GL: return true if the context is GLES */
+SOKOL_APP_API_DECL bool sapp_gl_is_gles(void);
+
+/* X11: get Window */
+SOKOL_APP_API_DECL const void* sapp_x11_get_window(void);
+/* X11: get Display */
+SOKOL_APP_API_DECL const void* sapp_x11_get_display(void);
 
 /* Android: get native activity handle */
 SOKOL_APP_API_DECL const void* sapp_android_get_native_activity(void);
@@ -1983,14 +2090,6 @@ SOKOL_APP_API_DECL const void* sapp_android_get_native_activity(void);
 /* reference-based equivalents for C++ */
 inline void sapp_run(const sapp_desc& desc) { return sapp_run(&desc); }
 
-#endif
-
-// this WinRT specific hack is required when wWinMain is in a static library
-#if defined(_MSC_VER) && defined(UNICODE)
-#include <winapifamily.h>
-#if defined(WINAPI_FAMILY_PARTITION) && ! WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
-#pragma comment(linker, "/include:wWinMain")
-#endif
 #endif
 
 #endif // SOKOL_APP_INCLUDED
