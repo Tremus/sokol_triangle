@@ -56,15 +56,30 @@
     On Windows, SOKOL_DLL will define SOKOL_GFX_API_DECL as __declspec(dllexport)
     or __declspec(dllimport) as needed.
 
-    If you want to compile without deprecated structs and functions,
-    define:
-
-    SOKOL_NO_DEPRECATED
-
     Optionally define the following to force debug checks and validations
     even in release mode:
 
-    SOKOL_DEBUG - by default this is defined if _DEBUG is defined
+    SOKOL_DEBUG - by default this is defined if NDEBUG is not defined
+
+    Link with the following system libraries (note that sokol_app.h has
+    additional linker requirements):
+
+    - on macOS/iOS with Metal: Metal
+    - on macOS with GL: OpenGL
+    - on iOS with GL: OpenGLES
+    - on Linux with EGL: GL or GLESv2
+    - on Linux with GLX: GL
+    - on Android: GLESv3, log, android
+    - on Windows with the MSVC or Clang toolchains: no action needed, libs are defined in-source via pragma-comment-lib
+    - on Windows with MINGW/MSYS2 gcc: compile with '-mwin32' so that _WIN32 is defined
+        - with the D3D11 backend: -ld3d11
+
+    On macOS and iOS, the implementation must be compiled as Objective-C.
+
+    On Emscripten:
+        - for WebGL2: add the linker option `-s USE_WEBGL2=1`
+        - for WebGPU: compile and link with `--use-port=emdawnwebgpu`
+          (for more exotic situations, read: https://dawn.googlesource.com/dawn/+/refs/heads/main/src/emdawnwebgpu/pkg/README.md)
 
     sokol_gfx DOES NOT:
     ===================
@@ -112,15 +127,15 @@
                 .logger.func = slog_func,
             });
 
-    --- create resource objects (at least buffers, shaders and pipelines,
-        and optionally images, samplers and render/compute-pass-attachments):
+    --- create resource objects (buffers, images, views, samplers, shaders
+        and pipeline objects)
 
             sg_buffer sg_make_buffer(const sg_buffer_desc*)
             sg_image sg_make_image(const sg_image_desc*)
+            sg_view sg_make_view(const sg_view_desc*)
             sg_sampler sg_make_sampler(const sg_sampler_desc*)
             sg_shader sg_make_shader(const sg_shader_desc*)
             sg_pipeline sg_make_pipeline(const sg_pipeline_desc*)
-            sg_attachments sg_make_attachments(const sg_attachments_desc*)
 
     --- start a render- or compute-pass:
 
@@ -137,34 +152,38 @@
         a specific color), and .swapchain is an sg_swapchain struct with all the required
         information to render into the swapchain's surfaces.
 
-        To start an 'offscreen render pass' into sokol-gfx image objects, an sg_attachment
-        object handle is required instead of an sg_swapchain struct. An offscreen
-        pass is started like this (assuming attachments is an sg_attachments handle):
+        To start an 'offscreen render pass' into sokol-gfx image objects, populate
+        the sg_pass.attachments nested struct with attachment view objects
+        (1..4 color-attachment-views for to render into, a depth-stencil-attachment-view
+        to provide the depth-stencil-buffer, and optionally 1..4 resolve-attachment-views
+        for an MSAA-resolve operation:
 
-            sg_begin_pass(&(sg_pass){ .action = { ... }, .attachments = attachments });
+            sg_begin_pass(&(sg_pass){
+                .action = { ... },
+                .attachments = {
+                    .colors[0] = color_attachment_view,
+                    .resolves[0] = optional_resolve_attachment_view,
+                    .depth_stencil = depth_stencil_attachment_view,
+                },
+            });
 
         To start a compute-pass, just set the .compute item to true:
 
             sg_begin_pass(&(sg_pass){ .compute = true });
-
-        If the compute pass writes into storage images, provide those as
-        'storage attachments' via an sg_attachments object:
-
-            sg_begin_pass(&(sg_pass){ .compute = true, .attachments = attattachments });
 
     --- set the pipeline state for the next draw call with:
 
             sg_apply_pipeline(sg_pipeline pip)
 
     --- fill an sg_bindings struct with the resource bindings for the next
-        draw- or dispatch-call (0..N vertex buffers, 0 or 1 index buffer, 0..N images,
-        samplers and storage-buffers), and call
+        draw- or dispatch-call (0..N vertex buffers, 0 or 1 index buffer, 0..N views,
+        0..N samplers), and call
 
             sg_apply_bindings(const sg_bindings* bindings)
 
         ...to update the resource bindings. Note that in a compute pass, no vertex-
-        or index-buffer bindings are allowed and will be rejected by the validation
-        layer.
+        or index-buffer bindings can be used, and in render passes, no storage-image bindings
+        are allowed. Those restrictions will be checked by the sokol-gfx validation layer.
 
     --- optionally update shader uniform data with:
 
@@ -186,6 +205,23 @@
         must be setup for instancing (see sg_pipeline_desc below), a separate vertex buffer
         containing per-instance data must be bound, and the num_instances parameter
         must be > 1.
+
+        Alternatively, call:
+
+            sg_draw_ex(...)
+
+        to provide a base-vertex and/or base-instance which allows to render
+        from different sections of a vertex buffer without rebinding the
+        vertex buffer with a different offset. Note that the `sg_draw_ex()`
+        only has limited portability on OpenGL, check the sg_limits struct
+        members .draw_base_vertex and .draw_base_instance for runtime support,
+        those are generally true on non-GL-backends, and on GL the feature
+        flags are set according to the GL version:
+
+            - on GL base_instance != 0 is only supported since GL 4.2
+            - on GLES3.x, base_instance != 0 is not supported
+            - on GLES3.x, base_vertex is only supported since GLES3.2
+              (e.g. not supported on WebGL2)
 
     --- ...or kick of a dispatch call to invoke a compute shader workload:
 
@@ -213,7 +249,7 @@
             sg_destroy_sampler(sg_sampler smp)
             sg_destroy_shader(sg_shader shd)
             sg_destroy_pipeline(sg_pipeline pip)
-            sg_destroy_attachments(sg_attachments atts)
+            sg_destroy_view(sg_view view)
 
     --- to set a new viewport rectangle, call:
 
@@ -234,8 +270,8 @@
         Both sg_apply_viewport() and sg_apply_scissor_rect() must be called
         inside a rendering pass (e.g. not in a compute pass, or outside a pass)
 
-        Note that sg_begin_default_pass() and sg_begin_pass() will reset both the
-        viewport and scissor rectangles to cover the entire framebuffer.
+        Note that sg_begin_pass() will reset both the viewport and scissor
+        rectangles to cover the entire framebuffer.
 
     --- to update (overwrite) the content of buffer and image resources, call:
 
@@ -334,7 +370,7 @@
             sg_sampler_desc sg_query_sampler_desc(sg_sampler smp)
             sg_shader_desc sq_query_shader_desc(sg_shader shd)
             sg_pipeline_desc sg_query_pipeline_desc(sg_pipeline pip)
-            sg_attachments_desc sg_query_attachments_desc(sg_attachments atts)
+            sg_view_desc sg_query_view_desc(sg_view view)
 
         ...but NOTE that the returned desc structs may be incomplete, only
         creation attributes that are kept around internally after resource
@@ -354,7 +390,7 @@
             sg_sampler_desc sg_query_sampler_defaults(const sg_sampler_desc* desc)
             sg_shader_desc sg_query_shader_defaults(const sg_shader_desc* desc)
             sg_pipeline_desc sg_query_pipeline_defaults(const sg_pipeline_desc* desc)
-            sg_attachments_desc sg_query_attachments_defaults(const sg_attachments_desc* desc)
+            sg_view_desc sg_query_view_defaults(const sg_view_desc* desc)
 
         These functions take a pointer to a desc structure which may contain
         zero-initialized items for default values. These zero-init values
@@ -368,11 +404,17 @@
             sg_sampler_info sg_query_sampler_info(sg_sampler smp)
             sg_shader_info sg_query_shader_info(sg_shader shd)
             sg_pipeline_info sg_query_pipeline_info(sg_pipeline pip)
-            sg_attachments_info sg_query_attachments_info(sg_attachments atts)
+            sg_view_info sg_query_view_info(sg_view view)
 
         ...please note that the returned info-structs are tied quite closely
         to sokol_gfx.h internals, and may change more often than other
         public API functions and structs.
+
+    -- you can query the type/flavour and parent resource of a view:
+
+            sg_view_type sg_query_view_type(sg_view view)
+            sg_image sg_query_view_image(sg_view view)
+            sg_buffer sg_query_view_buffer(sg_view view)
 
     --- you can query frame stats and control stats collection via:
 
@@ -447,7 +489,7 @@
         - https://floooh.github.io/sokol-html5/mrt-pixelformats-sapp.html
 
     A render pass groups rendering commands into a set of render target images
-    (called 'pass attachments'). Render target images can be used in subsequent
+    (called 'render pass attachments'). Render target images can be used in subsequent
     passes as textures (it is invalid to use the same image both as render target
     and as texture in the same pass).
 
@@ -511,24 +553,30 @@
     in the sokol_glue.h header.
 
     For offscreen render passes, the render target images used in a render pass
-    are baked into an immutable sg_attachments object.
+    must be provided as sg_view objects specialized for the specific pass-attachment
+    types:
+
+        - color-attachment-views for color-rendering
+        - depth-stencil-attachment-views for the depth-stencil-buffer surface
+        - resolve-attachment-views for MSAA-resolve operations
 
     For a simple offscreen scenario with one color-, one depth-stencil-render
-    target and without multisampling, creating an attachment object looks like this:
+    target and without multisampling, setting up the required image-
+    and view-objects looks like this:
 
     First create two render target images, one with a color pixel format,
     and one with the depth- or depth-stencil pixel format. Both images
-    must have the same dimensions:
+    must have the same dimensions. Also not the usage flags:
 
         const sg_image color_img = sg_make_image(&(sg_image_desc){
-            .render_target = true,
+            .usage.color_attachment = true,
             .width = 256,
             .height = 256,
             .pixel_format = SG_PIXELFORMAT_RGBA8,
             .sample_count = 1,
         });
         const sg_image depth_img = sg_make_image(&(sg_image_desc){
-            .render_target = true,
+            .usage.depth_stencil_attachment = true,
             .width = 256,
             .height = 256,
             .pixel_format = SG_PIXELFORMAT_DEPTH,
@@ -545,24 +593,49 @@
           sg_environment.defaults.sample_count
         - the default value for sg_image_desc.num_mipmaps is always 1
 
-    Next create an attachments object:
+    Next, create two view objects, one color-attachment-view and one
+    depth-stencil-attachment view:
 
-        const sg_attachments atts = sg_make_attachments(&(sg_attachments_desc){
-            .colors[0].image = color_img,
-            .depth_stencil.image = depth_img,
+        const sg_view color_att_view = sg_make_view(&(sg_view_desc){
+            .color_attachment.image = color_img,
+        });
+        const sg_view depth_att_view = sg_make_view(&(sg_view_desc){
+            .depth_stencil_attachment.image = depth_img,
         });
 
-    This attachments object is then passed into the sg_begin_pass() function
-    in place of the swapchain struct:
+    You'll typically also want to create a texture-view on the color image
+    to sample the color attachment image as texture in a later pass:
 
-        sg_begin_pass(&(sg_pass){ .attachments = atts });
+        const sg_view tex_view = sg_make_view(&(sg_view_desc){
+            .texture.image = color_img,
+        });
 
-    Swapchain and offscreen passes form dependency trees each with a swapchain
-    pass at the root, offscreen passes as nodes, and render target images as
+    The attachment-view objects are then passed into the sg_begin_pass function in
+    place of the nested swapchain struct:
+
+        sg_begin_pass(&(sg_pass){
+            .attachments = {
+                .colors[0] = color_att_view,
+                .depth_stencil = depth_att_view,
+            },
+        });
+
+    ...in a later pass when you want to sample the color attachment image as
+    texture, use the texture view in the sg_apply_bindings() call:
+
+        sg_apply_bindings(&(sg_bindings){
+            .vertex_buffers[0] = ...,
+            .index_buffer = ...,
+            .views[VIEW_tex] = tex_view,
+            .samplers[SMP_smp] = smp,
+        });
+
+    Swapchain and offscreen passes form dependency trees with a swapchain
+    pass at the root, offscreen passes as nodes, and attachment images as
     dependencies between passes.
 
     sg_pass_action structs are used to define actions that should happen at the
-    start and end of rendering passes (such as clearing pass attachments to a
+    start and end of render passes (such as clearing pass attachments to a
     specific color or depth-value, or performing an MSAA resolve operation at
     the end of a pass).
 
@@ -615,7 +688,10 @@
 
         sg_begin_pass(&(sg_pass){
             .action = pass_action,
-            .attachments = attachments,
+            .attachments = {
+                .colors[0] = color_att_view,
+                .depth_stencil = ds_att_view,
+            },
         });
         ...
         sg_end_pass();
@@ -625,84 +701,98 @@
     it's not possible to create a 3D image with a depth/stencil pixel format,
     these exceptions are generally caught by the sokol-gfx validation layer).
 
-    The mipmap/slice selection happens at attachments creation time, for instance
-    to render into mipmap 2 of slice 3 of an array texture:
+    The mipmap/slice selection is baked into the attachment-view objects, for
+    instance to create a color-attachment-view for rendering into mip-level
+    2 and slice 3 of an array texture:
 
-        const sg_attachments atts = sg_make_attachments(&(sg_attachments_desc){
-            .colors[0] = {
+        const sg_view color_att_view = sg_make_view(&(sg_view_desc){
+            .color_attachment = {
                 .image = color_img,
                 .mip_level = 2,
                 .slice = 3,
             },
-            .depth_stencil.image = depth_img,
         });
 
     If MSAA offscreen rendering is desired, the multi-sample rendering result
     must be 'resolved' into a separate 'resolve image', before that image can
     be used as texture.
 
-    Creating a simple attachments object for multisampled rendering requires
-    3 attachment images: the color attachment image which has a sample
-    count > 1, a resolve attachment image of the same size and pixel format
-    but a sample count == 1, and a depth/stencil attachment image with
-    the same size and sample count as the color attachment image:
+    Setting up MSAA offscreen 3D rendering requires three image objects
+    (one color-attachment image with a sample count > 1), a resolve-attachment
+    image with a sample count of 1, and a depth-stencil-attachment image
+    with the same sample count as the color-attachment image:
 
         const sg_image color_img = sg_make_image(&(sg_image_desc){
-            .render_target = true,
+            .usage.color_attachment = true,
             .width = 256,
             .height = 256,
             .pixel_format = SG_PIXELFORMAT_RGBA8,
             .sample_count = 4,
         });
         const sg_image resolve_img = sg_make_image(&(sg_image_desc){
-            .render_target = true,
+            .usage.resolve_attachment = true,
             .width = 256,
             .height = 256,
             .pixel_format = SG_PIXELFORMAT_RGBA8,
             .sample_count = 1,
         });
         const sg_image depth_img = sg_make_image(&(sg_image_desc){
-            .render_target = true,
+            .usage.depth_stencil_attachment = true,
             .width = 256,
             .height = 256,
             .pixel_format = SG_PIXELFORMAT_DEPTH,
             .sample_count = 4,
         });
 
-    ...create the attachments object:
+    Next you'll need the corresponding attachment-view objects:
 
-        const sg_attachments atts = sg_make_attachments(&(sg_attachments_desc){
-            .colors[0].image = color_img,
-            .resolves[0].image = resolve_img,
-            .depth_stencil.image = depth_img,
+        const sg_view color_att_view = sg_make_view(&(sg_view_desc){
+            .color_attachment.image = color_img,
+        });
+        const sg_view resolve_att_view = sg_make_view(&(sg_view_desc){
+            .resolve_attachment.image = resolve_img,
+        });
+        const sg_view depth_att_view = sg_make_view(&(sg_view_desc){
+            .depth_stencil_attachment.image = depth_img,
         });
 
-    If an attachments object defines a resolve image in a specific resolve attachment slot,
-    an 'msaa resolve operation' will happen in sg_end_pass().
+    To sample the rendered image as a texture in a later pass you'll also
+    need a texture-view on the resolve-attachment-image (not the color-attachment-image!):
 
-    In this scenario, the content of the MSAA color attachment doesn't need to be
-    preserved (since it's only needed inside sg_end_pass for the msaa-resolve), so
-    the .store_action should be set to "don't care":
+        const sg_view tex_view = sg_make_view(&(sg_view_desc){
+            .texture.image = resolve_img,
+        });
 
-        const sg_pass_action = {
-            .colors[0] = {
-                .load_action = SG_LOADACTION_CLEAR,
-                .store_action = SG_STOREACTION_DONTCARE,
-                .clear_value = { 0.0f, 0.0f, 0.0f, 1.0f }
-            }
-        };
+    Next start the render pass with all attachment-views, as soon as a
+    resolve-attachment-view is provided, an MSAA resolve operation will happen
+    at the end of the pass. Also note that the content of the MSAA color-attachment-image
+    doesn't need to be preserved, since it's only needed until the MSAA-resolve
+    at the end of the pass, so the .store_action should be set to "don't care":
 
-    The actual render pass looks as usual:
+        sg_begin_pass(&(sg_pass){
+            .attachments = {
+                .colors[0] = color_att_view,
+                .resolves[0] = resolve_att_view,
+                .depth_stencil = depth_att_view,
+            },
+            .action = {
+                .colors[0] = {
+                    .load_action = SG_LOADACTION_CLEAR,
+                    .store_action = SG_STOREACTION_DONTCARE,
+                    .clear_value = { 0.0f, 0.0f, 0.0f, 1.0f },
+                }
+            },
+        });
 
-        sg_begin_pass(&(sg_pass){ .action = pass_action, .attachments = atts });
-        ...
-        sg_end_pass();
+    ...in a later pass, use the texture-view that had been created on the
+    resolve-image to use the rendering result as texture:
 
-    ...after sg_end_pass() the only difference to the non-msaa scenario is that the
-    rendering result which is going to be used as texture in a followup pass is
-    in 'resolve_img', not in 'color_img' (in fact, trying to bind color_img as a
-    texture would result in a validation error).
-
+        sg_apply_bindings(&(sg_bindings){
+            .vertex_buffers[0] = ...,
+            .index_buffer = ...,
+            .views[VIEW_tex] = tex_view,
+            .samplers[SMP_smp] = smp,
+        });
 
     ON COMPUTE PASSES
     =================
@@ -729,26 +819,11 @@
         - iOS with GLES3
         - Web with WebGL2
 
-    A compute pass which only updates storage buffers is started with:
+    A compute pass is started with:
 
         sg_begin_pass(&(sg_pass){ .compute = true });
 
-    ...if the compute pass updates storage images, the images must be 'bound'
-    via an sg_attachments object:
-
-        sg_begin_pass(&(sg_pass){ .compute = true, .attachments = attachments });
-
-    Image objects in such a compute pass attachments object must be created with
-    `storage_attachment` usage:
-
-        sg_image storage_image = sg_make_image(&(sg_image_desc){
-            .usage = {
-                .storage_attachment = true,
-            },
-            // ...
-        });
-
-    ...a compute pass is finished with a regular:
+    ...and finished with a regular:
 
         sg_end_pass();
 
@@ -769,9 +844,9 @@
     Only special 'compute shaders' and 'compute pipelines' can be used in
     compute passes. A compute shader only has a compute-function instead
     of a vertex- and fragment-function pair, and it doesn't accept vertex-
-    and index-buffers as input, only storage-buffers, textures, non-filtering
-    samplers and images via storage attachments (more details on compute shaders in
-    the following section).
+    and index-buffers as bindings, only storage-buffer-views (readable
+    and writable), storage-image-views (read/write or writeonly) and
+    texture-views (read-only).
 
     A compute pipeline is created by providing a compute shader object,
     setting the .compute creation parameter to true and not defining any
@@ -838,7 +913,7 @@
       compute-shader-stage:
         - for the desktop GL backend, source code can be provided in '#version 410' or
           '#version 430', version 430 is required when using storage buffers and
-          compute shaders support, but note that this is not available on macOS
+          compute shaders, but note that this is not available on macOS
         - for the GLES3 backend, source code must be provided in '#version 300 es' or
           '#version 310 es' syntax (version 310 is required for storage buffer and
           compute shader support, but note that this is not supported on WebGL2)
@@ -857,7 +932,7 @@
     - Information about the input vertex attributes used by the vertex shader,
       most of that backend-specific:
         - An optional 'base type' (float, signed-/unsigned-int) for each vertex
-          attribute. When provided, this used by the validation layer to check
+          attribute. When provided, this is used by the validation layer to check
           that the CPU-side input vertex format is compatible with the input
           vertex declaration of the vertex shader.
         - Metal: no location information needed since vertex attributes are always bound
@@ -904,74 +979,81 @@
         - please also NOTE the documentation sections about UNIFORM DATA LAYOUT
           and CROSS-BACKEND COMMON UNIFORM DATA LAYOUT below!
 
-    - A description of each storage buffer binding used in the shader:
-        - the shader stage of the storage buffer
-        - a boolean 'readonly' flag, this is used for validation and hazard
-          tracking in some 3D backends. Note that in render passes, only
-          readonly storage buffer bindings are allowed. In compute passes, any
-          read/write storage buffer binding is assumed to be written to by the
-          compute shader.
-        - a backend-specific bind slot:
-            - D3D11/HLSL:
-                - for readonly storage buffer bindings: the texture register N
-                  (`register(tN)`) where N is 0..23 (in HLSL, readonly storage
-                  buffers and textures share the same bind space for
-                  'shader resource views')
-                - for read/write storage buffer buffer bindings: the UAV register N
-                  (`register(uN)`) where N is 0..11 (in HLSL, readwrite storage
-                  buffers use their own bind space for 'unordered access views')
-            - Metal/MSL: the buffer bind slot N (`[[buffer(N)]]`) where N is 8..15
-            - WebGPU/WGSL: the binding N in `@group(0) @binding(N)` where N is 0..127
-            - GL/GLSL: the buffer binding N in `layout(binding=N)` where N is 0..7
-        - note that storage buffer bindings are not supported on all backends
-          and platforms
+    - A description of each resource binding (texture-, storage-buffer-
+      and storage-image-bindings) which directly map to the sg_bindings.view[]
+      array slots.
 
-    - A description of each storage image binding used in the shader (only supported
-      in compute shaders):
-        - the shader stage (*must* be compute)
-        - the expected image type:
-            - SG_IMAGETYPE_2D
-            - SG_IMAGETYPE_CUBE
-            - SG_IMAGETYPE_3D
-            - SG_IMAGETYPE_ARRAY
-        - the 'access pixel format', this is currently limited to:
-            - SG_PIXELFORMAT_RGBA8
-            - SG_PIXELFORMAT_RGBA8SN/UI/SI
-            - SG_PIXELFORMAT_RGBA16UI/SI/F
-            - SG_PIXELFORMAT_R32UIUI/SI/F
-            - SG_PIXELFORMAT_RG32UI/SI/F
-            - SG_PIXELFORMAT_RGBA32UI/SI/F
-        - the access type (readwrite or writeonly)
-        - a backend-specific bind slot:
-            - D3D11/HLSL: the UAV register N (`register(uN)` where N is 0..11, the
-              bind slot must not collide with UAV storage buffer bindings
-            - Metal/MSL: the texture bind slot N (`[[texture(N)]])` where N is 0..19,
-              the bind slot must not collide with other texture bindings on the same
-              stage
-            - WebGPU/WGSL: the binding N in `@group(2) @binding(N)` where N is 0..3
-            - GL/GLSL: the buffer binding N in `layout(binding=N)` where N is 0..3
-        - note that storage image bindings are not supported on all backends and platforms
+      Each resource binding slot comes in three flavours:
 
-    - A description of each texture binding used in the shader:
-        - the shader stage of the texture (vertex, fragment or compute)
-        - the expected image type:
-            - SG_IMAGETYPE_2D
-            - SG_IMAGETYPE_CUBE
-            - SG_IMAGETYPE_3D
-            - SG_IMAGETYPE_ARRAY
-        - the expected 'image sample type':
-            - SG_IMAGESAMPLETYPE_FLOAT
-            - SG_IMAGESAMPLETYPE_DEPTH
-            - SG_IMAGESAMPLETYPE_SINT
-            - SG_IMAGESAMPLETYPE_UINT
-            - SG_IMAGESAMPLETYPE_UNFILTERABLE_FLOAT
-        - a flag whether the texture is expected to be multisampled
-        - a backend-specific bind slot:
-            - D3D11/HLSL: the texture register N (`register(tN)`) where N is 0..23
-              (in HLSL, readonly storage buffers and texture share the same bind space)
-            - Metal/MSL: the texture bind slot N (`[[texture(N)]]`) where N is 0..19
-              (the bind slot must not collide with storage image bindings on the same stage)
-            - WebGPU/WGSL: the binding N in `@group(0) @binding(N)` where N is 0..127
+        1. Texture bindings with the following properties:
+            - the shader stage of the texture (vertex, fragment or compute)
+            - the expected image type:
+                - SG_IMAGETYPE_2D
+                - SG_IMAGETYPE_CUBE
+                - SG_IMAGETYPE_3D
+                - SG_IMAGETYPE_ARRAY
+            - the expected 'image sample type':
+                - SG_IMAGESAMPLETYPE_FLOAT
+                - SG_IMAGESAMPLETYPE_DEPTH
+                - SG_IMAGESAMPLETYPE_SINT
+                - SG_IMAGESAMPLETYPE_UINT
+                - SG_IMAGESAMPLETYPE_UNFILTERABLE_FLOAT
+            - a flag whether the texture is expected to be multisampled
+            - a backend-specific bind slot:
+                - D3D11/HLSL: the texture register N (`register(tN)`) where N is 0..31
+                (in HLSL, readonly storage buffers and texture share the same bind space)
+                - Metal/MSL: the texture bind slot N (`[[texture(N)]]`) where N is 0..31
+                (the bind slot must not collide with storage image bindings on the same stage)
+                - WebGPU/WGSL: the binding N in `@group(0) @binding(N)` where N is 0..127
+
+        2. Storage buffer bindings with the following properties:
+            - the shader stage of the storage buffer
+            - a boolean 'readonly' flag, this is used for validation and hazard
+            tracking in some 3D backends. Note that in render passes, only
+            readonly storage buffer bindings are allowed. In compute passes, any
+            read/write storage buffer binding is assumed to be written to by the
+            compute shader.
+            - a backend-specific bind slot:
+                - D3D11/HLSL:
+                    - for readonly storage buffer bindings: the texture register N
+                    (`register(tN)`) where N is 0..31 (in HLSL, readonly storage
+                    buffers and textures share the same bind space for
+                    'shader resource views')
+                    - for read/write storage buffer buffer bindings: the UAV register N
+                    (`register(uN)`) where N is 0..31 (in HLSL, readwrite storage
+                    buffers use their own bind space for 'unordered access views')
+                - Metal/MSL: the buffer bind slot N (`[[buffer(N)]]`) where N is 8..23
+                - WebGPU/WGSL: the binding N in `@group(0) @binding(N)` where N is 0..127
+                - GL/GLSL: the buffer binding N in `layout(binding=N)`
+                  where N is 0..sg_limits.max_storage_buffer_bindings_per_stage
+            - note that storage buffer bindings are not supported on all backends
+            and platforms
+
+        3. Storage image bindings with the following properties:
+            - the shader stage (*must* be compute)
+            - the expected image type:
+                - SG_IMAGETYPE_2D
+                - SG_IMAGETYPE_CUBE
+                - SG_IMAGETYPE_3D
+                - SG_IMAGETYPE_ARRAY
+            - the 'access pixel format', this is currently limited to:
+                - SG_PIXELFORMAT_RGBA8
+                - SG_PIXELFORMAT_RGBA8SN/UI/SI
+                - SG_PIXELFORMAT_RGBA16UI/SI/F
+                - SG_PIXELFORMAT_R32UIUI/SI/F
+                - SG_PIXELFORMAT_RG32UI/SI/F
+                - SG_PIXELFORMAT_RGBA32UI/SI/F
+            - the access type (readwrite or writeonly)
+            - a backend-specific bind slot:
+                - D3D11/HLSL: the UAV register N (`register(uN)` where N is 0..31, the
+                bind slot must not collide with UAV storage buffer bindings
+                - Metal/MSL: the texture bind slot N (`[[texture(N)]])` where N is 0..31,
+                the bind slot must not collide with other texture bindings on the same
+                stage
+                - WebGPU/WGSL: the binding N in `@group(1) @binding(N)` where N is 0..127
+                - GL/GLSL: the buffer binding N in `layout(binding=N)`
+                  where N is 0.._sg.max_storage_image_bindings_per_stage
+            - note that storage image bindings are not supported on all backends and platforms
 
     - A description of each sampler used in the shader:
         - the shader stage of the sampler (vertex, fragment or compute)
@@ -980,11 +1062,11 @@
             - SG_SAMPLERTYPE_NONFILTERING,
             - SG_SAMPLERTYPE_COMPARISON,
         - a backend-specific bind slot:
-            - D3D11/HLSL: the sampler register N (`register(sN)`) where N is 0..15
-            - Metal/MSL: the sampler bind slot N (`[[sampler(N)]]`) where N is 0..15
+            - D3D11/HLSL: the sampler register N (`register(sN)`) where N is 0..SG_MAX_SAMPLER_BINDINGS
+            - Metal/MSL: the sampler bind slot N (`[[sampler(N)]]`) where N is 0..SG_MAX_SAMPLER_BINDINGS
             - WebGPU/WGSL: the binding N in `@group(0) @binding(N)` where N is 0..127
 
-    - An array of 'image-sampler-pairs' used by the shader to sample textures,
+    - An array of 'texture-sampler-pairs' used by the shader to sample textures,
       for D3D11, Metal and WebGPU this is used for validation purposes to check
       whether the texture and sampler are compatible with each other (especially
       WebGPU is very picky about combining the correct
@@ -1006,25 +1088,24 @@
         - D3D11/HLSL:
             - separate bindslot space per shader stage
             - uniform block bindings (as cbuffer): `register(b0..b7)`
-            - texture- and readonly storage buffer bindings: `register(t0..t23)`
-            - read/write storage buffer and storage image bindings: `register(u0..u11)`
-            - samplers: `register(s0..s15)`
+            - texture- and readonly storage buffer bindings: `register(t0..t31)`
+            - read/write storage buffer and storage image bindings: `register(u0..u31)`
+            - samplers: `register(s0..s11)`
         - Metal/MSL:
             - separate bindslot space per shader stage
             - uniform blocks: `[[buffer(0..7)]]`
-            - storage buffers: `[[buffer(8..15)]]`
-            - textures and storage image bindings: `[[texture(0..19)]]`
-            - samplers: `[[sampler(0..15)]]`
+            - storage buffers: `[[buffer(8..23)]]`
+            - textures and storage image bindings: `[[texture(0..31)]]`
+            - samplers: `[[sampler(0..11)]]`
         - WebGPU/WGSL:
             - common bindslot space across shader stages
             - uniform blocks: `@group(0) @binding(0..15)`
-            - textures, samplers and storage buffers: `@group(1) @binding(0..127)`
-            - storage image bindings: `@group(2) @binding(0..3)`
+            - textures, storage-images, storage-buffers and sampler: `@group(1) @binding(0..127)`
         - GL/GLSL:
             - uniforms and image-samplers are bound by name
-            - storage buffer bindings: `layout(std430, binding=0..7)` (common
+            - storage buffer bindings: `layout(std430, binding=0..sg_limits.max_storage_buffer_bindings_per_stage` (common
               bindslot space across shader stages)
-            - storage image bindings: `layout(binding=0..3, [access_format])`
+            - storage image bindings: `layout(binding=0..sg_limits.max_storage_image_bindings_per_stage, [access_format])`
 
     For example code of how to create backend-specific shader objects,
     please refer to the following samples:
@@ -1379,7 +1460,7 @@
         GL:
             - the GL backend doesn't use name-lookup to find storage buffer bindings, this
               means you must annotate buffers with `layout(std430, binding=N)` in GLSL
-            - ...where N is 0..7 in the vertex shader, and 8..15 in the fragment shader
+            - ...where N is 0..sg_limits.max_storage_buffer_bindings_per_stage.
 
         WebGPU:
             - in WGSL, textures, samplers and storage buffers all use a shared
@@ -1390,50 +1471,45 @@
     ON STORAGE IMAGES:
     ==================
     To write pixel data to texture objects in compute shaders, first an image
-    object must be created with `storage_attachment usage`:
+    object must be created with `storage_image usage`:
 
         sg_image storage_image = sg_make_image(&(sg_image_desc){
-            .usage = {
-                .storage_attachment = true,
+            .usage.storage_image = true,
             },
             .width = ...,
             .height = ...,
             .pixel_format = ...,
         });
 
-    ...next the image object must be wrapped in an attachment object, this allows
-    to pick a specific mipmap level or slice to be accessed by the compute shader:
+    Next a storage-image-view object is required which also allows to pick
+    a specific mip-level or slice for the compute-shader to access:
 
-        sg_attachments storage_attachment = sg_make_attachment(&(sg_attachments_desc){
-            .storages[0] = {
+        sg_view simg_view = sg_make_view(&(sg_view_desc){
+            .storage_image = {
                 .image = storage_image,
                 .mip_level = ...,
-                .slice = ...,
+                .slice = ...
             },
         });
 
-    Finally 'bind' the storage image as pass attachment in the `sg_begin_pass`
-    call of a compute pass:
+    Finally 'bind' the storage-image-view via a regular sg_apply_bindings() call
+    inside a compute pass:
 
-        sg_begin_pass(&(sg_pass){ .compute = true, .attachments = storage_attachments });
-        ...
+        sg_begin_pass(&(sg_pass){ .compute = true });
+        sg_apply_pipeline(...);
+        sg_apply_bindings(&(sg_bindings){
+            .views[VIEW_simg] = simg_view,
+        });
+        sg_dispatch(...);
         sg_end_pass();
 
-    Storage attachments should only be accessed as `readwrite` or `writeonly` mode
-    in compute shaders because if the limited bind space of up to 4 slots. For
-    readonly access, just bind the storage image as regular texture via
-    `sg_apply_bindings()`.
+    Currently, storage images can only be used with `readwrite` or `writeonly` access in
+    shaders. For readonly access use a regular texture binding instead.
 
     For an example of using storage images in compute shaders see imageblur-sapp:
 
         - C code: https://github.com/floooh/sokol-samples/blob/master/sapp/imageblur-sapp.c
         - shader: https://github.com/floooh/sokol-samples/blob/master/sapp/imageblur-sapp.glsl
-
-    NOTE: in the (hopefully not-too-distant) future, working with storage
-    images will change by moving the resource binding from pass attachments to
-    regular bindings via `sg_apply_bindings()`, but this requires the
-    introduction of resource view objects into sokol-gfx (see planning
-    ticket: https://github.com/floooh/sokol/issues/1252)
 
     TRACE HOOKS:
     ============
@@ -1588,7 +1664,7 @@
         sg_sampler sg_make_sampler(const sg_sampler_desc* desc)
         sg_shader sg_make_shader(const sg_shader_desc* desc)
         sg_pipeline sg_make_pipeline(const sg_pipeline_desc* desc)
-        sg_attachments sg_make_attachments(const sg_attachments_desc* desc)
+        sg_view sg_make_view(const sg_view_desc* desc)
 
     This will result in one of three cases:
 
@@ -1646,7 +1722,7 @@
         sg_sampler sg_alloc_sampler(void)
         sg_shader sg_alloc_shader(void)
         sg_pipeline sg_alloc_pipeline(void)
-        sg_attachments sg_alloc_attachments(void)
+        sg_view sg_alloc_view(void)
 
     This will return a handle with the underlying resource object in the
     ALLOC state:
@@ -1671,7 +1747,7 @@
         void sg_init_sampler(sg_sampler smp, const sg_sampler_desc* desc)
         void sg_init_shader(sg_shader shd, const sg_shader_desc* desc)
         void sg_init_pipeline(sg_pipeline pip, const sg_pipeline_desc* desc)
-        void sg_init_attachments(sg_attachments atts, const sg_attachments_desc* desc)
+        void sg_init_view(sg_view view, const sg_view_desc* desc)
 
     The init functions expect a resource in ALLOC state, and after the function
     returns, the resource will be either in VALID or FAILED state. Calling
@@ -1687,7 +1763,7 @@
         void sg_uninit_sampler(sg_sampler smp)
         void sg_uninit_shader(sg_shader shd)
         void sg_uninit_pipeline(sg_pipeline pip)
-        void sg_uninit_attachments(sg_attachments pass)
+        void sg_uninit_view(sg_view view)
 
     Calling the 'uninit functions' with a resource that is not in the VALID or
     FAILED state is a no-op.
@@ -1699,7 +1775,7 @@
         void sg_dealloc_sampler(sg_sampler smp)
         void sg_dealloc_shader(sg_shader shd)
         void sg_dealloc_pipeline(sg_pipeline pip)
-        void sg_dealloc_attachments(sg_attachments atts)
+        void sg_dealloc_view(sg_view view)
 
     Calling the 'dealloc functions' on a resource that's not in ALLOC state is
     a no-op, but will generate a warning log message.
@@ -1712,7 +1788,7 @@
         void sg_destroy_sampler(sg_sampler smp)
         void sg_destroy_shader(sg_shader shd)
         void sg_destroy_pipeline(sg_pipeline pip)
-        void sg_destroy_attachments(sg_attachments atts)
+        void sg_destroy_view(sg_view view)
 
     The 'destroy functions' can be called on resources in any state and generally
     do the right thing (for instance if the resource is in ALLOC state, the destroy
@@ -1726,7 +1802,7 @@
         sg_fail_sampler(sg_sampler smp)
         sg_fail_shader(sg_shader shd)
         sg_fail_pipeline(sg_pipeline pip)
-        sg_fail_attachments(sg_attachments atts)
+        sg_fail_view(sg_view view)
 
     This is recommended if anything went wrong outside of sokol-gfx during asynchronous
     resource setup (for instance a file loading operation failed). In this case,
@@ -1735,12 +1811,11 @@
     Calling a 'fail function' on a resource that's not in ALLOC state is a no-op,
     but will generate a warning log message.
 
-    NOTE: that two-step resource creation usually only makes sense for buffers
-    and images, but not for samplers, shaders, pipelines or attachments. Most notably, trying
+    NOTE: that two-step resource creation usually only makes sense for buffers,
+    images and views, but not for samplers, shaders or pipelines. Most notably, trying
     to create a pipeline object with a shader that's not in VALID state will
     trigger a validation layer error, or if the validation layer is disabled,
-    result in a pipeline object in FAILED state. Same when trying to create
-    an attachments object with invalid image objects.
+    result in a pipeline object in FAILED state.
 
 
     WEBGPU CAVEATS
@@ -1763,24 +1838,21 @@
 
         @group(0) @binding(0..15)
 
-      All textures, samplers and storage buffers must use `@group(1)` and
-      bindings must be in the range 0..127:
+      All textures, samplers, storage-buffers and storage-images must use `@group(1)`
+      and bindings must be in the range 0..127:
 
         @group(1) @binding(0..127)
 
-      All storage image attachments must use `@group(2)` and bindings
-      must be in the range 0..3:
-
-        @group(2) @binding(0..3)
-
-      Note that the number of texture, sampler and storage buffer bindings
+      Note that the number of texture, sampler, storage-buffer storage-image bindings
       is still limited despite the large bind range:
 
         - up to 16 textures and sampler across all shader stages
         - up to 8 storage buffers across all shader stages
+        - up to 4 storage images on the compute shader stage
 
       If you use sokol-shdc to generate WGSL shader code, you don't need to worry
-      about the above binding conventions since sokol-shdc.
+      about the above binding conventions since sokol-shdc will allocate
+      the WGSL bindslots).
 
     - The sokol-gfx WebGPU backend uses the sg_desc.uniform_buffer_size item
       to allocate a single per-frame uniform buffer which must be big enough
@@ -1895,7 +1967,7 @@ extern "C" {
     sg_sampler      sampler objects describing how a texture is sampled in a shader
     sg_shader:      vertex- and fragment-shaders and shader interface information
     sg_pipeline:    associated shader and vertex-layouts, and render states
-    sg_attachments: a baked collection of render pass attachment images
+    sg_view:        a resource view object used for bindings and render-pass attachments
 
     Instead of pointers, resource creation functions return a 32-bit
     handle which uniquely identifies the resource object.
@@ -1914,7 +1986,7 @@ typedef struct sg_image         { uint32_t id; } sg_image;
 typedef struct sg_sampler       { uint32_t id; } sg_sampler;
 typedef struct sg_shader        { uint32_t id; } sg_shader;
 typedef struct sg_pipeline      { uint32_t id; } sg_pipeline;
-typedef struct sg_attachments   { uint32_t id; } sg_attachments;
+typedef struct sg_view          { uint32_t id; } sg_view;
 
 /*
     sg_range is a pointer-size-pair struct used to pass memory blobs into
@@ -1945,18 +2017,19 @@ typedef struct sg_range {
 enum {
     SG_INVALID_ID = 0,
     SG_NUM_INFLIGHT_FRAMES = 2,
-    SG_MAX_COLOR_ATTACHMENTS = 4,
-    SG_MAX_STORAGE_ATTACHMENTS = 4,
+    SG_MAX_COLOR_ATTACHMENTS = 8,
     SG_MAX_UNIFORMBLOCK_MEMBERS = 16,
     SG_MAX_VERTEX_ATTRIBUTES = 16,
     SG_MAX_MIPMAPS = 16,
-    SG_MAX_TEXTUREARRAY_LAYERS = 128,
-    SG_MAX_UNIFORMBLOCK_BINDSLOTS = 8,
     SG_MAX_VERTEXBUFFER_BINDSLOTS = 8,
-    SG_MAX_IMAGE_BINDSLOTS = 16,
-    SG_MAX_SAMPLER_BINDSLOTS = 16,
-    SG_MAX_STORAGEBUFFER_BINDSLOTS = 8,
-    SG_MAX_IMAGE_SAMPLER_PAIRS = 16,
+    SG_MAX_UNIFORMBLOCK_BINDSLOTS = 8,
+    SG_MAX_VIEW_BINDSLOTS = 32,
+    SG_MAX_SAMPLER_BINDSLOTS = 12,
+    SG_MAX_TEXTURE_SAMPLER_PAIRS = 32,  // same as SG_MAX_VIEW_BINDSLOTS
+    SG_MAX_PORTABLE_COLOR_ATTACHMENTS = 4,
+    SG_MAX_PORTABLE_TEXTURE_BINDINGS_PER_STAGE = 16,
+    SG_MAX_PORTABLE_STORAGEBUFFER_BINDINGS_PER_STAGE = 8,   // assuming sg_features.compute = true
+    SG_MAX_PORTABLE_STORAGEIMAGE_BINDINGS_PER_STAGE = 4,    // assuming sg_features.compute = true
 };
 
 /*
@@ -2134,8 +2207,11 @@ typedef struct sg_features {
     bool mrt_independent_blend_state;   // multiple-render-target rendering can use per-render-target blend state
     bool mrt_independent_write_mask;    // multiple-render-target rendering can use per-render-target color write masks
     bool compute;                       // storage buffers and compute shaders are supported
-    bool msaa_image_bindings;           // if true, multisampled images can be bound as texture resources
-    bool separate_buffer_types;         // cannot use the same buffer for vertex and indices (onlu WebGL2)
+    bool msaa_texture_bindings;         // if true, multisampled images can be bound as textures
+    bool separate_buffer_types;         // cannot use the same buffer for vertex and indices (only WebGL2)
+    bool draw_base_vertex;              // draw with (base vertex > 0) && (base_instance == 0) supported
+    bool draw_base_instance;            // draw with (base instance > 0) supported
+    bool gl_texture_views;              // supports 'proper' texture views (GL 4.3+)
 } sg_features;
 
 /*
@@ -2148,8 +2224,13 @@ typedef struct sg_limits {
     int max_image_size_array;       // max width/height of SG_IMAGETYPE_ARRAY images
     int max_image_array_layers;     // max number of layers in SG_IMAGETYPE_ARRAY images
     int max_vertex_attrs;           // max number of vertex attributes, clamped to SG_MAX_VERTEX_ATTRIBUTES
-    int gl_max_vertex_uniform_components;    // <= GL_MAX_VERTEX_UNIFORM_COMPONENTS (only on GL backends)
-    int gl_max_combined_texture_image_units; // <= GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS (only on GL backends)
+    int max_color_attachments;      // max number of render pass color attachments, clamped to SG_MAX_COLOR_ATTACHMENTS
+    int max_texture_bindings_per_stage; // max number of texture bindings per shader stage, clamped to SG_MAX_VIEW_BINDSLOTS
+    int max_storage_buffer_bindings_per_stage;  // max number of storage buffer bindings per shader stage, clamped to SG_MAX_VIEW_BINDSLOTS
+    int max_storage_image_bindings_per_stage;   // max number of storage image bindings per shader stage, clamped to SG_MAX_VIEW_BINDSLOTS
+    int gl_max_vertex_uniform_components;       // GL_MAX_VERTEX_UNIFORM_COMPONENTS (only on GL backends)
+    int gl_max_combined_texture_image_units;    // GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS (only on GL backends)
+    int d3d11_max_unordered_access_views;       // 8 on feature level 11.0, otherwise 32 (clamped to SG_MAX_VIEW_BINDSLOTS)
 } sg_limits;
 
 /*
@@ -2277,23 +2358,6 @@ typedef enum sg_sampler_type {
     _SG_SAMPLERTYPE_NUM,
     _SG_SAMPLERTYPE_FORCE_U32,
 } sg_sampler_type;
-
-/*
-    sg_cube_face
-
-    The cubemap faces. Use these as indices in the sg_image_desc.content
-    array.
-*/
-typedef enum sg_cube_face {
-    SG_CUBEFACE_POS_X,
-    SG_CUBEFACE_NEG_X,
-    SG_CUBEFACE_POS_Y,
-    SG_CUBEFACE_NEG_Y,
-    SG_CUBEFACE_POS_Z,
-    SG_CUBEFACE_NEG_Z,
-    SG_CUBEFACE_NUM,
-    _SG_CUBEFACE_FORCE_U32 = 0x7FFFFFFF
-} sg_cube_face;
 
 /*
     sg_primitive_type
@@ -2849,7 +2913,7 @@ typedef struct sg_pass_action {
     On all other backends you shouldn't need to mess with the reference count.
 
     It's a good practice to write a helper function which returns an initialized
-    sg_swapchain structs, which can then be plugged directly into
+    sg_swapchain struct, which can then be plugged directly into
     sg_pass.swapchain. Look at the function sglue_swapchain() in the sokol_glue.h
     as an example.
 */
@@ -2888,6 +2952,39 @@ typedef struct sg_swapchain {
 } sg_swapchain;
 
 /*
+    sg_attachments
+
+    Used in sg_pass to provide render pass attachment views. Each
+    type of pass attachment has it corresponding view type:
+
+    sg_attachments.colors[]:
+        populate with color-attachment views, e.g.:
+
+        sg_make_view(&(sg_view_desc){
+            .color_attachment = { ... },
+        });
+
+    sg_attachments.resolves[]:
+        populate with resolve-attachment views, e.g.:
+
+        sg_make_view(&(sg_view_desc){
+            .resolve_attachment = { ... },
+        });
+
+    sg_attachments.depth_stencil:
+        populate with depth-stencil-attachment views, e.g.:
+
+        sg_make_view(&(sg_view_desc){
+            .depth_stencil_attachment = { ... },
+        });
+*/
+typedef struct sg_attachments {
+    sg_view colors[SG_MAX_COLOR_ATTACHMENTS];
+    sg_view resolves[SG_MAX_COLOR_ATTACHMENTS];
+    sg_view depth_stencil;
+} sg_attachments;
+
+/*
     sg_pass
 
     The sg_pass structure is passed as argument into the sg_begin_pass()
@@ -2902,12 +2999,16 @@ typedef struct sg_swapchain {
             .swapchain = sglue_swapchain(),
         });
 
-    For an offscreen render pass, provide an sg_pass_action struct and
-    an sg_attachments handle:
+    For an offscreen render pass, provide an sg_pass_action struct with
+    attachment view objects:
 
         sg_begin_pass(&(sg_pass){
             .action = { ... },
-            .attachments = attachments,
+            .attachments = {
+                .colors = { ... },
+                .resolves = { ... },
+                .depth_stencil = ...,
+            },
         });
 
     You can also omit the .action object to get default pass action behaviour
@@ -2930,8 +3031,8 @@ typedef struct sg_pass {
 /*
     sg_bindings
 
-    The sg_bindings structure defines the buffers, images and
-    samplers resource bindings for the next draw call.
+    The sg_bindings structure defines the resource bindings for
+    the next draw call.
 
     To update the resource bindings, call sg_apply_bindings() with
     a pointer to a populated sg_bindings struct. Note that
@@ -2942,39 +3043,37 @@ typedef struct sg_pass {
     A resource binding struct contains:
 
     - 1..N vertex buffers
-    - 0..N vertex buffer offsets
-    - 0..1 index buffers
-    - 0..1 index buffer offsets
-    - 0..N images
+    - 1..N vertex buffer offsets
+    - 0..1 index buffer
+    - 0..1 index buffer offset
+    - 0..N resource views (texture-, storage-image, storage-buffer-views)
     - 0..N samplers
-    - 0..N storage buffers
 
     Where 'N' is defined in the following constants:
 
     - SG_MAX_VERTEXBUFFER_BINDSLOTS
-    - SG_MAX_IMAGE_BINDLOTS
+    - SG_MAX_VIEW_BINDSLOTS
     - SG_MAX_SAMPLER_BINDSLOTS
-    - SG_MAX_STORAGEBUFFER_BINDGLOTS
 
     Note that inside compute passes vertex- and index-buffer-bindings are
     disallowed.
 
     When using sokol-shdc for shader authoring, the `layout(binding=N)`
-    annotation in the shader code directly maps to the slot index for that
-    resource type in the bindings struct, for instance the following vertex-
+    for texture-, storage-image- and storage-buffer-bindings directly
+    maps to the views-array index, for instance the following vertex-
     and fragment-shader interface for sokol-shdc:
 
         @vs vs
         layout(binding=0) uniform vs_params { ... };
         layout(binding=0) readonly buffer ssbo { ... };
-        layout(binding=0) uniform texture2D vs_tex;
+        layout(binding=1) uniform texture2D vs_tex;
         layout(binding=0) uniform sampler vs_smp;
         ...
         @end
 
         @fs fs
         layout(binding=1) uniform fs_params { ... };
-        layout(binding=1) uniform texture2D fs_tex;
+        layout(binding=2) uniform texture2D fs_tex;
         layout(binding=1) uniform sampler fs_smp;
         ...
         @end
@@ -2983,22 +3082,22 @@ typedef struct sg_pass {
 
         const sg_bindings bnd = {
             .vertex_buffers[0] = ...,
-            .images[0] = vs_tex,
-            .images[1] = fs_tex,
+            .views[0] = ssbo_view,
+            .views[1] = vs_tex_view,
+            .views[2] = fs_tex_view,
             .samplers[0] = vs_smp,
             .samplers[1] = fs_smp,
-            .storage_buffers[0] = ssbo,
         };
 
     ...alternatively you can use code-generated slot indices:
 
         const sg_bindings bnd = {
             .vertex_buffers[0] = ...,
-            .images[IMG_vs_tex] = vs_tex,
-            .images[IMG_fs_tex] = fs_tex,
+            .views[VIEW_ssbo] = ssbo_view,
+            .views[VIEW_vs_tex] = vs_tex_view,
+            .views[VIEW_fs_tex] = fs_tex_view,
             .samplers[SMP_vs_smp] = vs_smp,
             .samplers[SMP_fs_smp] = fs_smp,
-            .storage_buffers[SBUF_ssbo] = ssbo,
         };
 
     Resource bindslots for a specific shader/pipeline may have gaps, and an
@@ -3007,7 +3106,7 @@ typedef struct sg_pass {
     different shader variants.
 
     When not using sokol-shdc, the bindslot indices in the sg_bindings
-    struct need to match the per-resource reflection info slot indices
+    struct need to match the per-binding reflection info slot indices
     in the sg_shader_desc struct (for details about that see the
     sg_shader_desc struct documentation).
 
@@ -3020,9 +3119,8 @@ typedef struct sg_bindings {
     int vertex_buffer_offsets[SG_MAX_VERTEXBUFFER_BINDSLOTS];
     sg_buffer index_buffer;
     int index_buffer_offset;
-    sg_image images[SG_MAX_IMAGE_BINDSLOTS];
+    sg_view views[SG_MAX_VIEW_BINDSLOTS];
     sg_sampler samplers[SG_MAX_SAMPLER_BINDSLOTS];
-    sg_buffer storage_buffers[SG_MAX_STORAGEBUFFER_BINDSLOTS];
     uint32_t _end_canary;
 } sg_bindings;
 
@@ -3032,11 +3130,12 @@ typedef struct sg_bindings {
     Describes how a buffer object is going to be used:
 
     .vertex_buffer (default: true)
-        the buffer will bound as vertex buffer via sg_bindings.vertex_buffers[]
+        the buffer will be bound as vertex buffer via sg_bindings.vertex_buffers[]
     .index_buffer (default: false)
-        the buffer will bound as index buffer via sg_bindings.index_buffer
+        the buffer will be bound as index buffer via sg_bindings.index_buffer
     .storage_buffer (default: false)
-        the buffer will bound as storage buffer via sg_bindings.storage_buffers[]
+        the buffer will be bound as storage buffer via storage-buffer-view
+        in sg_bindings.views[]
     .immutable (default: true)
         the buffer content will never be updated from the CPU side (but
         may be written to by a compute shader)
@@ -3062,7 +3161,7 @@ typedef struct sg_buffer_usage {
     The default configuration is:
 
     .size:      0       (*must* be >0 for buffers without data)
-    .usage              .vertex_buffer = true, .immutable = true
+    .usage      { .vertex_buffer = true, .immutable = true }
     .data.ptr   0       (*must* be valid for immutable buffers without storage buffer usage)
     .data.size  0       (*must* be > 0 for immutable buffers without storage buffer usage)
     .label      0       (optional string label)
@@ -3126,14 +3225,25 @@ typedef struct sg_buffer_desc {
 /*
     sg_image_usage
 
-    Describes how the image object is going to be used:
+    Describes the intended usage of an image object:
 
-    .render_attachment (default: false)
-        the image object is used as color-, resolve- or depth-stencil-
-        attachment in a render pass
-    .storage_attachment (default: false)
-        the image object is used as storage-attachment in a
-        compute pass (to be written to by compute shaders)
+    .storage_image (default: false)
+        the image can be used as parent resource of a storage-image-view,
+        which allows compute shaders to write to the image in a compute
+        pass (for read-only access in compute shaders bind the image
+        via a texture view instead
+    .color_attachment (default: false)
+        the image can be used as parent resource of a color-attachment-view,
+        which is then passed into sg_begin_pass via sg_pass.attachments.colors[]
+        so that fragment shaders can render into the image
+    .resolve_attachment (default: false)
+        the image can be used as parent resource of a resolve-attachment-view,
+        which is then passed into sg_begin_pass via sg_pass.attachments.resolves[]
+        as target for an MSAA-resolve operation in sg_end_pass()
+    .depth_stencil_attachment (default: false)
+        the image can be used as parent resource of a depth-stencil-attachmnet-view
+        which is then passes into sg_begin_pass via sg_pass.attachments.depth_stencil
+        as depth-stencil-buffer
     .immutable (default: true)
         the image content cannot be updated from the CPU side
         (but may be updated by the GPU in a render- or compute-pass)
@@ -3142,25 +3252,68 @@ typedef struct sg_buffer_desc {
     .stream_update (default: false)
         the image content is updated each frame by the CPU via
 
-    Note that the usage as texture binding is implicit and always allowed.
+    Note that creating a texture view from the image to be used for
+    texture-sampling in vertex-, fragment- or compute-shaders
+    is always implicitly allowed.
 */
 typedef struct sg_image_usage {
-    bool render_attachment;
-    bool storage_attachment;
+    bool storage_image;
+    bool color_attachment;
+    bool resolve_attachment;
+    bool depth_stencil_attachment;
     bool immutable;
     bool dynamic_update;
     bool stream_update;
 } sg_image_usage;
 
 /*
+    sg_view_type
+
+    Allows to query the type of a view object via the function sg_query_view_type()
+*/
+typedef enum sg_view_type {
+    SG_VIEWTYPE_INVALID,
+    SG_VIEWTYPE_STORAGEBUFFER,
+    SG_VIEWTYPE_STORAGEIMAGE,
+    SG_VIEWTYPE_TEXTURE,
+    SG_VIEWTYPE_COLORATTACHMENT,
+    SG_VIEWTYPE_RESOLVEATTACHMENT,
+    SG_VIEWTYPE_DEPTHSTENCILATTACHMENT,
+    _SG_VIEWTYPE_FORCE_U32 = 0x7FFFFFFF
+} sg_view_type;
+
+/*
     sg_image_data
 
-    Defines the content of an image through a 2D array of sg_range structs.
-    The first array dimension is the cubemap face, and the second array
-    dimension the mipmap level.
+    Defines the content of an image through an array of sg_range structs, each
+    range pointing to the pixel data for one mip-level. For array-, cubemap- and
+    3D-images each mip-level contains all slice-surfaces for that mip-level in a
+    single tightly packed memory block.
+
+    The size of a single surface in a mip-level for a regular 2D texture
+    can be computed via:
+
+        sg_query_surface_pitch(pixel_format, mip_width, mip_height, 1);
+
+    For array- and 3d-images the size of a single miplevel is:
+
+        num_slices * sg_query_surface_pitch(pixel_format, mip_width, mip_height, 1);
+
+    For cubemap-images the size of a single mip-level is:
+
+        6 * sg_query_surface_pitch(pixel_format, mip_width, mip_height, 1);
+
+    The order of cubemap-faces is in a mip-level data chunk is:
+
+        [0] => +X
+        [1] => -X
+        [2] => +Y
+        [3] => -Y
+        [4] => +Z
+        [5] => -Z
 */
 typedef struct sg_image_data {
-    sg_range subimage[SG_CUBEFACE_NUM][SG_MAX_MIPMAPS];
+    sg_range mip_levels[SG_MAX_MIPMAPS];
 } sg_image_data;
 
 /*
@@ -3192,12 +3345,14 @@ typedef struct sg_image_data {
 
     NOTE:
 
-    Regular (non-attachment) images with usage.immutable must be fully initialized by
-    providing a valid .data member which points to initialization data.
+    Regular images used as texture binding with usage.immutable must be fully
+    initialized by providing a valid .data member which points to initialization
+    data.
 
-    Images with usage.render_attachment or usage.storage_attachment must
+    Images with usage.*_attachment or usage.storage_image must
     *not* be created with initial content. Be aware that the initial
-    content of render- and storage-attachment images is undefined.
+    content of pass attachment and storage images is undefined
+    (not guaranteed to be zeroed).
 
     ADVANCED TOPIC: Injecting native 3D-API textures:
 
@@ -3207,17 +3362,11 @@ typedef struct sg_image_data {
     .gl_textures[SG_NUM_INFLIGHT_FRAMES]
     .mtl_textures[SG_NUM_INFLIGHT_FRAMES]
     .d3d11_texture
-    .d3d11_shader_resource_view
     .wgpu_texture
-    .wgpu_texture_view
 
     For GL, you can also specify the texture target or leave it empty to use
     the default texture target for the image type (GL_TEXTURE_2D for
     SG_IMAGETYPE_2D etc)
-
-    For D3D11 and WebGPU, either only provide a texture, or both a texture and
-    shader-resource-view / texture-view object. If you want to use access the
-    injected texture in a shader you *must* provide a shader-resource-view.
 
     The same rules apply as for injecting native buffers (see sg_buffer_desc
     documentation for more details).
@@ -3239,9 +3388,7 @@ typedef struct sg_image_desc {
     uint32_t gl_texture_target;
     const void* mtl_textures[SG_NUM_INFLIGHT_FRAMES];
     const void* d3d11_texture;
-    const void* d3d11_shader_resource_view;
     const void* wgpu_texture;
-    const void* wgpu_texture_view;
     uint32_t _end_canary;
 } sg_image_desc;
 
@@ -3261,7 +3408,6 @@ typedef struct sg_image_desc {
     .border_color       SG_BORDERCOLOR_OPAQUE_BLACK
     .compare            SG_COMPAREFUNC_NEVER
     .max_anisotropy     1 (must be 1..16)
-
 */
 typedef struct sg_sampler_desc {
     uint32_t _start_canary;
@@ -3342,36 +3488,35 @@ typedef struct sg_sampler_desc {
                 - if the member is an array, the array count
                 - the member name
 
-    - reflection information for each texture binding used by the shader:
-        - the shader stage the texture appears in (SG_SHADERSTAGE_*)
+    - reflection information for each texture-, storage-buffer and
+      storage-image bindings by the shader, each with an associated
+      view type:
+        - texture bindings => texture views
+        - storage-buffer bindings => storage-buffer views
+        - storage-image bindings => storage-image views
+
+    - texture bindings must provide the following information:
+        - the shader stage the texture binding appears in (SG_SHADERSTAGE_*)
         - the image type (SG_IMAGETYPE_*)
         - the image-sample type (SG_IMAGESAMPLETYPE_*)
         - whether the texture is multisampled
         - backend specific bindslots:
-            - HLSL: the texture register `register(t0..23)`
-            - MSL: the texture attribute `[[texture(0..19)]]`
+            - HLSL: the texture register `register(t0..31)`
+            - MSL: the texture attribute `[[texture(0..31)]]`
             - WGSL: the binding in `@group(1) @binding(0..127)`
 
-    - reflection information for each sampler used by the shader:
-        - the shader stage the sampler appears in (SG_SHADERSTAGE_*)
-        - the sampler type (SG_SAMPLERTYPE_*)
-        - backend specific bindslots:
-            - HLSL: the sampler register `register(s0..15)`
-            - MSL: the sampler attribute `[[sampler(0..15)]]`
-            - WGSL: the binding in `@group(0) @binding(0..127)`
-
-    - reflection information for each storage buffer binding used by the shader:
+    - storage-buffer bindings must provide the following information:
         - the shader stage the storage buffer appears in (SG_SHADERSTAGE_*)
         - whether the storage buffer is readonly
         - backend specific bindslots:
             - HLSL:
-                - for readonly storage buffer bindings: `register(t0..23)`
-                - for read/write storage buffer bindings: `register(u0..11)`
-            - MSL: the buffer attribute `[[buffer(8..15)]]`
+                - for storage buffer bindings: `register(t0..31)`
+                - for read/write storage buffer bindings: `register(u0..31)`
+            - MSL: the buffer attribute `[[buffer(8..23)]]`
             - WGSL: the binding in `@group(1) @binding(0..127)`
-            - GL: the binding in `layout(binding=0..7)`
+            - GL: the binding in `layout(binding=0..sg_limits.max_storage_buffer_bindings_per_stage)`
 
-    - reflection information for each storage image binding used by the shader:
+    - storage-image bindings must provide the following information:
         - the shader stage (*must* be SG_SHADERSTAGE_COMPUTE)
         - whether the storage image is writeonly or readwrite (for readonly
           access use a regular texture binding instead)
@@ -3380,15 +3525,23 @@ typedef struct sg_sampler_desc {
           note that only a subset of pixel formats is allowed for storage image
           bindings
         - backend specific bindslots:
-            - HLSL: the UAV register `register(u0..u11)`
-            - MSL: the texture attribute `[[texture(0..19)]]`
-            - WGSL: the binding in `@group(2) @binding(0..3)`
-            - GLSL: the binding in `layout(binding=0..3, [access_format])`
+            - HLSL: the UAV register `register(u0..31)`
+            - MSL: the texture attribute `[[texture(0..31)]]`
+            - WGSL: the binding in `@group(1) @binding(0..127)`
+            - GLSL: the binding in `layout(binding=0..sg_imits.max_storage_buffer_bindings_per_stage, [access_format])`
 
-    - reflection information for each combined image-sampler object
-      used by the shader:
+    - reflection information for each sampler used by the shader:
+        - the shader stage the sampler appears in (SG_SHADERSTAGE_*)
+        - the sampler type (SG_SAMPLERTYPE_*)
+        - backend specific bindslots:
+            - HLSL: the sampler register `register(s0..11)`
+            - MSL: the sampler attribute `[[sampler(0..11)]]`
+            - WGSL: the binding in `@group(0) @binding(0..127)`
+
+    - reflection information for each texture-sampler pair used by
+      the shader:
         - the shader stage (SG_SHADERSTAGE_*)
-        - the texture's array index in the sg_shader_desc.images[] array
+        - the texture's array index in the sg_shader_desc.views[] array
         - the sampler's array index in the sg_shader_desc.samplers[] array
         - GLSL only: the name of the combined image-sampler object
 
@@ -3404,25 +3557,23 @@ typedef struct sg_sampler_desc {
 
         - sg_shader_desc.uniform_blocks[N] => sg_apply_uniforms(N, ...)
 
-    The items in the shader_desc images, samplers and storage_buffers
-    arrays correspond to the same array items in the sg_bindings struct:
-
-        - sg_shader_desc.images[N] => sg_bindings.images[N]
-        - sg_shader_desc.samplers[N] => sg_bindings.samplers[N]
-        - sg_shader_desc.storage_buffers[N] => sg_bindings.storage_buffers[N]
+    The items in the sg_shader_desc.views[] array directly map to
+    the views in the sg_bindings.views[] array!
 
     For all GL backends, shader source-code must be provided. For D3D11 and Metal,
     either shader source-code or byte-code can be provided.
 
-    NOTE that the uniform block, image, sampler, storage_buffer and
-    storage_image arrays may have gaps. This allows to use the same sg_bindings
-    struct for different related shader variants.
+    NOTE that the uniform-block, view and sampler arrays may have gaps. This
+    allows to use the same sg_bindings struct for different but related
+    shader variations.
 
     For D3D11, if source code is provided, the d3dcompiler_47.dll will be loaded
     on demand. If this fails, shader creation will fail. When compiling HLSL
     source code, you can provide an optional target string via
     sg_shader_stage_desc.d3d11_target, the default target is "vs_4_0" for the
     vertex shader stage and "ps_4_0" for the pixel shader stage.
+    You may optionally provide the file path to enable the default #include handler
+    behavior when compiling source code.
 */
 typedef enum sg_shader_stage {
     SG_SHADERSTAGE_NONE,
@@ -3437,6 +3588,7 @@ typedef struct sg_shader_function {
     sg_range bytecode;
     const char* entry;
     const char* d3d11_target;   // default: "vs_4_0" or "ps_4_0"
+    const char* d3d11_filepath;
 } sg_shader_function;
 
 typedef enum sg_shader_attr_base_type {
@@ -3470,7 +3622,7 @@ typedef struct sg_shader_uniform_block {
     sg_glsl_shader_uniform glsl_uniforms[SG_MAX_UNIFORMBLOCK_MEMBERS];
 } sg_shader_uniform_block;
 
-typedef struct sg_shader_image {
+typedef struct sg_shader_texture_view {
     sg_shader_stage stage;
     sg_image_type image_type;
     sg_image_sample_type sample_type;
@@ -3478,7 +3630,34 @@ typedef struct sg_shader_image {
     uint8_t hlsl_register_t_n;      // HLSL register(tn) bind slot
     uint8_t msl_texture_n;          // MSL [[texture(n)]] bind slot
     uint8_t wgsl_group1_binding_n;  // WGSL @group(1) @binding(n) bind slot
-} sg_shader_image;
+} sg_shader_texture_view;
+
+typedef struct sg_shader_storage_buffer_view {
+    sg_shader_stage stage;
+    bool readonly;
+    uint8_t hlsl_register_t_n;      // HLSL register(tn) bind slot (for readonly access)
+    uint8_t hlsl_register_u_n;      // HLSL register(un) bind slot (for read/write access)
+    uint8_t msl_buffer_n;           // MSL [[buffer(n)]] bind slot
+    uint8_t wgsl_group1_binding_n;  // WGSL @group(1) @binding(n) bind slot
+    uint8_t glsl_binding_n;         // GLSL layout(binding=n)
+} sg_shader_storage_buffer_view;
+
+typedef struct sg_shader_storage_image_view {
+    sg_shader_stage stage;
+    sg_image_type image_type;
+    sg_pixel_format access_format;  // shader-access pixel format
+    bool writeonly;                 // false means read/write access
+    uint8_t hlsl_register_u_n;      // HLSL register(un) bind slot
+    uint8_t msl_texture_n;          // MSL [[texture(n)]] bind slot
+    uint8_t wgsl_group1_binding_n;  // WGSL @group(2) @binding(n) bind slot
+    uint8_t glsl_binding_n;         // GLSL layout(binding=n)
+} sg_shader_storage_image_view;
+
+typedef struct sg_shader_view {
+    sg_shader_texture_view texture;
+    sg_shader_storage_buffer_view storage_buffer;
+    sg_shader_storage_image_view storage_image;
+} sg_shader_view;
 
 typedef struct sg_shader_sampler {
     sg_shader_stage stage;
@@ -3488,33 +3667,12 @@ typedef struct sg_shader_sampler {
     uint8_t wgsl_group1_binding_n;  // WGSL @group(1) @binding(n) bind slot
 } sg_shader_sampler;
 
-typedef struct sg_shader_storage_buffer {
+typedef struct sg_shader_texture_sampler_pair {
     sg_shader_stage stage;
-    bool readonly;
-    uint8_t hlsl_register_t_n;      // HLSL register(tn) bind slot (for readonly access)
-    uint8_t hlsl_register_u_n;      // HLSL register(un) bind slot (for read/write access)
-    uint8_t msl_buffer_n;           // MSL [[buffer(n)]] bind slot
-    uint8_t wgsl_group1_binding_n;  // WGSL @group(1) @binding(n) bind slot
-    uint8_t glsl_binding_n;         // GLSL layout(binding=n)
-} sg_shader_storage_buffer;
-
-typedef struct sg_shader_storage_image {
-    sg_shader_stage stage;          // must be NONE or COMPUTE
-    sg_image_type image_type;
-    sg_pixel_format access_format;  // shader-access pixel format
-    bool writeonly;                 // false means read/write access
-    uint8_t hlsl_register_u_n;      // HLSL register(un) bind slot
-    uint8_t msl_texture_n;          // MSL [[texture(n)]] bind slot
-    uint8_t wgsl_group2_binding_n;  // WGSL @group(2) @binding(n) bind slot
-    uint8_t glsl_binding_n;         // GLSL layout(binding=n)
-} sg_shader_storage_image;
-
-typedef struct sg_shader_image_sampler_pair {
-    sg_shader_stage stage;
-    uint8_t image_slot;
+    uint8_t view_slot;              // must be SG_VIEWTYPE_TEXTURE
     uint8_t sampler_slot;
     const char* glsl_name;          // glsl name binding required because of GL 4.1 and WebGL2
-} sg_shader_image_sampler_pair;
+} sg_shader_texture_sampler_pair;
 
 typedef struct sg_mtl_shader_threads_per_threadgroup {
     int x, y, z;
@@ -3527,11 +3685,9 @@ typedef struct sg_shader_desc {
     sg_shader_function compute_func;
     sg_shader_vertex_attr attrs[SG_MAX_VERTEX_ATTRIBUTES];
     sg_shader_uniform_block uniform_blocks[SG_MAX_UNIFORMBLOCK_BINDSLOTS];
-    sg_shader_storage_buffer storage_buffers[SG_MAX_STORAGEBUFFER_BINDSLOTS];
-    sg_shader_image images[SG_MAX_IMAGE_BINDSLOTS];
+    sg_shader_view views[SG_MAX_VIEW_BINDSLOTS];
     sg_shader_sampler samplers[SG_MAX_SAMPLER_BINDSLOTS];
-    sg_shader_image_sampler_pair image_sampler_pairs[SG_MAX_IMAGE_SAMPLER_PAIRS];
-    sg_shader_storage_image storage_images[SG_MAX_STORAGE_ATTACHMENTS];
+    sg_shader_texture_sampler_pair texture_sampler_pairs[SG_MAX_TEXTURE_SAMPLER_PAIRS];
     sg_mtl_shader_threads_per_threadgroup mtl_threads_per_threadgroup;
     const char* label;
     uint32_t _end_canary;
@@ -3699,65 +3855,91 @@ typedef struct sg_pipeline_desc {
 } sg_pipeline_desc;
 
 /*
-    sg_attachments_desc
+    sg_view_desc
 
-    Creation parameters for an sg_attachments object, used as argument to the
-    sg_make_attachments() function.
+    Creation params for sg_view objects, passed into sg_make_view() calls.
 
-    An attachments object bundles either bundles 'render attachments' for
-    a render pass, or 'storage attachments' for a compute pass which writes
-    to storage images.
+    View objects are passed into sg_apply_bindings() (for texture-, storage-buffer-
+    and storage-image views), and sg_begin_pass() (for color-, resolve-
+    and depth-stencil-attachment views).
 
-    Render attachments are:
+    The view type is determined by initializing one of the sub-structs of
+    sg_view_desc:
 
-        - 0..4 color attachment images
-        - 0..4 msaa-resolve attachment images
-        - 0 or one depth-stencil attachment image
+    .texture            a texture-view object will be created
+        .image          the sg_image parent resource
+        .mip_levels     optional mip-level range, keep zero-initialized for the
+                        entire mipmap chain
+            .base       the first mip level
+            .count      number of mip levels, keeping this zero-initialized means
+                        'all remaining mip levels'
+        .slices         optional slice range, keep zero-initialized to include
+                        all slices
+            .base       the first slice
+            .count      number of slices, keeping this zero-initializied means 'all remaining slices'
 
-    Note that all types of render attachment images must be created with
-    `sg_image_desc.usage.render_attachment = true`. At least one color-attachment
-    or depth-stencil-attachment image must be provided in a render pass
-    (only providing a depth-stencil-attachment is useful for depth-only passes).
+    .storage_buffer     a storage-buffer-view object will be created
+        .buffer         the sg_buffer parent resource, must have been created
+                        with `sg_buffer_desc.usage.storage_buffer = true`
+        .offset         optional 256-byte aligned byte-offset into the buffer
 
-    Alternatively provide 1..4 storage attachment images which must be created
-    with `sg_image_desc.usage.storage_attachment = true`.
+    .storage_image      a storage-image-view object will be created
+        .image          the sg_image parent resource, must have been created
+                        with `sg_image_desc.usage.storage_image = true`
+        .mip_level      selects the mip-level for the compute shader to write
+        .slice          selects the slice for the compute shader to write
 
-    An sg_attachments object cannot have both render- and storage-attachments.
+    .color_attachment   a color-attachment-view object will be created
+        .image          the sg_image parent resource, must have been created
+                        with `sg_image_desc.usage.color_attachment = true`
+        .mip_level      selects the mip-level to render into
+        .slice          selects the slice to render into
 
-    Each attachment definition consists of an image object, and two additional indices
-    describing which subimage the pass will render into: one mipmap index, and if the image
-    is a cubemap, array-texture or 3D-texture, the face-index, array-layer or
-    depth-slice.
+    .resolve_attachment a resolve-attachment-view object will be created
+        .image          the sg_image parent resource, must have been created
+                        with `sg_image_desc.usage.resolve_attachment = true`
+        .mip_level      selects the mip-level to msaa-resolve into
+        .slice          selects the slice to msaa-resolve into
 
-    All attachments must have the same width and height.
-
-    All color attachments and the depth-stencil attachment must have the
-    same sample count.
-
-    If a resolve attachment is set, an MSAA-resolve operation from the
-    associated color attachment image into the resolve attachment image will take
-    place in the sg_end_pass() function. In this case, the color attachment
-    must have a (sample_count>1), and the resolve attachment a
-    (sample_count==1). The resolve attachment also must have the same pixel
-    format as the color attachment.
-
-    NOTE that MSAA depth-stencil attachments cannot be msaa-resolved!
+    .depth_stencil_attachment   a depth-stencil-attachment-view object will be created
+        .image          the sg_image parent resource, must have been created
+                        with `sg_image_desc.usage.depth_stencil_attachment = true`
+        .mip_level      selects the mip-level to render into
+        .slice          selects the slice to render into
 */
-typedef struct sg_attachment_desc {
+typedef struct sg_buffer_view_desc {
+    sg_buffer buffer;
+    int offset;
+} sg_buffer_view_desc;
+
+typedef struct sg_image_view_desc {
     sg_image image;
     int mip_level;
-    int slice;      // cube texture: face; array texture: layer; 3D texture: slice
-} sg_attachment_desc;
+    int slice;      // cube texture: face; array texture: layer; 3D texture: depth-slice
+} sg_image_view_desc;
 
-typedef struct sg_attachments_desc {
+typedef struct sg_texture_view_range {
+    int base;
+    int count;
+} sg_texture_view_range;
+
+typedef struct sg_texture_view_desc {
+    sg_image image;
+    sg_texture_view_range mip_levels;
+    sg_texture_view_range slices;   // cube texture: face; array texture: layer; 3D texture: depth-slice
+} sg_texture_view_desc;
+
+typedef struct sg_view_desc {
     uint32_t _start_canary;
-    sg_attachment_desc colors[SG_MAX_COLOR_ATTACHMENTS];
-    sg_attachment_desc resolves[SG_MAX_COLOR_ATTACHMENTS];
-    sg_attachment_desc depth_stencil;
-    sg_attachment_desc storages[SG_MAX_STORAGE_ATTACHMENTS];
+    sg_texture_view_desc texture;
+    sg_buffer_view_desc storage_buffer;
+    sg_image_view_desc storage_image;
+    sg_image_view_desc color_attachment;
+    sg_image_view_desc resolve_attachment;
+    sg_image_view_desc depth_stencil_attachment;
     const char* label;
     uint32_t _end_canary;
-} sg_attachments_desc;
+} sg_view_desc;
 
 /*
     sg_trace_hooks
@@ -3779,13 +3961,13 @@ typedef struct sg_trace_hooks {
     void (*make_sampler)(const sg_sampler_desc* desc, sg_sampler result, void* user_data);
     void (*make_shader)(const sg_shader_desc* desc, sg_shader result, void* user_data);
     void (*make_pipeline)(const sg_pipeline_desc* desc, sg_pipeline result, void* user_data);
-    void (*make_attachments)(const sg_attachments_desc* desc, sg_attachments result, void* user_data);
+    void (*make_view)(const sg_view_desc* desc, sg_view result, void* user_data);
     void (*destroy_buffer)(sg_buffer buf, void* user_data);
     void (*destroy_image)(sg_image img, void* user_data);
     void (*destroy_sampler)(sg_sampler smp, void* user_data);
     void (*destroy_shader)(sg_shader shd, void* user_data);
     void (*destroy_pipeline)(sg_pipeline pip, void* user_data);
-    void (*destroy_attachments)(sg_attachments atts, void* user_data);
+    void (*destroy_view)(sg_view view, void* user_data);
     void (*update_buffer)(sg_buffer buf, const sg_range* data, void* user_data);
     void (*update_image)(sg_image img, const sg_image_data* data, void* user_data);
     void (*append_buffer)(sg_buffer buf, const sg_range* data, int result, void* user_data);
@@ -3796,6 +3978,7 @@ typedef struct sg_trace_hooks {
     void (*apply_bindings)(const sg_bindings* bindings, void* user_data);
     void (*apply_uniforms)(int ub_index, const sg_range* data, void* user_data);
     void (*draw)(int base_element, int num_elements, int num_instances, void* user_data);
+    void (*draw_ex)(int base_element, int num_elements, int num_instances, int base_vertex, int base_instance, void* user_data);
     void (*dispatch)(int num_groups_x, int num_groups_y, int num_groups_z, void* user_data);
     void (*end_pass)(void* user_data);
     void (*commit)(void* user_data);
@@ -3804,31 +3987,31 @@ typedef struct sg_trace_hooks {
     void (*alloc_sampler)(sg_sampler result, void* user_data);
     void (*alloc_shader)(sg_shader result, void* user_data);
     void (*alloc_pipeline)(sg_pipeline result, void* user_data);
-    void (*alloc_attachments)(sg_attachments result, void* user_data);
+    void (*alloc_view)(sg_view result, void* user_data);
     void (*dealloc_buffer)(sg_buffer buf_id, void* user_data);
     void (*dealloc_image)(sg_image img_id, void* user_data);
     void (*dealloc_sampler)(sg_sampler smp_id, void* user_data);
     void (*dealloc_shader)(sg_shader shd_id, void* user_data);
     void (*dealloc_pipeline)(sg_pipeline pip_id, void* user_data);
-    void (*dealloc_attachments)(sg_attachments atts_id, void* user_data);
+    void (*dealloc_view)(sg_view view_id, void* user_data);
     void (*init_buffer)(sg_buffer buf_id, const sg_buffer_desc* desc, void* user_data);
     void (*init_image)(sg_image img_id, const sg_image_desc* desc, void* user_data);
     void (*init_sampler)(sg_sampler smp_id, const sg_sampler_desc* desc, void* user_data);
     void (*init_shader)(sg_shader shd_id, const sg_shader_desc* desc, void* user_data);
     void (*init_pipeline)(sg_pipeline pip_id, const sg_pipeline_desc* desc, void* user_data);
-    void (*init_attachments)(sg_attachments atts_id, const sg_attachments_desc* desc, void* user_data);
+    void (*init_view)(sg_view view_id, const sg_view_desc* desc, void* user_data);
     void (*uninit_buffer)(sg_buffer buf_id, void* user_data);
     void (*uninit_image)(sg_image img_id, void* user_data);
     void (*uninit_sampler)(sg_sampler smp_id, void* user_data);
     void (*uninit_shader)(sg_shader shd_id, void* user_data);
     void (*uninit_pipeline)(sg_pipeline pip_id, void* user_data);
-    void (*uninit_attachments)(sg_attachments atts_id, void* user_data);
+    void (*uninit_view)(sg_view view_id, void* user_data);
     void (*fail_buffer)(sg_buffer buf_id, void* user_data);
     void (*fail_image)(sg_image img_id, void* user_data);
     void (*fail_sampler)(sg_sampler smp_id, void* user_data);
     void (*fail_shader)(sg_shader shd_id, void* user_data);
     void (*fail_pipeline)(sg_pipeline pip_id, void* user_data);
-    void (*fail_attachments)(sg_attachments atts_id, void* user_data);
+    void (*fail_view)(sg_view view_id, void* user_data);
     void (*push_debug_group)(const char* name, void* user_data);
     void (*pop_debug_group)(void* user_data);
 } sg_trace_hooks;
@@ -3839,7 +4022,7 @@ typedef struct sg_trace_hooks {
     sg_sampler_info
     sg_shader_info
     sg_pipeline_info
-    sg_attachments_info
+    sg_view_info
 
     These structs contain various internal resource attributes which
     might be useful for debug-inspection. Please don't rely on the
@@ -3854,7 +4037,7 @@ typedef struct sg_trace_hooks {
     sg_query_sampler_info()
     sg_query_shader_info()
     sg_query_pipeline_info()
-    sg_query_attachments_info()
+    sg_query_view_info()
 */
 typedef struct sg_slot_info {
     sg_resource_state state;    // the current state of this resource slot
@@ -3891,9 +4074,9 @@ typedef struct sg_pipeline_info {
     sg_slot_info slot;              // resource pool slot info
 } sg_pipeline_info;
 
-typedef struct sg_attachments_info {
+typedef struct sg_view_info {
     sg_slot_info slot;              // resource pool slot info
-} sg_attachments_info;
+} sg_view_info;
 
 /*
     sg_frame_stats
@@ -3907,6 +4090,7 @@ typedef struct sg_frame_stats_gl {
     uint32_t num_active_texture;
     uint32_t num_bind_texture;
     uint32_t num_bind_sampler;
+    uint32_t num_bind_image_texture;
     uint32_t num_use_program;
     uint32_t num_render_state;
     uint32_t num_vertex_attrib_pointer;
@@ -3989,14 +4173,26 @@ typedef struct sg_frame_stats_metal_pipeline {
 
 typedef struct sg_frame_stats_metal_bindings {
     uint32_t num_set_vertex_buffer;
+    uint32_t num_set_vertex_buffer_offset;
+    uint32_t num_skip_redundant_vertex_buffer;
     uint32_t num_set_vertex_texture;
+    uint32_t num_skip_redundant_vertex_texture;
     uint32_t num_set_vertex_sampler_state;
+    uint32_t num_skip_redundant_vertex_sampler_state;
     uint32_t num_set_fragment_buffer;
+    uint32_t num_set_fragment_buffer_offset;
+    uint32_t num_skip_redundant_fragment_buffer;
     uint32_t num_set_fragment_texture;
+    uint32_t num_skip_redundant_fragment_texture;
     uint32_t num_set_fragment_sampler_state;
+    uint32_t num_skip_redundant_fragment_sampler_state;
     uint32_t num_set_compute_buffer;
+    uint32_t num_set_compute_buffer_offset;
+    uint32_t num_skip_redundant_compute_buffer;
     uint32_t num_set_compute_texture;
+    uint32_t num_skip_redundant_compute_texture;
     uint32_t num_set_compute_sampler_state;
+    uint32_t num_skip_redundant_compute_sampler_state;
 } sg_frame_stats_metal_bindings;
 
 typedef struct sg_frame_stats_metal_uniforms {
@@ -4038,6 +4234,15 @@ typedef struct sg_frame_stats_wgpu {
     sg_frame_stats_wgpu_bindings bindings;
 } sg_frame_stats_wgpu;
 
+typedef struct sg_resource_stats {
+    uint32_t total_alive;   // number of live objects in pool
+    uint32_t total_free;    // number of free objects in pool
+    uint32_t allocated;     // number of allocated objects in current frame
+    uint32_t deallocated;   // number of deallocated object in current frame
+    uint32_t inited;        // number of initialized objects in current frame
+    uint32_t uninited;      // number of deinitialized objects in current frame
+} sg_resource_stats;
+
 typedef struct sg_frame_stats {
     uint32_t frame_index;   // current frame counter, starts at 0
 
@@ -4048,6 +4253,7 @@ typedef struct sg_frame_stats {
     uint32_t num_apply_bindings;
     uint32_t num_apply_uniforms;
     uint32_t num_draw;
+    uint32_t num_draw_ex;
     uint32_t num_dispatch;
     uint32_t num_update_buffer;
     uint32_t num_append_buffer;
@@ -4057,6 +4263,13 @@ typedef struct sg_frame_stats {
     uint32_t size_update_buffer;
     uint32_t size_append_buffer;
     uint32_t size_update_image;
+
+    sg_resource_stats buffers;
+    sg_resource_stats images;
+    sg_resource_stats samplers;
+    sg_resource_stats views;
+    sg_resource_stats shaders;
+    sg_resource_stats pipelines;
 
     sg_frame_stats_gl gl;
     sg_frame_stats_d3d11 d3d11;
@@ -4077,8 +4290,8 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(GL_TEXTURE_FORMAT_NOT_SUPPORTED, "pixel format not supported for texture (gl)") \
     _SG_LOGITEM_XMACRO(GL_3D_TEXTURES_NOT_SUPPORTED, "3d textures not supported (gl)") \
     _SG_LOGITEM_XMACRO(GL_ARRAY_TEXTURES_NOT_SUPPORTED, "array textures not supported (gl)") \
-    _SG_LOGITEM_XMACRO(GL_STORAGEBUFFER_GLSL_BINDING_OUT_OF_RANGE, "GLSL storage buffer bindslot is out of range (must be 0..7) (gl)") \
-    _SG_LOGITEM_XMACRO(GL_STORAGEIMAGE_GLSL_BINDING_OUT_OF_RANGE, "GLSL storage image bindslot is out of range (must be 0..3) (gl)") \
+    _SG_LOGITEM_XMACRO(GL_STORAGEBUFFER_GLSL_BINDING_OUT_OF_RANGE, "GLSL storage buffer bindslot is out of range (sg_limits.max_storage_buffer_bindings_per_stage) (gl)") \
+    _SG_LOGITEM_XMACRO(GL_STORAGEIMAGE_GLSL_BINDING_OUT_OF_RANGE, "GLSL storage image bindslot is out of range (sg.limits.max_storage_image_bindings_per_stage) (gl)") \
     _SG_LOGITEM_XMACRO(GL_SHADER_COMPILATION_FAILED, "shader compilation failed (gl)") \
     _SG_LOGITEM_XMACRO(GL_SHADER_LINKING_FAILED, "shader linking failed (gl)") \
     _SG_LOGITEM_XMACRO(GL_VERTEX_ATTRIBUTE_NOT_FOUND_IN_SHADER, "vertex attribute not found in shader; NOTE: may be caused by GL driver's GLSL compiler removing unused globals") \
@@ -4090,6 +4303,7 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(GL_FRAMEBUFFER_STATUS_UNSUPPORTED, "framebuffer completeness check failed with GL_FRAMEBUFFER_UNSUPPORTED (gl)") \
     _SG_LOGITEM_XMACRO(GL_FRAMEBUFFER_STATUS_INCOMPLETE_MULTISAMPLE, "framebuffer completeness check failed with GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE (gl)") \
     _SG_LOGITEM_XMACRO(GL_FRAMEBUFFER_STATUS_UNKNOWN, "framebuffer completeness check failed (unknown reason) (gl)") \
+    _SG_LOGITEM_XMACRO(D3D11_FEATURE_LEVEL_0_DETECTED, "D3D11 Feature Level 0 device detected, this restricts the number of UAV slots to 8! (d3d11)") \
     _SG_LOGITEM_XMACRO(D3D11_CREATE_BUFFER_FAILED, "CreateBuffer() failed (d3d11)") \
     _SG_LOGITEM_XMACRO(D3D11_CREATE_BUFFER_SRV_FAILED, "CreateShaderResourceView() failed for storage buffer (d3d11)") \
     _SG_LOGITEM_XMACRO(D3D11_CREATE_BUFFER_UAV_FAILED, "CreateUnorderedAccessView() failed for storage buffer (d3d11)") \
@@ -4103,12 +4317,12 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(D3D11_CREATE_3D_SRV_FAILED, "CreateShaderResourceView() failed for 3d texture (d3d11)") \
     _SG_LOGITEM_XMACRO(D3D11_CREATE_MSAA_TEXTURE_FAILED, "CreateTexture2D() failed for MSAA render target texture (d3d11)") \
     _SG_LOGITEM_XMACRO(D3D11_CREATE_SAMPLER_STATE_FAILED, "CreateSamplerState() failed (d3d11)") \
-    _SG_LOGITEM_XMACRO(D3D11_UNIFORMBLOCK_HLSL_REGISTER_B_OUT_OF_RANGE, "uniform block 'hlsl_register_b_n' is out of range (must be 0..7)") \
-    _SG_LOGITEM_XMACRO(D3D11_STORAGEBUFFER_HLSL_REGISTER_T_OUT_OF_RANGE, "storage buffer 'hlsl_register_t_n' is out of range (must be 0..23)") \
-    _SG_LOGITEM_XMACRO(D3D11_STORAGEBUFFER_HLSL_REGISTER_U_OUT_OF_RANGE, "storage buffer 'hlsl_register_u_n' is out of range (must be 0..11)") \
-    _SG_LOGITEM_XMACRO(D3D11_IMAGE_HLSL_REGISTER_T_OUT_OF_RANGE, "image 'hlsl_register_t_n' is out of range (must be 0..23)") \
-    _SG_LOGITEM_XMACRO(D3D11_SAMPLER_HLSL_REGISTER_S_OUT_OF_RANGE, "sampler 'hlsl_register_s_n' is out of rang (must be 0..15)") \
-    _SG_LOGITEM_XMACRO(D3D11_STORAGEIMAGE_HLSL_REGISTER_U_OUT_OF_RANGE, "storage image 'hlsl_register_u_n' is out of range (must be 0..11)") \
+    _SG_LOGITEM_XMACRO(D3D11_UNIFORMBLOCK_HLSL_REGISTER_B_OUT_OF_RANGE, "sg_shader_desc.uniform_blocks[].hlsl_register_b_n is out of range (must be 0..7)") \
+    _SG_LOGITEM_XMACRO(D3D11_STORAGEBUFFER_HLSL_REGISTER_T_OUT_OF_RANGE, "sg_shader_desc.views[].storage_buffer.hlsl_register_t_n is out of range (must be 0..31)") \
+    _SG_LOGITEM_XMACRO(D3D11_STORAGEBUFFER_HLSL_REGISTER_U_OUT_OF_RANGE, "sg_shader_desc.views[].storage_buffer.hlsl_register_u_n is out of range (must be 0..31)") \
+    _SG_LOGITEM_XMACRO(D3D11_IMAGE_HLSL_REGISTER_T_OUT_OF_RANGE, "sg_shader_desc.views[].texture.hlsl_register_t_n is out of range (must be 0..31)") \
+    _SG_LOGITEM_XMACRO(D3D11_STORAGEIMAGE_HLSL_REGISTER_U_OUT_OF_RANGE, "sg_shader_desc.views[].storage_image.hlsl_register_u_n is out of range (must be 0..31)") \
+    _SG_LOGITEM_XMACRO(D3D11_SAMPLER_HLSL_REGISTER_S_OUT_OF_RANGE, "sampler 'hlsl_register_s_n' is out of rang (must be 0..11)") \
     _SG_LOGITEM_XMACRO(D3D11_LOAD_D3DCOMPILER_47_DLL_FAILED, "loading d3dcompiler_47.dll failed (d3d11)") \
     _SG_LOGITEM_XMACRO(D3D11_SHADER_COMPILATION_FAILED, "shader compilation failed (d3d11)") \
     _SG_LOGITEM_XMACRO(D3D11_SHADER_COMPILATION_OUTPUT, "") \
@@ -4132,10 +4346,10 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(METAL_SHADER_COMPILATION_OUTPUT, "") \
     _SG_LOGITEM_XMACRO(METAL_SHADER_ENTRY_NOT_FOUND, "shader entry function not found (metal)") \
     _SG_LOGITEM_XMACRO(METAL_UNIFORMBLOCK_MSL_BUFFER_SLOT_OUT_OF_RANGE, "uniform block 'msl_buffer_n' is out of range (must be 0..7)") \
-    _SG_LOGITEM_XMACRO(METAL_STORAGEBUFFER_MSL_BUFFER_SLOT_OUT_OF_RANGE, "storage buffer 'msl_buffer_n' is out of range (must be 8..15)") \
-    _SG_LOGITEM_XMACRO(METAL_STORAGEIMAGE_MSL_TEXTURE_SLOT_OUT_OF_RANGE, "storage image 'msl_texture_n' is out of range (must be 0..19)") \
-    _SG_LOGITEM_XMACRO(METAL_IMAGE_MSL_TEXTURE_SLOT_OUT_OF_RANGE, "image 'msl_texture_n' is out of range (must be 0..19)") \
-    _SG_LOGITEM_XMACRO(METAL_SAMPLER_MSL_SAMPLER_SLOT_OUT_OF_RANGE, "sampler 'msl_sampler_n' is out of range (must be 0..15)") \
+    _SG_LOGITEM_XMACRO(METAL_STORAGEBUFFER_MSL_BUFFER_SLOT_OUT_OF_RANGE, "storage buffer 'msl_buffer_n' is out of range (must be 8..23)") \
+    _SG_LOGITEM_XMACRO(METAL_STORAGEIMAGE_MSL_TEXTURE_SLOT_OUT_OF_RANGE, "storage image 'msl_texture_n' is out of range (must be 0..31)") \
+    _SG_LOGITEM_XMACRO(METAL_IMAGE_MSL_TEXTURE_SLOT_OUT_OF_RANGE, "image 'msl_texture_n' is out of range (must be 0..31)") \
+    _SG_LOGITEM_XMACRO(METAL_SAMPLER_MSL_SAMPLER_SLOT_OUT_OF_RANGE, "sampler 'msl_sampler_n' is out of range (must be 0..11)") \
     _SG_LOGITEM_XMACRO(METAL_CREATE_CPS_FAILED, "failed to create compute pipeline state (metal)") \
     _SG_LOGITEM_XMACRO(METAL_CREATE_CPS_OUTPUT, "") \
     _SG_LOGITEM_XMACRO(METAL_CREATE_RPS_FAILED, "failed to create render pipeline state (metal)") \
@@ -4152,14 +4366,13 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(WGPU_CREATE_SHADER_MODULE_FAILED, "wgpuDeviceCreateShaderModule() failed") \
     _SG_LOGITEM_XMACRO(WGPU_SHADER_CREATE_BINDGROUP_LAYOUT_FAILED, "wgpuDeviceCreateBindGroupLayout() for shader stage failed") \
     _SG_LOGITEM_XMACRO(WGPU_UNIFORMBLOCK_WGSL_GROUP0_BINDING_OUT_OF_RANGE, "uniform block 'wgsl_group0_binding_n' is out of range (must be 0..15)") \
+    _SG_LOGITEM_XMACRO(WGPU_TEXTURE_WGSL_GROUP1_BINDING_OUT_OF_RANGE, "texture 'wgsl_group1_binding_n' is out of range (must be 0..127)") \
     _SG_LOGITEM_XMACRO(WGPU_STORAGEBUFFER_WGSL_GROUP1_BINDING_OUT_OF_RANGE, "storage buffer 'wgsl_group1_binding_n' is out of range (must be 0..127)") \
-    _SG_LOGITEM_XMACRO(WGPU_IMAGE_WGSL_GROUP1_BINDING_OUT_OF_RANGE, "image 'wgsl_group1_binding_n' is out of range (must be 0..127)") \
+    _SG_LOGITEM_XMACRO(WGPU_STORAGEIMAGE_WGSL_GROUP1_BINDING_OUT_OF_RANGE, "storage image 'wgsl_group1_binding_n' is out of range (must be 0..127)") \
     _SG_LOGITEM_XMACRO(WGPU_SAMPLER_WGSL_GROUP1_BINDING_OUT_OF_RANGE, "sampler 'wgsl_group1_binding_n' is out of range (must be 0..127)") \
-    _SG_LOGITEM_XMACRO(WGPU_STORAGEIMAGE_WGSL_GROUP2_BINDING_OUT_OF_RANGE, "storage image 'wgsl_group2_binding_n' is out of range (must be 0..3)") \
     _SG_LOGITEM_XMACRO(WGPU_CREATE_PIPELINE_LAYOUT_FAILED, "wgpuDeviceCreatePipelineLayout() failed") \
     _SG_LOGITEM_XMACRO(WGPU_CREATE_RENDER_PIPELINE_FAILED, "wgpuDeviceCreateRenderPipeline() failed") \
     _SG_LOGITEM_XMACRO(WGPU_CREATE_COMPUTE_PIPELINE_FAILED, "wgpuDeviceCreateComputePipeline() failed") \
-    _SG_LOGITEM_XMACRO(WGPU_ATTACHMENTS_CREATE_TEXTURE_VIEW_FAILED, "wgpuTextureCreateView() failed in create attachments") \
     _SG_LOGITEM_XMACRO(IDENTICAL_COMMIT_LISTENER, "attempting to add identical commit listener") \
     _SG_LOGITEM_XMACRO(COMMIT_LISTENER_ARRAY_FULL, "commit listener array full") \
     _SG_LOGITEM_XMACRO(TRACE_HOOKS_NOT_ENABLED, "sg_install_trace_hooks() called, but SOKOL_TRACE_HOOKS is not defined") \
@@ -4168,34 +4381,47 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(DEALLOC_SAMPLER_INVALID_STATE, "sg_dealloc_sampler(): sampler must be in alloc state") \
     _SG_LOGITEM_XMACRO(DEALLOC_SHADER_INVALID_STATE, "sg_dealloc_shader(): shader must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(DEALLOC_PIPELINE_INVALID_STATE, "sg_dealloc_pipeline(): pipeline must be in ALLOC state") \
-    _SG_LOGITEM_XMACRO(DEALLOC_ATTACHMENTS_INVALID_STATE, "sg_dealloc_attachments(): attachments must be in ALLOC state") \
+    _SG_LOGITEM_XMACRO(DEALLOC_VIEW_INVALID_STATE, "sg_dealloc_view(): view must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(INIT_BUFFER_INVALID_STATE, "sg_init_buffer(): buffer must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(INIT_IMAGE_INVALID_STATE, "sg_init_image(): image must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(INIT_SAMPLER_INVALID_STATE, "sg_init_sampler(): sampler must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(INIT_SHADER_INVALID_STATE, "sg_init_shader(): shader must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(INIT_PIPELINE_INVALID_STATE, "sg_init_pipeline(): pipeline must be in ALLOC state") \
-    _SG_LOGITEM_XMACRO(INIT_ATTACHMENTS_INVALID_STATE, "sg_init_attachments(): pass must be in ALLOC state") \
-    _SG_LOGITEM_XMACRO(UNINIT_BUFFER_INVALID_STATE, "sg_uninit_buffer(): buffer must be in VALID or FAILED state") \
-    _SG_LOGITEM_XMACRO(UNINIT_IMAGE_INVALID_STATE, "sg_uninit_image(): image must be in VALID or FAILED state") \
-    _SG_LOGITEM_XMACRO(UNINIT_SAMPLER_INVALID_STATE, "sg_uninit_sampler(): sampler must be in VALID or FAILED state") \
-    _SG_LOGITEM_XMACRO(UNINIT_SHADER_INVALID_STATE, "sg_uninit_shader(): shader must be in VALID or FAILED state") \
-    _SG_LOGITEM_XMACRO(UNINIT_PIPELINE_INVALID_STATE, "sg_uninit_pipeline(): pipeline must be in VALID or FAILED state") \
-    _SG_LOGITEM_XMACRO(UNINIT_ATTACHMENTS_INVALID_STATE, "sg_uninit_attachments(): attachments must be in VALID or FAILED state") \
+    _SG_LOGITEM_XMACRO(INIT_VIEW_INVALID_STATE, "sg_init_view(): view must be in ALLOC state") \
+    _SG_LOGITEM_XMACRO(UNINIT_BUFFER_INVALID_STATE, "sg_uninit_buffer(): buffer must be in VALID, FAILED or ALLOC state") \
+    _SG_LOGITEM_XMACRO(UNINIT_IMAGE_INVALID_STATE, "sg_uninit_image(): image must be in VALID, FAILED or ALLOC state") \
+    _SG_LOGITEM_XMACRO(UNINIT_SAMPLER_INVALID_STATE, "sg_uninit_sampler(): sampler must be in VALID, FAILED or ALLOC state") \
+    _SG_LOGITEM_XMACRO(UNINIT_SHADER_INVALID_STATE, "sg_uninit_shader(): shader must be in VALID, FAILED or ALLOC state") \
+    _SG_LOGITEM_XMACRO(UNINIT_PIPELINE_INVALID_STATE, "sg_uninit_pipeline(): pipeline must be in VALID, FAILED or ALLOC state") \
+    _SG_LOGITEM_XMACRO(UNINIT_VIEW_INVALID_STATE, "sg_uninit_view(): view must be in VALID, FAILED or ALLOC state") \
     _SG_LOGITEM_XMACRO(FAIL_BUFFER_INVALID_STATE, "sg_fail_buffer(): buffer must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(FAIL_IMAGE_INVALID_STATE, "sg_fail_image(): image must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(FAIL_SAMPLER_INVALID_STATE, "sg_fail_sampler(): sampler must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(FAIL_SHADER_INVALID_STATE, "sg_fail_shader(): shader must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(FAIL_PIPELINE_INVALID_STATE, "sg_fail_pipeline(): pipeline must be in ALLOC state") \
-    _SG_LOGITEM_XMACRO(FAIL_ATTACHMENTS_INVALID_STATE, "sg_fail_attachments(): attachments must be in ALLOC state") \
+    _SG_LOGITEM_XMACRO(FAIL_VIEW_INVALID_STATE, "sg_fail_view(): view must be in ALLOC state") \
     _SG_LOGITEM_XMACRO(BUFFER_POOL_EXHAUSTED, "buffer pool exhausted") \
     _SG_LOGITEM_XMACRO(IMAGE_POOL_EXHAUSTED, "image pool exhausted") \
     _SG_LOGITEM_XMACRO(SAMPLER_POOL_EXHAUSTED, "sampler pool exhausted") \
     _SG_LOGITEM_XMACRO(SHADER_POOL_EXHAUSTED, "shader pool exhausted") \
     _SG_LOGITEM_XMACRO(PIPELINE_POOL_EXHAUSTED, "pipeline pool exhausted") \
-    _SG_LOGITEM_XMACRO(PASS_POOL_EXHAUSTED, "pass pool exhausted") \
-    _SG_LOGITEM_XMACRO(BEGINPASS_ATTACHMENT_INVALID, "sg_begin_pass: an attachment was provided that no longer exists") \
-    _SG_LOGITEM_XMACRO(APPLY_BINDINGS_STORAGE_BUFFER_TRACKER_EXHAUSTED, "sg_apply_bindings: too many read/write storage buffers in pass (bump sg_desc.max_dispatch_calls_per_pass") \
+    _SG_LOGITEM_XMACRO(VIEW_POOL_EXHAUSTED, "view pool exhausted") \
+    _SG_LOGITEM_XMACRO(BEGINPASS_TOO_MANY_COLOR_ATTACHMENTS, "sg_begin_pass: too many color attachments (sg_limits.max_color_attachments)") \
+    _SG_LOGITEM_XMACRO(BEGINPASS_TOO_MANY_RESOLVE_ATTACHMENTS, "sg_begin_pass: too many resolve attachments (sg_limits.max_color_attachments)") \
+    _SG_LOGITEM_XMACRO(BEGINPASS_ATTACHMENTS_ALIVE, "sg_begin_pass: an attachment was provided that no longer exists") \
     _SG_LOGITEM_XMACRO(DRAW_WITHOUT_BINDINGS, "attempting to draw without resource bindings") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_VERTEXSTAGE_TEXTURES, "sg_shader_desc: too many texture bindings on vertex shader stage (sg_limits.max_texture_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_FRAGMENTSTAGE_TEXTURES, "sg_shader_desc: too many texture bindings on fragment shader stage (sg_limits.max_texture_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_COMPUTESTAGE_TEXTURES, "sg_shader_desc: too many texture bindings on compute shader stage (sg_limits.max_texture_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_VERTEXSTAGE_STORAGEBUFFERS, "sg_shader_desc: too many storage buffer bindings on vertex shader stage (sg_limits.max_storage_buffer_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_FRAGMENTSTAGE_STORAGEBUFFERS, "sg_shader_desc: too many storage buffer bindings on fragment shader stage (sg_limits.max_storage_buffer_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_COMPUTESTAGE_STORAGEBUFFERS, "sg_shader_desc: too many storage buffer bindings on compute shader stage (sg_limits.max_storage_buffer_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_VERTEXSTAGE_STORAGEIMAGES, "sg_shader_desc: too many storage image bindings on vertex shader stage (sg_limits.max_storage_image_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_FRAGMENTSTAGE_STORAGEIMAGES, "sg_shader_desc: too many storage image bindings on fragment shader stage (sg_limits.max_storage_image_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_COMPUTESTAGE_STORAGEIMAGES, "sg_shader_desc: too many storage image bindings on compute shader stage (sg_limits.max_storage_image_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_VERTEXSTAGE_TEXTURESAMPLERPAIRS, "sg_shader_desc: too many texture-sampler-pairs on vertex shader stage (sg_limits.max_texture_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_FRAGMENTSTAGE_TEXTURESAMPLERPAIRS, "sg_shader_desc: too many texture-sampler-pairs on fragment shader stage (sg_limits.max_texture_bindings_per_stage)") \
+    _SG_LOGITEM_XMACRO(SHADERDESC_TOO_MANY_COMPUTESTAGE_TEXTURESAMPLERPAIRS, "sg_shader_desc: too many texture-sampler-pairs on compute shader stage (sg_limits.max_texture_bindings_per_stage)") \
     _SG_LOGITEM_XMACRO(VALIDATE_BUFFERDESC_CANARY, "sg_buffer_desc not initialized") \
     _SG_LOGITEM_XMACRO(VALIDATE_BUFFERDESC_IMMUTABLE_DYNAMIC_STREAM, "sg_buffer_desc.usage: only one of .immutable, .dynamic_update, .stream_update can be true") \
     _SG_LOGITEM_XMACRO(VALIDATE_BUFFERDESC_SEPARATE_BUFFER_TYPES, "sg_buffer_desc.usage: on WebGL2, only one of .vertex_buffer or .index_buffer can be true (check sg_features.separate_buffer_types)") \
@@ -4210,22 +4436,27 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDATA_DATA_SIZE, "sg_image_data: data size doesn't match expected surface size") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_CANARY, "sg_image_desc not initialized") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_IMMUTABLE_DYNAMIC_STREAM, "sg_image_desc.usage: only one of .immutable, .dynamic_update, .stream_update can be true") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_RENDER_VS_STORAGE_ATTACHMENT, "sg_image_desc.usage: only one of .render_attachment or .storage_attachment can be true") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_IMAGETYPE_2D_NUMSLICES, "sg_image_desc.num_slices must be exactly 1 for SG_IMAGETYPE_2D") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_IMAGETYPE_CUBE_NUMSLICES, "sg_image_desc.num_slices must be exactly 6 for SG_IMAGETYPE_CUBE") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_IMAGETYPE_ARRAY_NUMSLICES, "sg_image_desc.num_slices must be ((>= 1) && (<= sg_limits.max_image_array_layers)) for SG_IMAGETYPE_ARRAY") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_IMAGETYPE_3D_NUMSLICES, "sg_image_desc.num_slices must be ((>= 1) && (<= sg_limits.max_image_size_3d)) for SG_IMAGETYPE_ARRAY") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_NUMSLICES, "sg_image_desc.num_slices must be > 0") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_WIDTH, "sg_image_desc.width must be > 0") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_HEIGHT, "sg_image_desc.height must be > 0") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_NONRT_PIXELFORMAT, "invalid pixel format for non-render-target image") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_MSAA_BUT_NO_ATTACHMENT, "non-attachment images cannot be multisampled") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_DEPTH_3D_IMAGE, "3D images cannot have a depth/stencil image format") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_EXPECT_IMMUTABLE, "render/storage attachment images must be sg_image_usage.immutable") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_EXPECT_IMMUTABLE, "attachment and storage images must be sg_image_usage.immutable") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_EXPECT_NO_DATA, "render/storage attachment images cannot be initialized with data") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_RENDERATTACHMENT_NO_MSAA_SUPPORT, "multisampling not supported for this pixel format") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_RENDERATTACHMENT_MSAA_NUM_MIPMAPS, "multisample images must have num_mipmaps == 1") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_RENDERATTACHMENT_MSAA_3D_IMAGE, "3D images cannot have a sample_count > 1") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_RENDERATTACHMENT_MSAA_CUBE_IMAGE, "cube images cannot have sample_count > 1") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_RENDERATTACHMENT_MSAA_ARRAY_IMAGE, "array images cannot have sample_count > 1") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_RENDERATTACHMENT_PIXELFORMAT, "invalid pixel format for render attachment image") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_STORAGEATTACHMENT_PIXELFORMAT, "invalid pixel format for storage attachment image") \
-    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_STORAGEATTACHMENT_EXPECT_NO_MSAA, "storage attachment images cannot be multisampled") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_PIXELFORMAT, "invalid pixel format for render attachment image") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_RESOLVE_EXPECT_NO_MSAA, "resolve attachment images cannot be multisampled") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_NO_MSAA_SUPPORT, "multisampling not supported for this pixel format") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_MSAA_NUM_MIPMAPS, "multisample images must have num_mipmaps == 1") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_MSAA_3D_IMAGE, "3D images cannot have a sample_count > 1") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_MSAA_CUBE_IMAGE, "cube images cannot have sample_count > 1") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_ATTACHMENT_MSAA_ARRAY_IMAGE, "array images cannot have sample_count > 1") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_STORAGEIMAGE_PIXELFORMAT, "invalid pixel format for storage image") \
+    _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_STORAGEIMAGE_EXPECT_NO_MSAA, "storage images cannot be multisampled") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_INJECTED_NO_DATA, "images with injected textures cannot be initialized with data") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_DYNAMIC_NO_DATA, "dynamic/stream-update images cannot be initialized with data") \
     _SG_LOGITEM_XMACRO(VALIDATE_IMAGEDESC_COMPRESSED_IMMUTABLE, "compressed images must be immutable") \
@@ -4240,60 +4471,44 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_COMPUTE_SOURCE_OR_BYTECODE, "compute shader source or byte code expected") \
     _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_INVALID_SHADER_COMBO, "cannot combine compute shaders with vertex or fragment shaders") \
     _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_NO_BYTECODE_SIZE, "shader byte code length (in bytes) required") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_METAL_THREADS_PER_THREADGROUP, "sg_shader_desc.mtl_threads_per_threadgroup must be initialized for compute shaders (metal)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_NO_CONT_MEMBERS, "uniform block members must occupy continuous slots") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_SIZE_IS_ZERO, "bound uniform block size cannot be zero") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_METAL_BUFFER_SLOT_OUT_OF_RANGE, "uniform block 'msl_buffer_n' is out of range (must be 0..7)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_METAL_BUFFER_SLOT_COLLISION, "uniform block 'msl_buffer_n' must be unique across uniform blocks and storage buffers in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_HLSL_REGISTER_B_OUT_OF_RANGE, "uniform block 'hlsl_register_b_n' is out of range (must be 0..7)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_HLSL_REGISTER_B_COLLISION, "uniform block 'hlsl_register_b_n' must be unique across uniform blocks in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_WGSL_GROUP0_BINDING_OUT_OF_RANGE, "uniform block 'wgsl_group0_binding_n' is out of range (must be 0..15)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_WGSL_GROUP0_BINDING_COLLISION, "uniform block 'wgsl_group0_binding_n' must be unique across all uniform blocks") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_NO_MEMBERS, "GL backend requires uniform block member declarations") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_UNIFORM_GLSL_NAME, "uniform block member 'glsl_name' missing") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_SIZE_MISMATCH, "size of uniform block members doesn't match uniform block size") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_ARRAY_COUNT, "uniform array count must be >= 1") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_STD140_ARRAY_TYPE, "uniform arrays only allowed for FLOAT4, INT4, MAT4 in std140 layout") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_METAL_BUFFER_SLOT_OUT_OF_RANGE, "storage buffer 'msl_buffer_n' is out of range (must be 8..15)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_METAL_BUFFER_SLOT_COLLISION, "storage buffer 'msl_buffer_n' must be unique across uniform blocks and storage buffer in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_HLSL_REGISTER_T_OUT_OF_RANGE, "storage buffer 'hlsl_register_t_n' is out of range (must be 0..23)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_HLSL_REGISTER_T_COLLISION, "storage_buffer 'hlsl_register_t_n' must be unique across read-only storage buffers and images in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_HLSL_REGISTER_U_OUT_OF_RANGE, "storage buffer 'hlsl_register_u_n' is out of range (must be 0..11)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_HLSL_REGISTER_U_COLLISION, "storage_buffer 'hlsl_register_u_n' must be unique across read/write storage buffers and storage images in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_GLSL_BINDING_OUT_OF_RANGE, "storage buffer 'glsl_binding_n' is out of range (must be 0..7)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_GLSL_BINDING_COLLISION, "storage buffer 'glsl_binding_n' must be unique across shader stages") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_WGSL_GROUP1_BINDING_OUT_OF_RANGE, "storage buffer 'wgsl_group1_binding_n' is out of range (must be 0..127)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEBUFFER_WGSL_GROUP1_BINDING_COLLISION, "storage buffer 'wgsl_group1_binding_n' must be unique across all images, samplers and storage buffers") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEIMAGE_EXPECT_COMPUTE_STAGE, "storage images are only allowed on the compute stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEIMAGE_METAL_TEXTURE_SLOT_OUT_OF_RANGE, "storage image 'msl_texture_n' is out of range (must be 0..19") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEIMAGE_METAL_TEXTURE_SLOT_COLLISION, "storage image 'msl_texture_n' must be unique across images and storage images in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEIMAGE_HLSL_REGISTER_U_OUT_OF_RANGE, "storage image 'hlsl_register_u_n' is out of range (must be 0..11)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEIMAGE_HLSL_REGISTER_U_COLLISION, "storage image 'hlsl_register_u_n' must be unique across storage images and read/write storage buffers in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEIMAGE_GLSL_BINDING_OUT_OF_RANGE, "storage image 'glsl_binding_n' is out of range (must be 0..4)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEIMAGE_GLSL_BINDING_COLLISION, "storage image 'glsl_binding_n' must be unique across shader stages") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEIMAGE_WGSL_GROUP2_BINDING_OUT_OF_RANGE, "storage image 'wgsl_group2_binding_n' is out of range (must be 0..7)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_STORAGEIMAGE_WGSL_GROUP2_BINDING_COLLISION, "storage image 'wgsl_group2_binding_n' must be unique in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_METAL_TEXTURE_SLOT_OUT_OF_RANGE, "image 'msl_texture_n' is out of range (must be 0..19)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_METAL_TEXTURE_SLOT_COLLISION, "image 'msl_texture_n' must be unique across images and storage images in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_HLSL_REGISTER_T_OUT_OF_RANGE, "image 'hlsl_register_t_n' is out of range (must be 0..23)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_HLSL_REGISTER_T_COLLISION, "image 'hlsl_register_t_n' must be unique across images and storage buffers in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_WGSL_GROUP1_BINDING_OUT_OF_RANGE, "image 'wgsl_group1_binding_n' is out of range (must be 0..127)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_WGSL_GROUP1_BINDING_COLLISION, "image 'wgsl_group1_binding_n' must be unique across all images, samplers and storage buffers") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_METAL_SAMPLER_SLOT_OUT_OF_RANGE, "sampler 'msl_sampler_n' is out of range (must be 0..15)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_METAL_SAMPLER_SLOT_COLLISION, "sampler 'msl_sampler_n' must be unique in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_HLSL_REGISTER_S_OUT_OF_RANGE, "sampler 'hlsl_register_s_n' is out of rang (must be 0..15)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_HLSL_REGISTER_S_COLLISION, "sampler 'hlsl_register_s_n' must be unique in same shader stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_WGSL_GROUP1_BINDING_OUT_OF_RANGE, "sampler 'wgsl_group1_binding_n' is out of range (must be 0..127)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_WGSL_GROUP1_BINDING_COLLISION, "sampler 'wgsl_group1_binding_n' must be unique across all images, samplers and storage buffers") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_SAMPLER_PAIR_IMAGE_SLOT_OUT_OF_RANGE, "image-sampler-pair image slot index is out of range (sg_shader_desc.image_sampler_pairs[].image_slot)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_SAMPLER_PAIR_SAMPLER_SLOT_OUT_OF_RANGE, "image-sampler-pair sampler slot index is out of range (sg_shader_desc.image_sampler_pairs[].sampler_slot)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_SAMPLER_PAIR_IMAGE_STAGE_MISMATCH, "image-sampler-pair stage doesn't match referenced image stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_SAMPLER_PAIR_SAMPLER_STAGE_MISMATCH, "image-sampler-pair stage doesn't match referenced sampler stage") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_SAMPLER_PAIR_GLSL_NAME, "image-sampler-pair 'glsl_name' missing") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_METAL_THREADS_PER_THREADGROUP_INITIALIZED, "sg_shader_desc.mtl_threads_per_threadgroup must be initialized for compute shaders (metal)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_METAL_THREADS_PER_THREADGROUP_MULTIPLE_32, "sg_shader_desc.mtl_threads_per_threadgroup (x * y * z) must be a multiple of 32 (metal)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_NO_CONT_MEMBERS, "sg_shader_desc.uniform_blocks[].glsl_uniforms[]: items must occupy continuous slots") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_SIZE_IS_ZERO, "sg_shader_desc.uniform_blocks[].size cannot be zero") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_METAL_BUFFER_SLOT_COLLISION, "sg_shader_desc.uniform_blocks[].msl_buffer_n must be unique across uniform blocks and storage buffers in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_HLSL_REGISTER_B_COLLISION, "sg_shader_desc.uniform_blocks[].hlsl_register_b_n must be unique across uniform blocks in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_WGSL_GROUP0_BINDING_COLLISION, "sg_shader_desc.uniform_blocks[].wgsl_group0_binding_n must be unique across all uniform blocks") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_NO_MEMBERS, "sg_shader_desc.uniform_blocks[].glsl_uniforms[]: GL backend requires uniform block member declarations") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_UNIFORM_GLSL_NAME, "sg_shader_desc.uniform_blocks[].glsl_uniforms[].glsl_name missing") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_SIZE_MISMATCH, "sg_shader_desc.uniform_blocks[].glsl_uniforms[]: size of uniform block members doesn't match uniform block size") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_ARRAY_COUNT, "sg_shader_desc.uniform_blocks[].glsl_uniforms[].array_count must be >= 1") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_UNIFORMBLOCK_STD140_ARRAY_TYPE, "sg_shader_desc.uniform_blocks[].glsl_uniforms[].type: uniform arrays only allowed for FLOAT4, INT4, MAT4 in std140 layout") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEBUFFER_METAL_BUFFER_SLOT_COLLISION, "sg_shader_desc.views[].storage_buffer.storagemsl_buffer_n must be unique across uniform blocks and storage buffer in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEBUFFER_HLSL_REGISTER_T_COLLISION, "sg_shader_desc.views[].storage_buffer.hlsl_register_t_n must be unique across read-only storage buffers and images in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEBUFFER_HLSL_REGISTER_U_COLLISION, "sg_shader_desc.views[].storage_buffer.hlsl_register_u_n must be unique across read/write storage buffers and storage images in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEBUFFER_GLSL_BINDING_COLLISION, "sg_shader_desc.views[].storage_buffer.glsl_binding_n must be unique across shader stages") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEBUFFER_WGSL_GROUP1_BINDING_COLLISION, "sg_shader_desc.views[].storage_buffer.wgsl_group1_binding_n must be unique across all images, samplers and storage buffers") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEIMAGE_EXPECT_COMPUTE_STAGE, "sg_shader_desc.views[].storage_image: storage images are allowed on the compute stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEIMAGE_METAL_TEXTURE_SLOT_COLLISION, "sg_shader_desc.views[].storage_image.msl_texture_n must be unique across images and storage images in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEIMAGE_HLSL_REGISTER_U_COLLISION, "sg_shader_desc.views[].storage_image.hlsl_register_u_n must be unique across storage images and read/write storage buffers in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEIMAGE_GLSL_BINDING_COLLISION, "sg_shader_desc.views[].storage_image.glsl_binding_n must be unique across shader stages") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_STORAGEIMAGE_WGSL_GROUP1_BINDING_COLLISION, "sg_shader_desc.views[].storage_image.wgsl_group1_binding_n must be unique in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_TEXTURE_METAL_TEXTURE_SLOT_COLLISION, "sg_shader_desc.views[].texture.msl_texture_n must be unique across textures and storage images in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_TEXTURE_HLSL_REGISTER_T_COLLISION, "sg_shader_desc.views[].texture.hlsl_register_t_n must be unique across textures and storage buffers in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_VIEW_TEXTURE_WGSL_GROUP1_BINDING_COLLISION, "sg_shader_desc.views[].texture.wgsl_group1_binding_n must be unique across all images, samplers and storage buffers") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_METAL_SAMPLER_SLOT_COLLISION, "sg_shader_desc.samplers[].msl_sampler_n must be unique in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_HLSL_REGISTER_S_COLLISION, "sg_shader_desc.samplers[].hlsl_register_s_n must be unique in same shader stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_WGSL_GROUP1_BINDING_COLLISION, "sg_shader_desc.samplers[].wgsl_group1_binding_n must be unique across all images, samplers and storage buffers") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_TEXTURE_SAMPLER_PAIR_VIEW_SLOT_OUT_OF_RANGE, "texture-sampler-pair view slot index is out of range (sg_shader_desc.texture_sampler_pairs[].view_slot)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_TEXTURE_SAMPLER_PAIR_SAMPLER_SLOT_OUT_OF_RANGE, "texture-sampler-pair sampler slot index is out of range (sg_shader_desc.texture_sampler_pairs[].sampler_slot)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_TEXTURE_SAMPLER_PAIR_TEXTURE_STAGE_MISMATCH, "texture-sampler-pair stage doesn't match referenced texture stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_TEXTURE_SAMPLER_PAIR_EXPECT_TEXTURE_VIEW, "texture-sampler-pair view must be a texture view (sg_shader_desc.texture_sampler_pairs[].view_slot => sg_shaders_desc.views[i].texture)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_TEXTURE_SAMPLER_PAIR_SAMPLER_STAGE_MISMATCH, "texture-sampler-pair stage doesn't match referenced sampler stage") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_TEXTURE_SAMPLER_PAIR_GLSL_NAME, "texture-sampler-pair 'glsl_name' missing") \
     _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_NONFILTERING_SAMPLER_REQUIRED, "image sample type UNFILTERABLE_FLOAT, UINT, SINT can only be used with NONFILTERING sampler") \
     _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_COMPARISON_SAMPLER_REQUIRED, "image sample type DEPTH can only be used with COMPARISON sampler") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_IMAGE_NOT_REFERENCED_BY_IMAGE_SAMPLER_PAIRS, "one or more images are not referenced by by image-sampler-pairs (sg_shader_desc.image_sampler_pairs[].image_slot)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_NOT_REFERENCED_BY_IMAGE_SAMPLER_PAIRS, "one or more samplers are not referenced by image-sampler-pairs (sg_shader_desc.image_sampler_pairs[].sampler_slot)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_TEXVIEW_NOT_REFERENCED_BY_TEXTURE_SAMPLER_PAIRS, "one or more texture views are not referenced by by texture-sampler-pairs (sg_shader_desc.texture_sampler_pairs[].view_slot)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_SAMPLER_NOT_REFERENCED_BY_TEXTURE_SAMPLER_PAIRS, "one or more samplers are not referenced by texture-sampler-pairs (sg_shader_desc.texture_sampler_pairs[].sampler_slot)") \
     _SG_LOGITEM_XMACRO(VALIDATE_SHADERDESC_ATTR_STRING_TOO_LONG, "vertex attribute name/semantic string too long (max len 16)") \
     _SG_LOGITEM_XMACRO(VALIDATE_PIPELINEDESC_CANARY, "sg_pipeline_desc not initialized") \
     _SG_LOGITEM_XMACRO(VALIDATE_PIPELINEDESC_SHADER, "sg_pipeline_desc.shader missing or invalid") \
@@ -4305,58 +4520,35 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(VALIDATE_PIPELINEDESC_ATTR_SEMANTICS, "D3D11 missing vertex attribute semantics in shader") \
     _SG_LOGITEM_XMACRO(VALIDATE_PIPELINEDESC_SHADER_READONLY_STORAGEBUFFERS, "sg_pipeline_desc.shader: only readonly storage buffer bindings allowed in render pipelines") \
     _SG_LOGITEM_XMACRO(VALIDATE_PIPELINEDESC_BLENDOP_MINMAX_REQUIRES_BLENDFACTOR_ONE, "SG_BLENDOP_MIN/MAX requires all blend factors to be SG_BLENDFACTOR_ONE") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_CANARY, "sg_attachments_desc not initialized") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_NO_ATTACHMENTS, "sg_attachments_desc no color, depth-stencil or storage attachments") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_NO_CONT_COLOR_ATTS, "color attachments must occupy continuous slots") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_COLOR_IMAGE, "color attachment image is not valid") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_COLOR_MIPLEVEL, "color attachment mip level is higher than number of mipmaps in image") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_COLOR_FACE, "color attachment image is cubemap, but face index is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_COLOR_LAYER, "color attachment image is array texture, but layer index is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_COLOR_SLICE, "color attachment image is 3d texture, but slice value is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_COLOR_IMAGE_NO_RENDERATTACHMENT, "color attachment images must be sg_image_desc.usage.render_attachment=true") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_COLOR_INV_PIXELFORMAT, "color attachment images must be renderable color pixel format") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_IMAGE_SIZES, "all color and depth attachment images must have the same size") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_IMAGE_SAMPLE_COUNTS, "all color and depth attachment images must have the same sample count") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_COLOR_IMAGE_MSAA, "resolve attachments must have a color attachment image with sample count > 1") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_IMAGE, "resolve attachment image not valid") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_SAMPLE_COUNT, "pass resolve attachment image sample count must be 1") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_MIPLEVEL, "resolve attachment mip level is higher than number of mipmaps in image") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_FACE, "resolve attachment is cubemap, but face index is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_LAYER, "resolve attachment is array texture, but layer index is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_SLICE, "resolve attachment is 3d texture, but slice value is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_IMAGE_NO_RT, "resolve attachment image must have render_target=true") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_IMAGE_SIZES, "resolve attachment size must match color attachment image size") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RESOLVE_IMAGE_FORMAT, "resolve attachment pixel format must match color attachment pixel format") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_DEPTH_INV_PIXELFORMAT, "depth attachment image must be depth or depth-stencil pixel format") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_DEPTH_IMAGE, "depth attachment image is not valid") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_DEPTH_MIPLEVEL, "depth attachment mip level is higher than number of mipmaps in image") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_DEPTH_FACE, "depth attachment image is cubemap, but face index is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_DEPTH_LAYER, "depth attachment image is array texture, but layer index is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_DEPTH_SLICE, "depth attachment image is 3d texture, but slice value is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_DEPTH_IMAGE_NO_RENDERATTACHMENT, "depth attachment image must be sg_image_desc.usage.render_attachment=true") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_DEPTH_IMAGE_SIZES, "depth attachment image size must match color attachment image size") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_DEPTH_IMAGE_SAMPLE_COUNT, "depth attachment sample count must match color attachment sample count") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_STORAGE_IMAGE, "storage attachment image is not valid") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_STORAGE_MIPLEVEL, "storage attachment mip level is higher than number of mipmaps in image") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_STORAGE_FACE, "storage attachment image is cubemap, but face index is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_STORAGE_LAYER, "storage attachment image is array texture, but layer index is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_STORAGE_SLICE, "storage attachment image is 3d texture, but slice value is too big") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_STORAGE_IMAGE_NO_STORAGEATTACHMENT, "storage attachment images must be sg_image_desc.usage.storage_attachment=true") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_STORAGE_INV_PIXELFORMAT, "storage attachment pixel format must have .compute_readwrite or .compute_writeonly capabilities") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ATTACHMENTSDESC_RENDER_VS_STORAGE_ATTACHMENTS, "cannot use color/depth and storage attachment images on the same sg_attachments object") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_CANARY, "sg_view_desc not initialized") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_UNIQUE_VIEWTYPE, "sg_view_desc: only one view type can be active") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_ANY_VIEWTYPE, "sg_view_desc: exactly one view type must be active") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_RESOURCE_ALIVE, "sg_view_desc: resource object is no longer alive (.buffer or .image)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_RESOURCE_FAILED, "sg_view_desc: resource object cannot be in FAILED state (.buffer or .image)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_STORAGEBUFFER_OFFSET_VS_BUFFER_SIZE, "sg_view_desc.storage_buffer.offset is >= buffer size") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_STORAGEBUFFER_OFFSET_MULTIPLE_256, "sg_view_desc.storage_buffer.offset must be a multiple of 256") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_STORAGEBUFFER_USAGE, "sg_view_desc.storage_buffer.buffer must have been created with sg_buffer_desc.usage.storage_buffer = true") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_STORAGEIMAGE_USAGE, "sg_view_desc.storage_image.image must have been created with sg_image_desc.usage.storage_image = true") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_COLORATTACHMENT_USAGE, "sg_view_desc.color_attachment.image must have been created with sg_image_desc.usage.color_attachment = true") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_RESOLVEATTACHMENT_USAGE, "sg_view_desc.resolve_attachment.image must have been created with sg_image_desc.usage.resolve_attachment = true") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_DEPTHSTENCILATTACHMENT_USAGE, "sg_view_desc.depth_stencil_attachment.image must have been created with sg_image_desc.usage.depth_stencil_attachment = true") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_IMAGE_MIPLEVEL, "sg_view_desc: image/attachment view mip level is out of range (must be >=0 and <image.num_miplevels)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_IMAGE_2D_SLICE, "sg_view_desc: image/attachment view slice is out of range for 2D image (must be 0)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_IMAGE_CUBEMAP_SLICE, "sg_view_desc: image/attachment view slice is out of range for cubemap image (must be >=0 and <6)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_IMAGE_ARRAY_SLICE, "sg_view_desc: image/attachment view slice is out of range for 2D array image (must be >=0 and <image.num_slices") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_IMAGE_3D_SLICE, "sg_view_desc: image/attachment view slice is out of range for 3D image (must be 0)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_TEXTURE_EXPECT_NO_MSAA, "sg_view_desc: MSAA texture bindings not allowed on this backend (sg_features.msaa_texture_bindings)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_TEXTURE_MIPLEVELS, "sg_view_desc: texture view mip levels are out of range (must be >=0 and <image.num_miplevels)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_TEXTURE_2D_SLICES, "sg_view_desc: texture view slices are out of range for 2D image (must be 0)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_TEXTURE_CUBEMAP_SLICES, "sg_view_desc: texture view slices are out of range for cubemap image (must be 0)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_TEXTURE_ARRAY_SLICES, "sg_view_desc: texture view slices are out of range for 2D array image (must be >=0 and <image.num_slices") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_TEXTURE_3D_SLICES, "sg_view_desc: texture view slices are out of range for 3D image (must be 0)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_STORAGEIMAGE_PIXELFORMAT, "sg_view_desc.storage_image_binding: image pixel format must be GPU readable or writable (sg_pixelformat_info.read/write)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_COLORATTACHMENT_PIXELFORMAT, "sg_view_desc.color_attachment: pixel format of image must be renderable (sg_pixelformat_info.render)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_DEPTHSTENCILATTACHMENT_PIXELFORMAT, "sg_view_desc.depth_stencil_attachment: pixel format of image must be a depth or depth-stencil format (sg_pixelformat_info.depth)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_VIEWDESC_RESOLVEATTACHMENT_SAMPLECOUNT, "sg_view_desc.resolve_attachment: image cannot be multisampled") \
     _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_CANARY, "sg_begin_pass: pass struct not initialized") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_ATTACHMENTS_EXISTS, "sg_begin_pass: attachments object no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_ATTACHMENTS_VALID, "sg_begin_pass: attachments object not in resource state VALID") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COMPUTEPASS_STORAGE_ATTACHMENTS_ONLY, "sg_begin_pass: only storage attachments allowed on compute pass") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RENDERPASS_RENDER_ATTACHMENTS_ONLY, "sg_begin_pass: a render pass cannot have storage attachments") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLOR_ATTACHMENT_IMAGE_ALIVE, "sg_begin_pass: one or more color attachment images are no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLOR_ATTACHMENT_IMAGE_VALID, "sg_begin_pass: one or more color attachment images are not in valid state") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RESOLVE_ATTACHMENT_IMAGE_ALIVE, "sg_begin_pass: one or more resolve attachment images are no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RESOLVE_ATTACHMENT_IMAGE_VALID, "sg_begin_pass: one or more resolve attachment images are not in valid state") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCIL_ATTACHMENT_IMAGE_ALIVE, "sg_begin_pass: one or more depth-stencil attachment images are no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCIL_ATTACHMENT_IMAGE_VALID, "sg_begin_pass: one or more depth-stencil attachment images are not in valid state") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_STORAGE_ATTACHMENT_IMAGE_ALIVE, "sg_begin_pass: one or more storage attachment images is no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_STORAGE_ATTACHMENT_IMAGE_VALID, "sg_begin_pass: one or more storage attachment images is not in valid state") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COMPUTEPASS_EXPECT_NO_ATTACHMENTS, "sg_begin_pass: compute passes cannot have attachments") \
     _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_SWAPCHAIN_EXPECT_WIDTH, "sg_begin_pass: expected pass.swapchain.width > 0") \
     _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_SWAPCHAIN_EXPECT_WIDTH_NOTSET, "sg_begin_pass: expected pass.swapchain.width == 0") \
     _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_SWAPCHAIN_EXPECT_HEIGHT, "sg_begin_pass: expected pass.swapchain.height > 0") \
@@ -4385,31 +4577,53 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_SWAPCHAIN_WGPU_EXPECT_DEPTHSTENCILVIEW, "sg_begin_pass: expected pass.swapchain.wgpu.depth_stencil_view != 0") \
     _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_SWAPCHAIN_WGPU_EXPECT_DEPTHSTENCILVIEW_NOTSET, "sg_begin_pass: expected pass.swapchain.wgpu.depth_stencil_view == 0") \
     _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_SWAPCHAIN_GL_EXPECT_FRAMEBUFFER_NOTSET, "sg_begin_pass: expected pass.swapchain.gl.framebuffer == 0") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLORATTACHMENTVIEWS_CONTINUOUS, "sg_begin_pass: color attachment view array must be continuous") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLORATTACHMENTVIEW_ALIVE, "sg_begin_pass: color attachment view no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLORATTACHMENTVIEW_VALID, "sg_begin_pass: color attachment view not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLORATTACHMENTVIEW_TYPE, "sg_begin_pass: color attachment view has wrong type (must be sg_view_desc.color_attachment)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLORATTACHMENTVIEW_IMAGE_ALIVE, "sg_begin_pass: color attachment view's image object is uninitialized or no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLORATTACHMENTVIEW_IMAGE_VALID, "sg_begin_pass: color attachment view's image is not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLORATTACHMENTVIEW_SIZES, "sg_begin_pass: all color attachments must have the same width and height") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_COLORATTACHMENTVIEW_SAMPLECOUNTS, "sg_begin_pass: all color attachments must have the same sample count") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RESOLVEATTACHMENTVIEW_NO_COLORATTACHMENTVIEW, "sg_begin_pass: a resolve attachment view must have an associated color attachment view at the same index") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RESOLVEATTACHMENTVIEW_ALIVE, "sg_begin_pass: resolve attachment view no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RESOLVEATTACHMENTVIEW_VALID, "sg_begin_pass: resolve attachment view not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RESOLVEATTACHMENTVIEW_TYPE, "sg_begin_pass: resolve attachment view has wrong type (must be sg_view_desc.resolve_attachment)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RESOLVEATTACHMENTVIEW_IMAGE_ALIVE, "sg_begin_pass: resolve attachment view's image object is uninitialized or no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RESOLVEATTACHMENTVIEW_IMAGE_VALID, "sg_begin_pass: resolve attachment view's image is not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_RESOLVEATTACHMENTVIEW_SIZES, "sg_begin_pass: all attachments must have the same width and height") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCILATTACHMENTVIEWS_CONTINUOUS, "sg_begin_pass: color attachment view array must be continuous") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCILATTACHMENTVIEW_ALIVE, "sg_begin_pass: depth-stencil attachment view no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCILATTACHMENTVIEW_VALID, "sg_begin_pass: depth-stencil attachment view not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCILATTACHMENTVIEW_TYPE, "sg_begin_pass: depth-stencil attachment view has wrong type (must be sg_view_desc.depth_stencil_attachment)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCILATTACHMENTVIEW_IMAGE_ALIVE, "sg_begin_pass: depth-stencil attachment view's image object is uninitialized or no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCILATTACHMENTVIEW_IMAGE_VALID, "sg_begin_pass: depth-stencil attachment view's image is not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCILATTACHMENTVIEW_SIZES, "sg_begin_pass: attachments must have the same width and height") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_DEPTHSTENCILATTACHMENTVIEW_SAMPLECOUNT, "sg_begin_pass: all color attachments must have the same sample count") \
+    _SG_LOGITEM_XMACRO(VALIDATE_BEGINPASS_ATTACHMENTS_EXPECTED, "sg_begin_pass: offscreen render passes must have at least one color- or depth-stencil attachment") \
     _SG_LOGITEM_XMACRO(VALIDATE_AVP_RENDERPASS_EXPECTED, "sg_apply_viewport: must be called in a render pass") \
     _SG_LOGITEM_XMACRO(VALIDATE_ASR_RENDERPASS_EXPECTED, "sg_apply_scissor_rect: must be called in a render pass") \
     _SG_LOGITEM_XMACRO(VALIDATE_APIP_PIPELINE_VALID_ID, "sg_apply_pipeline: invalid pipeline id provided") \
     _SG_LOGITEM_XMACRO(VALIDATE_APIP_PIPELINE_EXISTS, "sg_apply_pipeline: pipeline object no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_PIPELINE_VALID, "sg_apply_pipeline: pipeline object not in valid state") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_PIPELINE_VALID, "sg_apply_pipeline: pipeline object not in valid state (SG_RESOURCESTATE_VALID)") \
     _SG_LOGITEM_XMACRO(VALIDATE_APIP_PASS_EXPECTED, "sg_apply_pipeline: must be called in a pass") \
     _SG_LOGITEM_XMACRO(VALIDATE_APIP_PIPELINE_SHADER_ALIVE, "sg_apply_pipeline: shader object associated with pipeline no longer alive") \
     _SG_LOGITEM_XMACRO(VALIDATE_APIP_PIPELINE_SHADER_VALID, "sg_apply_pipeline: shader object associated with pipeline not in valid state") \
     _SG_LOGITEM_XMACRO(VALIDATE_APIP_COMPUTEPASS_EXPECTED, "sg_apply_pipeline: trying to apply compute pipeline in render pass") \
     _SG_LOGITEM_XMACRO(VALIDATE_APIP_RENDERPASS_EXPECTED, "sg_apply_pipeline: trying to apply render pipeline in compute pass") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_CURPASS_ATTACHMENTS_ALIVE, "sg_apply_pipeline: current pass attachments no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_CURPASS_ATTACHMENTS_VALID, "sg_apply_pipeline: current pass attachments not in valid state") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_ATT_COUNT, "sg_apply_pipeline: number of pipeline color attachments doesn't match number of pass color attachments") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_COLOR_ATTACHMENT_IMAGE_ALIVE, "sg_apply_pipeline: one or more pass color attachments images are no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_COLOR_ATTACHMENT_IMAGE_VALID, "sg_apply_pipeline: one or more pass color attachments images are not in valid state") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_DEPTHSTENCIL_ATTACHMENT_IMAGE_ALIVE, "sg_apply_pipeline: pass depth-stencil attachment image no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_DEPTHSTENCIL_ATTACHMENT_IMAGE_VALID, "sg_apply_pipeline: pass depth-stencil attachment image not in valid state") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_COLOR_FORMAT, "sg_apply_pipeline: pipeline color attachment pixel format doesn't match pass color attachment pixel format") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_DEPTH_FORMAT, "sg_apply_pipeline: pipeline depth pixel_format doesn't match pass depth attachment pixel format") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_SAMPLE_COUNT, "sg_apply_pipeline: pipeline MSAA sample count doesn't match render pass attachment sample count") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_EXPECTED_STORAGE_ATTACHMENT_IMAGE, "sg_apply_pipeline: shader expects storage image binding but compute pass doesn't have storage attachment image at expected bind slot") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_STORAGE_ATTACHMENT_IMAGE_ALIVE, "sg_apply_pipeline: compute pass storage image attachment no longer exists") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_STORAGE_ATTACHMENT_IMAGE_VALID, "sg_apply_pipeline: compute pass storage image attachment is not in valid state") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_STORAGE_ATTACHMENT_PIXELFORMAT, "sg_apply_pipeline: compute pass storage image attachment pixel format doesn't match sg_shader_desc.storage_images[].access_format") \
-    _SG_LOGITEM_XMACRO(VALIDATE_APIP_STORAGE_ATTACHMENT_IMAGE_TYPE, "sg_apply_pipeline: compute pass storage image attachment image type doesn't match sg_shader_desc.storage_images[].image_type") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_SWAPCHAIN_COLOR_COUNT, "sg_apply_pipeline: the pipeline .color_count must be 1 in swapchain render passes") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_SWAPCHAIN_COLOR_FORMAT, "sg_apply_pipeline: the pipeline .colors[0].pixel_format doesn't match the sg_pass.swapchain.color_format") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_SWAPCHAIN_DEPTH_FORMAT, "sg_apply_pipeline: the pipeline .depth.pixel_format doesn't match the sg_pass.swapchain.depth_format") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_SWAPCHAIN_SAMPLE_COUNT, "sg_apply_pipeline: the pipeline .sample_count doesn't match the sg_pass.swapchain.sample_count") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_ATTACHMENTS_ALIVE, "sg_apply_pipeline: at least one pass attachment view or base image object is no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_COLORATTACHMENTS_COUNT, "sg_apply_pipeline: the pipeline .color_count doesn't match the number of render pass color attachments") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_COLORATTACHMENTS_VIEW_VALID, "sg_apply_pipeline: a pass color attachment view is not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_COLORATTACHMENTS_IMAGE_VALID, "sg_apply_pipeline: a pass color attachment view's image object is not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_COLORATTACHMENTS_FORMAT, "sg_apply_pipeline: a pipeline .colors[n].pixel_format doesn't match sg_pass.attachments.colors[n] image pixel format") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_DEPTHSTENCILATTACHMENT_VIEW_VALID, "sg_apply_pipeline: the pass depth-stencil attachment view is not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_DEPTHSTENCILATTACHMENT_IMAGE_VALID, "sg_apply_pipeline: the pass depth-stencil attachment view's image object is not in valid state (SG_RESOURCESTATE_VALID)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_DEPTHSTENCILATTACHMENT_FORMAT, "sg_apply_pipeline: pipeline .depth.pixel_format doesn't match sg_pass.attachments.depth_stencil image pixel format") \
+    _SG_LOGITEM_XMACRO(VALIDATE_APIP_ATTACHMENT_SAMPLE_COUNT, "sg_apply_pipeline: pipeline MSAA sample count doesn't match pass attachment sample count") \
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_PASS_EXPECTED, "sg_apply_bindings: must be called in a pass") \
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_EMPTY_BINDINGS, "sg_apply_bindings: the provided sg_bindings struct is empty") \
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_NO_PIPELINE, "sg_apply_bindings: must be called after sg_apply_pipeline") \
@@ -4417,38 +4631,41 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_PIPELINE_VALID, "sg_apply_bindings: currently applied pipeline object not in valid state") \
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_PIPELINE_SHADER_ALIVE, "sg_apply_bindings: shader associated with currently applied pipeline is no longer alive") \
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_PIPELINE_SHADER_VALID, "sg_apply_bindings: shader associated with currently applied pipeline is not in valid state") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_COMPUTE_EXPECTED_NO_VBS, "sg_apply_bindings: vertex buffer bindings not allowed in a compute pass") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_COMPUTE_EXPECTED_NO_IB, "sg_apply_bindings: index buffer binding not allowed in compute pass") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_VB, "sg_apply_bindings: vertex buffer binding is missing or buffer handle is invalid") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_VB_ALIVE, "sg_apply_bindings: vertex buffer no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_VB_TYPE, "sg_apply_bindings: buffer in vertex buffer slot doesn't have vertex buffer usage (sg_buffer_desc.usage.storage_buffer)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_VB_OVERFLOW, "sg_apply_bindings: buffer in vertex buffer slot is overflown") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_NO_IB, "sg_apply_bindings: pipeline object defines indexed rendering, but no index buffer provided") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IB, "sg_apply_bindings: pipeline object defines non-indexed rendering, but index buffer provided") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IB_ALIVE, "sg_apply_bindings: index buffer no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IB_TYPE, "sg_apply_bindings: buffer in index buffer slot doesn't have index buffer usage (sg_buffer_desc.usage.index_buffer)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IB_OVERFLOW, "sg_apply_bindings: buffer in index buffer slot is overflown") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_IMAGE_BINDING, "sg_apply_bindings: image binding is missing or the image handle is invalid") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IMG_ALIVE, "sg_apply_bindings: bound image no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IMAGE_TYPE_MISMATCH, "sg_apply_bindings: type of bound image doesn't match shader desc") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_MULTISAMPLED_IMAGE, "sg_apply_bindings: expected image with sample_count > 1") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IMAGE_MSAA, "sg_apply_bindings: cannot bind image with sample_count>1") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_FILTERABLE_IMAGE, "sg_apply_bindings: filterable image expected") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_DEPTH_IMAGE, "sg_apply_bindings: depth image expected") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_COMPUTE_EXPECTED_NO_VBUFS, "sg_apply_bindings: vertex buffer bindings not allowed in a compute pass") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_COMPUTE_EXPECTED_NO_IBUF, "sg_apply_bindings: index buffer binding not allowed in compute pass") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_VBUF, "sg_apply_bindings: vertex buffer binding is missing or buffer handle is invalid") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_VBUF_ALIVE, "sg_apply_bindings: vertex buffer no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_VBUF_USAGE, "sg_apply_bindings: buffer in vertex buffer bind slot must have usage.vertex_buffer") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_VBUF_OVERFLOW, "sg_apply_bindings: buffer in vertex buffer bind slot is overflown") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_NO_IBUF, "sg_apply_bindings: pipeline object defines non-indexed rendering, but index buffer binding provided") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_IBUF, "sg_apply_bindings: pipeline object defines indexed rendering, but no index buffer binding provided") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IBUF_ALIVE, "sg_apply_bindings: index buffer no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IBUF_USAGE, "sg_apply_bindings: buffer in index buffer bind slot must have usage.index_buffer") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IBUF_OVERFLOW, "sg_apply_bindings: buffer in index buffer slot is overflown") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_VIEW_BINDING, "sg_apply_bindings: view binding is missing or the view handle is invalid") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_VIEW_ALIVE, "sg_apply_bindings: view no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECT_TEXVIEW, "sg_apply_bindings: view type mismatch in bindslot (shader expects a texture view)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECT_SBVIEW, "sg_apply_bindings: view type mismatch in bindslot (shader expects a storage buffer view)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECT_SIMGVIEW, "sg_apply_bindings: view type mismatch in bindslot (shader expects a storage image view)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_TEXVIEW_IMAGETYPE_MISMATCH, "sg_apply_bindings: image type of bound texture doesn't match shader desc") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_TEXVIEW_EXPECTED_MULTISAMPLED_IMAGE, "sg_apply_bindings: texture bindings expects image with sample_count > 1") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_TEXVIEW_EXPECTED_NON_MULTISAMPLED_IMAGE, "sg_apply_bindings: texture bindings expects image with sample_count == 1") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_TEXVIEW_EXPECTED_FILTERABLE_IMAGE, "sg_apply_bindings: filterable image expected") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_TEXVIEW_EXPECTED_DEPTH_IMAGE, "sg_apply_bindings: depth image expected") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_SBVIEW_READWRITE_IMMUTABLE, "sg_apply_bindings: storage buffers bound as read/write must have usage immutable") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_SIMGVIEW_COMPUTE_PASS_EXPECTED, "sg_apply_bindings: storage image bindings can only appear on compute passes") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_SIMGVIEW_IMAGETYPE_MISMATCH, "sg_apply_bindings: image type of bound storage image doesn't match shader desc") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_SIMGVIEW_ACCESSFORMAT, "sg_apply_bindings: pixel format of storage image view doesn't match access format in shader desc") \
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_SAMPLER_BINDING, "sg_apply_bindings: sampler binding is missing or the sampler handle is invalid") \
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_UNEXPECTED_SAMPLER_COMPARE_NEVER, "sg_apply_bindings: shader expects SG_SAMPLERTYPE_COMPARISON but sampler has SG_COMPAREFUNC_NEVER") \
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_SAMPLER_COMPARE_NEVER, "sg_apply_bindings: shader expects SG_SAMPLERTYPE_FILTERING or SG_SAMPLERTYPE_NONFILTERING but sampler doesn't have SG_COMPAREFUNC_NEVER") \
     _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_NONFILTERING_SAMPLER, "sg_apply_bindings: shader expected SG_SAMPLERTYPE_NONFILTERING, but sampler has SG_FILTER_LINEAR filters") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_SMP_ALIVE, "sg_apply_bindings: bound sampler no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_SMP_VALID, "sg_apply_bindings: bound sampler not in valid state") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_EXPECTED_STORAGEBUFFER_BINDING, "sg_apply_bindings: storage buffer binding is missing or the buffer handle is invalid") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_STORAGEBUFFER_ALIVE, "sg_apply_bindings: bound storage buffer no longer alive") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_STORAGEBUFFER_BINDING_BUFFERTYPE, "sg_apply_bindings: buffer bound to storage buffer slot doesn't have storage buffer usage (sg_buffer_desc.usage.storage_buffer)") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_STORAGEBUFFER_READWRITE_IMMUTABLE, "sg_apply_bindings: storage buffers bound as read/write must have usage immutable") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IMAGE_BINDING_VS_DEPTHSTENCIL_ATTACHMENT, "sg_apply_bindings: cannot bind image in the same pass it is used as depth-stencil attachment") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IMAGE_BINDING_VS_COLOR_ATTACHMENT, "sg_apply_bindings: cannot bind image in the same pass it is used as color attachment") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IMAGE_BINDING_VS_RESOLVE_ATTACHMENT, "sg_apply_bindings: cannot bind image in the same pass it is used as resolve attachment") \
-    _SG_LOGITEM_XMACRO(VALIDATE_ABND_IMAGE_BINDING_VS_STORAGE_ATTACHMENT, "sg_apply_bindings: cannot bind image in the same pass it is used as storage attachment") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_SAMPLER_ALIVE, "sg_apply_bindings: bound sampler no longer alive") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_SAMPLER_VALID, "sg_apply_bindings: bound sampler not in valid state") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_TEXTURE_BINDING_VS_DEPTHSTENCIL_ATTACHMENT, "sg_apply_bindings: cannot bind texture in the same pass it is used as depth-stencil attachment") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_TEXTURE_BINDING_VS_COLOR_ATTACHMENT, "sg_apply_bindings: cannot bind texture in the same pass it is used as color attachment") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_TEXTURE_BINDING_VS_RESOLVE_ATTACHMENT, "sg_apply_bindings: cannot bind texture in the same pass it is used as resolve attachment") \
+    _SG_LOGITEM_XMACRO(VALIDATE_ABND_TEXTURE_VS_STORAGEIMAGE_BINDING, "sg_apply_bindings: an image cannot be bound as a texture and storage image at the same time") \
     _SG_LOGITEM_XMACRO(VALIDATE_AU_PASS_EXPECTED, "sg_apply_uniforms: must be called in a pass") \
     _SG_LOGITEM_XMACRO(VALIDATE_AU_NO_PIPELINE, "sg_apply_uniforms: must be called after sg_apply_pipeline()") \
     _SG_LOGITEM_XMACRO(VALIDATE_AU_PIPELINE_ALIVE, "sg_apply_uniforms: currently applied pipeline object no longer alive") \
@@ -4458,9 +4675,18 @@ typedef struct sg_frame_stats {
     _SG_LOGITEM_XMACRO(VALIDATE_AU_NO_UNIFORMBLOCK_AT_SLOT, "sg_apply_uniforms: no uniform block declaration at this shader stage UB slot") \
     _SG_LOGITEM_XMACRO(VALIDATE_AU_SIZE, "sg_apply_uniforms: data size doesn't match declared uniform block size") \
     _SG_LOGITEM_XMACRO(VALIDATE_DRAW_RENDERPASS_EXPECTED, "sg_draw: must be called in a render pass") \
-    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_BASEELEMENT, "sg_draw: base_element cannot be < 0") \
-    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_NUMELEMENTS, "sg_draw: num_elements cannot be < 0") \
-    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_NUMINSTANCES, "sg_draw: num_instances cannot be < 0") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_BASEELEMENT_GE_ZERO, "sg_draw: base_element cannot be < 0") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_NUMELEMENTS_GE_ZERO, "sg_draw: num_elements cannot be < 0") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_NUMINSTANCES_GE_ZERO, "sg_draw: num_instances cannot be < 0") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_EX_RENDERPASS_EXPECTED, "sg_draw: must be called in a render pass") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_EX_BASEELEMENT_GE_ZERO, "sg_draw_ex: base_element cannot be < 0") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_EX_NUMELEMENTS_GE_ZERO, "sg_draw_ex: num_elements cannot be < 0") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_EX_NUMINSTANCES_GE_ZERO, "sg_draw_ex: num_instances cannot be < 0") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_EX_BASEINSTANCE_GE_ZERO, "sg_draw_ex: base_instance cannot be < 0") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_EX_BASEVERTEX_VS_INDEXED, "sg_draw_ex(): base_vertex must be == 0 for non-indexed rendering") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_EX_BASEINSTANCE_VS_INSTANCED, "sg_draw_ex(): base_instance must be == 0 for non-instanced rendering") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_EX_BASEVERTEX_NOT_SUPPORTED, "sg_draw_ex(): base_vertex != 0 not supported on this backend (sg_features.draw_base_vertex)") \
+    _SG_LOGITEM_XMACRO(VALIDATE_DRAW_EX_BASEINSTANCE_NOT_SUPPORTED, "sg_draw_ex(): base_instance > 0 not supported on this backend (sg_features.draw_base_instance)") \
     _SG_LOGITEM_XMACRO(VALIDATE_DRAW_REQUIRED_BINDINGS_OR_UNIFORMS_MISSING, "sg_draw: call to sg_apply_bindings() and/or sg_apply_uniforms() missing after sg_apply_pipeline()") \
     _SG_LOGITEM_XMACRO(VALIDATE_DISPATCH_COMPUTEPASS_EXPECTED, "sg_dispatch: must be called in a compute pass") \
     _SG_LOGITEM_XMACRO(VALIDATE_DISPATCH_NUMGROUPSX, "sg_dispatch: num_groups_x must be >=0 and <65536") \
@@ -4497,9 +4723,8 @@ typedef enum sg_log_item {
     .sampler_pool_size              64
     .shader_pool_size               32
     .pipeline_pool_size             64
-    .attachments_pool_size          16
+    .view_pool_size                 256
     .uniform_buffer_size            4 MB (4*1024*1024)
-    .max_dispatch_calls_per_pass    1024
     .max_commit_listeners           1024
     .disable_validation             false
     .mtl_force_managed_storage_mode false
@@ -4658,12 +4883,12 @@ typedef struct sg_desc {
     int sampler_pool_size;
     int shader_pool_size;
     int pipeline_pool_size;
-    int attachments_pool_size;
+    int view_pool_size;
     int uniform_buffer_size;
-    int max_dispatch_calls_per_pass;    // max expected number of dispatch calls per pass (default: 1024)
     int max_commit_listeners;
-    bool disable_validation;    // disable validation layer even in debug mode, useful for tests
-    bool d3d11_shader_debugging;    // if true, HLSL shaders are compiled with D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION
+    bool disable_validation;            // disable validation layer even in debug mode, useful for tests
+    bool enforce_portable_limits;       // if true, enforce portable resource binding limits (SG_MAX_PORTABLE_*)
+    bool d3d11_shader_debugging;        // if true, HLSL shaders are compiled with D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION
     bool mtl_force_managed_storage_mode; // for debugging: use Metal managed storage mode for resources even with UMA
     bool mtl_use_command_buffer_with_retained_references;    // Metal: use a managed MTLCommandBuffer which ref-counts used resources
     bool wgpu_disable_bindgroups_cache;  // set to true to disable the WebGPU backend BindGroup cache
@@ -4691,13 +4916,13 @@ SOKOL_GFX_API_DECL sg_image sg_make_image(const sg_image_desc* desc);
 SOKOL_GFX_API_DECL sg_sampler sg_make_sampler(const sg_sampler_desc* desc);
 SOKOL_GFX_API_DECL sg_shader sg_make_shader(const sg_shader_desc* desc);
 SOKOL_GFX_API_DECL sg_pipeline sg_make_pipeline(const sg_pipeline_desc* desc);
-SOKOL_GFX_API_DECL sg_attachments sg_make_attachments(const sg_attachments_desc* desc);
+SOKOL_GFX_API_DECL sg_view sg_make_view(const sg_view_desc* desc);
 SOKOL_GFX_API_DECL void sg_destroy_buffer(sg_buffer buf);
 SOKOL_GFX_API_DECL void sg_destroy_image(sg_image img);
 SOKOL_GFX_API_DECL void sg_destroy_sampler(sg_sampler smp);
 SOKOL_GFX_API_DECL void sg_destroy_shader(sg_shader shd);
 SOKOL_GFX_API_DECL void sg_destroy_pipeline(sg_pipeline pip);
-SOKOL_GFX_API_DECL void sg_destroy_attachments(sg_attachments atts);
+SOKOL_GFX_API_DECL void sg_destroy_view(sg_view view);
 SOKOL_GFX_API_DECL void sg_update_buffer(sg_buffer buf, const sg_range* data);
 SOKOL_GFX_API_DECL void sg_update_image(sg_image img, const sg_image_data* data);
 SOKOL_GFX_API_DECL int sg_append_buffer(sg_buffer buf, const sg_range* data);
@@ -4714,6 +4939,7 @@ SOKOL_GFX_API_DECL void sg_apply_pipeline(sg_pipeline pip);
 SOKOL_GFX_API_DECL void sg_apply_bindings(const sg_bindings* bindings);
 SOKOL_GFX_API_DECL void sg_apply_uniforms(int ub_slot, const sg_range* data);
 SOKOL_GFX_API_DECL void sg_draw(int base_element, int num_elements, int num_instances);
+SOKOL_GFX_API_DECL void sg_draw_ex(int base_element, int num_elements, int num_instances, int base_vertex, int base_instance);
 SOKOL_GFX_API_DECL void sg_dispatch(int num_groups_x, int num_groups_y, int num_groups_z);
 SOKOL_GFX_API_DECL void sg_end_pass(void);
 SOKOL_GFX_API_DECL void sg_commit(void);
@@ -4732,28 +4958,28 @@ SOKOL_GFX_API_DECL sg_resource_state sg_query_image_state(sg_image img);
 SOKOL_GFX_API_DECL sg_resource_state sg_query_sampler_state(sg_sampler smp);
 SOKOL_GFX_API_DECL sg_resource_state sg_query_shader_state(sg_shader shd);
 SOKOL_GFX_API_DECL sg_resource_state sg_query_pipeline_state(sg_pipeline pip);
-SOKOL_GFX_API_DECL sg_resource_state sg_query_attachments_state(sg_attachments atts);
+SOKOL_GFX_API_DECL sg_resource_state sg_query_view_state(sg_view view);
 // get runtime information about a resource
 SOKOL_GFX_API_DECL sg_buffer_info sg_query_buffer_info(sg_buffer buf);
 SOKOL_GFX_API_DECL sg_image_info sg_query_image_info(sg_image img);
 SOKOL_GFX_API_DECL sg_sampler_info sg_query_sampler_info(sg_sampler smp);
 SOKOL_GFX_API_DECL sg_shader_info sg_query_shader_info(sg_shader shd);
 SOKOL_GFX_API_DECL sg_pipeline_info sg_query_pipeline_info(sg_pipeline pip);
-SOKOL_GFX_API_DECL sg_attachments_info sg_query_attachments_info(sg_attachments atts);
+SOKOL_GFX_API_DECL sg_view_info sg_query_view_info(sg_view view);
 // get desc structs matching a specific resource (NOTE that not all creation attributes may be provided)
 SOKOL_GFX_API_DECL sg_buffer_desc sg_query_buffer_desc(sg_buffer buf);
 SOKOL_GFX_API_DECL sg_image_desc sg_query_image_desc(sg_image img);
 SOKOL_GFX_API_DECL sg_sampler_desc sg_query_sampler_desc(sg_sampler smp);
 SOKOL_GFX_API_DECL sg_shader_desc sg_query_shader_desc(sg_shader shd);
 SOKOL_GFX_API_DECL sg_pipeline_desc sg_query_pipeline_desc(sg_pipeline pip);
-SOKOL_GFX_API_DECL sg_attachments_desc sg_query_attachments_desc(sg_attachments atts);
+SOKOL_GFX_API_DECL sg_view_desc sg_query_view_desc(sg_view view);
 // get resource creation desc struct with their default values replaced
 SOKOL_GFX_API_DECL sg_buffer_desc sg_query_buffer_defaults(const sg_buffer_desc* desc);
 SOKOL_GFX_API_DECL sg_image_desc sg_query_image_defaults(const sg_image_desc* desc);
 SOKOL_GFX_API_DECL sg_sampler_desc sg_query_sampler_defaults(const sg_sampler_desc* desc);
 SOKOL_GFX_API_DECL sg_shader_desc sg_query_shader_defaults(const sg_shader_desc* desc);
 SOKOL_GFX_API_DECL sg_pipeline_desc sg_query_pipeline_defaults(const sg_pipeline_desc* desc);
-SOKOL_GFX_API_DECL sg_attachments_desc sg_query_attachments_defaults(const sg_attachments_desc* desc);
+SOKOL_GFX_API_DECL sg_view_desc sg_query_view_defaults(const sg_view_desc* desc);
 // assorted query functions
 SOKOL_GFX_API_DECL size_t sg_query_buffer_size(sg_buffer buf);
 SOKOL_GFX_API_DECL sg_buffer_usage sg_query_buffer_usage(sg_buffer buf);
@@ -4765,6 +4991,9 @@ SOKOL_GFX_API_DECL int sg_query_image_num_mipmaps(sg_image img);
 SOKOL_GFX_API_DECL sg_pixel_format sg_query_image_pixelformat(sg_image img);
 SOKOL_GFX_API_DECL sg_image_usage sg_query_image_usage(sg_image img);
 SOKOL_GFX_API_DECL int sg_query_image_sample_count(sg_image img);
+SOKOL_GFX_API_DECL sg_view_type sg_query_view_type(sg_view view);
+SOKOL_GFX_API_DECL sg_image sg_query_view_image(sg_view view);
+SOKOL_GFX_API_DECL sg_buffer sg_query_view_buffer(sg_view view);
 
 // separate resource allocation and initialization (for async setup)
 SOKOL_GFX_API_DECL sg_buffer sg_alloc_buffer(void);
@@ -4772,31 +5001,31 @@ SOKOL_GFX_API_DECL sg_image sg_alloc_image(void);
 SOKOL_GFX_API_DECL sg_sampler sg_alloc_sampler(void);
 SOKOL_GFX_API_DECL sg_shader sg_alloc_shader(void);
 SOKOL_GFX_API_DECL sg_pipeline sg_alloc_pipeline(void);
-SOKOL_GFX_API_DECL sg_attachments sg_alloc_attachments(void);
+SOKOL_GFX_API_DECL sg_view sg_alloc_view(void);
 SOKOL_GFX_API_DECL void sg_dealloc_buffer(sg_buffer buf);
 SOKOL_GFX_API_DECL void sg_dealloc_image(sg_image img);
 SOKOL_GFX_API_DECL void sg_dealloc_sampler(sg_sampler smp);
 SOKOL_GFX_API_DECL void sg_dealloc_shader(sg_shader shd);
 SOKOL_GFX_API_DECL void sg_dealloc_pipeline(sg_pipeline pip);
-SOKOL_GFX_API_DECL void sg_dealloc_attachments(sg_attachments attachments);
+SOKOL_GFX_API_DECL void sg_dealloc_view(sg_view view);
 SOKOL_GFX_API_DECL void sg_init_buffer(sg_buffer buf, const sg_buffer_desc* desc);
 SOKOL_GFX_API_DECL void sg_init_image(sg_image img, const sg_image_desc* desc);
 SOKOL_GFX_API_DECL void sg_init_sampler(sg_sampler smg, const sg_sampler_desc* desc);
 SOKOL_GFX_API_DECL void sg_init_shader(sg_shader shd, const sg_shader_desc* desc);
 SOKOL_GFX_API_DECL void sg_init_pipeline(sg_pipeline pip, const sg_pipeline_desc* desc);
-SOKOL_GFX_API_DECL void sg_init_attachments(sg_attachments attachments, const sg_attachments_desc* desc);
+SOKOL_GFX_API_DECL void sg_init_view(sg_view view, const sg_view_desc* desc);
 SOKOL_GFX_API_DECL void sg_uninit_buffer(sg_buffer buf);
 SOKOL_GFX_API_DECL void sg_uninit_image(sg_image img);
 SOKOL_GFX_API_DECL void sg_uninit_sampler(sg_sampler smp);
 SOKOL_GFX_API_DECL void sg_uninit_shader(sg_shader shd);
 SOKOL_GFX_API_DECL void sg_uninit_pipeline(sg_pipeline pip);
-SOKOL_GFX_API_DECL void sg_uninit_attachments(sg_attachments atts);
+SOKOL_GFX_API_DECL void sg_uninit_view(sg_view view);
 SOKOL_GFX_API_DECL void sg_fail_buffer(sg_buffer buf);
 SOKOL_GFX_API_DECL void sg_fail_image(sg_image img);
 SOKOL_GFX_API_DECL void sg_fail_sampler(sg_sampler smp);
 SOKOL_GFX_API_DECL void sg_fail_shader(sg_shader shd);
 SOKOL_GFX_API_DECL void sg_fail_pipeline(sg_pipeline pip);
-SOKOL_GFX_API_DECL void sg_fail_attachments(sg_attachments atts);
+SOKOL_GFX_API_DECL void sg_fail_view(sg_view view);
 
 // frame stats
 SOKOL_GFX_API_DECL void sg_enable_frame_stats(void);
@@ -4818,7 +5047,6 @@ typedef struct sg_d3d11_image_info {
     const void* tex2d;    // ID3D11Texture2D*
     const void* tex3d;    // ID3D11Texture3D*
     const void* res;      // ID3D11Resource* (either tex2d or tex3d)
-    const void* srv;      // ID3D11ShaderResourceView*
 } sg_d3d11_image_info;
 
 typedef struct sg_d3d11_sampler_info {
@@ -4838,10 +5066,12 @@ typedef struct sg_d3d11_pipeline_info {
     const void* bs;   // ID3D11BlendState*
 } sg_d3d11_pipeline_info;
 
-typedef struct sg_d3d11_attachments_info {
-    const void* color_rtv[SG_MAX_COLOR_ATTACHMENTS];      // ID3D11RenderTargetView
-    const void* dsv;  // ID3D11DepthStencilView
-} sg_d3d11_attachments_info;
+typedef struct sg_d3d11_view_info {
+    const void* srv;    // ID3D11ShaderResourceView
+    const void* uav;    // ID3D11UnorderedAccessView
+    const void* rtv;    // ID3D11RenderTargetView
+    const void* dsv;    // ID3D11DepthStencilView
+} sg_d3d11_view_info;
 
 typedef struct sg_mtl_buffer_info {
     const void* buf[SG_NUM_INFLIGHT_FRAMES];  // id<MTLBuffer>
@@ -4875,7 +5105,6 @@ typedef struct sg_wgpu_buffer_info {
 
 typedef struct sg_wgpu_image_info {
     const void* tex;  // WGPUTexture
-    const void* view; // WGPUTextureView
 } sg_wgpu_image_info;
 
 typedef struct sg_wgpu_sampler_info {
@@ -4893,11 +5122,9 @@ typedef struct sg_wgpu_pipeline_info {
     const void* compute_pipeline;  // WGPUComputePipeline
 } sg_wgpu_pipeline_info;
 
-typedef struct sg_wgpu_attachments_info {
-    const void* color_view[SG_MAX_COLOR_ATTACHMENTS];     // WGPUTextureView
-    const void* resolve_view[SG_MAX_COLOR_ATTACHMENTS];    // WGPUTextureView
-    const void* ds_view;  // WGPUTextureView
-} sg_wgpu_attachments_info;
+typedef struct sg_wgpu_view_info {
+    const void* view; // WGPUTextureView
+} sg_wgpu_view_info;
 
 typedef struct sg_gl_buffer_info {
     uint32_t buf[SG_NUM_INFLIGHT_FRAMES];
@@ -4907,7 +5134,6 @@ typedef struct sg_gl_buffer_info {
 typedef struct sg_gl_image_info {
     uint32_t tex[SG_NUM_INFLIGHT_FRAMES];
     uint32_t tex_target;
-    uint32_t msaa_render_buffer;
     int active_slot;
 } sg_gl_image_info;
 
@@ -4919,10 +5145,11 @@ typedef struct sg_gl_shader_info {
     uint32_t prog;
 } sg_gl_shader_info;
 
-typedef struct sg_gl_attachments_info {
-    uint32_t framebuffer;
-    uint32_t msaa_resolve_framebuffer[SG_MAX_COLOR_ATTACHMENTS];
-} sg_gl_attachments_info;
+typedef struct sg_gl_view_info {
+    uint32_t tex_view[SG_NUM_INFLIGHT_FRAMES];
+    uint32_t msaa_render_buffer;
+    uint32_t msaa_resolve_frame_buffer;
+} sg_gl_view_info;
 
 // D3D11: return ID3D11Device
 SOKOL_GFX_API_DECL const void* sg_d3d11_device(void);
@@ -4938,8 +5165,8 @@ SOKOL_GFX_API_DECL sg_d3d11_sampler_info sg_d3d11_query_sampler_info(sg_sampler 
 SOKOL_GFX_API_DECL sg_d3d11_shader_info sg_d3d11_query_shader_info(sg_shader shd);
 // D3D11: get internal pipeline resource objects
 SOKOL_GFX_API_DECL sg_d3d11_pipeline_info sg_d3d11_query_pipeline_info(sg_pipeline pip);
-// D3D11: get internal pass resource objects
-SOKOL_GFX_API_DECL sg_d3d11_attachments_info sg_d3d11_query_attachments_info(sg_attachments atts);
+// D3D11: get internal view resource objects
+SOKOL_GFX_API_DECL sg_d3d11_view_info sg_d3d11_query_view_info(sg_view view);
 
 // Metal: return __bridge-casted MTLDevice
 SOKOL_GFX_API_DECL const void* sg_mtl_device(void);
@@ -4978,8 +5205,8 @@ SOKOL_GFX_API_DECL sg_wgpu_sampler_info sg_wgpu_query_sampler_info(sg_sampler sm
 SOKOL_GFX_API_DECL sg_wgpu_shader_info sg_wgpu_query_shader_info(sg_shader shd);
 // WebGPU: get internal pipeline resource objects
 SOKOL_GFX_API_DECL sg_wgpu_pipeline_info sg_wgpu_query_pipeline_info(sg_pipeline pip);
-// WebGPU: get internal pass resource objects
-SOKOL_GFX_API_DECL sg_wgpu_attachments_info sg_wgpu_query_attachments_info(sg_attachments atts);
+// WebGPU: get internal view resource objects
+SOKOL_GFX_API_DECL sg_wgpu_view_info sg_wgpu_query_view_info(sg_view view);
 
 // GL: get internal buffer resource objects
 SOKOL_GFX_API_DECL sg_gl_buffer_info sg_gl_query_buffer_info(sg_buffer buf);
@@ -4989,8 +5216,8 @@ SOKOL_GFX_API_DECL sg_gl_image_info sg_gl_query_image_info(sg_image img);
 SOKOL_GFX_API_DECL sg_gl_sampler_info sg_gl_query_sampler_info(sg_sampler smp);
 // GL: get internal shader resource objects
 SOKOL_GFX_API_DECL sg_gl_shader_info sg_gl_query_shader_info(sg_shader shd);
-// GL: get internal pass resource objects
-SOKOL_GFX_API_DECL sg_gl_attachments_info sg_gl_query_attachments_info(sg_attachments atts);
+// GL: get internal view resource objects
+SOKOL_GFX_API_DECL sg_gl_view_info sg_gl_query_view_info(sg_view view);
 
 #ifdef __cplusplus
 } // extern "C"
@@ -5003,7 +5230,7 @@ inline sg_image sg_make_image(const sg_image_desc& desc) { return sg_make_image(
 inline sg_sampler sg_make_sampler(const sg_sampler_desc& desc) { return sg_make_sampler(&desc); }
 inline sg_shader sg_make_shader(const sg_shader_desc& desc) { return sg_make_shader(&desc); }
 inline sg_pipeline sg_make_pipeline(const sg_pipeline_desc& desc) { return sg_make_pipeline(&desc); }
-inline sg_attachments sg_make_attachments(const sg_attachments_desc& desc) { return sg_make_attachments(&desc); }
+inline sg_view sg_make_view(const sg_view_desc& desc) { return sg_make_view(&desc); }
 inline void sg_update_image(sg_image img, const sg_image_data& data) { return sg_update_image(img, &data); }
 
 inline void sg_begin_pass(const sg_pass& pass) { return sg_begin_pass(&pass); }
@@ -5015,14 +5242,14 @@ inline sg_image_desc sg_query_image_defaults(const sg_image_desc& desc) { return
 inline sg_sampler_desc sg_query_sampler_defaults(const sg_sampler_desc& desc) { return sg_query_sampler_defaults(&desc); }
 inline sg_shader_desc sg_query_shader_defaults(const sg_shader_desc& desc) { return sg_query_shader_defaults(&desc); }
 inline sg_pipeline_desc sg_query_pipeline_defaults(const sg_pipeline_desc& desc) { return sg_query_pipeline_defaults(&desc); }
-inline sg_attachments_desc sg_query_attachments_defaults(const sg_attachments_desc& desc) { return sg_query_attachments_defaults(&desc); }
+inline sg_view_desc sg_query_view_defaults(const sg_view_desc& desc) { return sg_query_view_defaults(&desc); }
 
 inline void sg_init_buffer(sg_buffer buf, const sg_buffer_desc& desc) { return sg_init_buffer(buf, &desc); }
 inline void sg_init_image(sg_image img, const sg_image_desc& desc) { return sg_init_image(img, &desc); }
 inline void sg_init_sampler(sg_sampler smp, const sg_sampler_desc& desc) { return sg_init_sampler(smp, &desc); }
 inline void sg_init_shader(sg_shader shd, const sg_shader_desc& desc) { return sg_init_shader(shd, &desc); }
 inline void sg_init_pipeline(sg_pipeline pip, const sg_pipeline_desc& desc) { return sg_init_pipeline(pip, &desc); }
-inline void sg_init_attachments(sg_attachments atts, const sg_attachments_desc& desc) { return sg_init_attachments(atts, &desc); }
+inline void sg_init_view(sg_view view, const sg_view_desc& desc) { return sg_init_view(view, &desc); }
 
 inline void sg_update_buffer(sg_buffer buf_id, const sg_range& data) { return sg_update_buffer(buf_id, &data); }
 inline int sg_append_buffer(sg_buffer buf_id, const sg_range& data) { return sg_append_buffer(buf_id, &data); }

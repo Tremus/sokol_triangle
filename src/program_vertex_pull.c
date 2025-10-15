@@ -30,7 +30,7 @@ void program_setup()
         .label                = "vertices",
     });
 
-    state.bind.storage_buffers[SBUF_ssbo] = sbuf;
+    state.bind.views[VIEW_ssbo] = sg_make_view(&(sg_view_desc){.storage_buffer = sbuf});
 
     // Note we don't pass any index type or vertex layout
     state.pip = sg_make_pipeline(

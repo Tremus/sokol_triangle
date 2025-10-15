@@ -94,8 +94,12 @@ void program_setup()
         .data                 = SG_RANGE(vertices),
         .label                = "vertices",
     });
+    sg_view sbview = sg_make_view(&(sg_view_desc){
+        .storage_buffer = sbuf,
+    });
 
-    state.bind.storage_buffers[SBUF_ssbo] = sbuf;
+    // state.bind.storage_buffers[SBUF_ssbo] = sbuf;
+    state.bind.views[VIEW_ssbo] = sbview;
 
     // Note we don't pass any index type or vertex layout
     state.pip =
