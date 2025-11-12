@@ -5,7 +5,7 @@
 #include <xhl/debug.h>
 #include <xhl/vector.h>
 
-#include "program_vertex_pull_sdf.h"
+#include "program_vertex_pull_sdf.glsl.h"
 
 // application state
 static struct
@@ -49,11 +49,11 @@ static const myvertex_t vertices[] ={
         .bottomright = {80, 80},
         .colour1 = 0xffff00ff,
         .type = SDF_TYPE_CIRCLE_FILL,
-        .feather = 0.04,
+        .feather = 0.05,
     },
     {
-        .topleft = {10, 110},
-        .bottomright = {80, 180},
+        .topleft = {10, 90},
+        .bottomright = {80, 160},
         .colour1 = 0xff00ffff,
         .type = SDF_TYPE_CIRCLE_STROKE,
         .stroke_width = 4,
@@ -67,8 +67,8 @@ static const myvertex_t vertices[] ={
         .feather = 0.04,
     },
     {
-        .topleft = {110, 110},
-        .bottomright = {410, 180},
+        .topleft = {110, 90},
+        .bottomright = {410, 160},
         .colour1 = 0x00ff00ff,
         .type = SDF_TYPE_RECTANGLE_STROKE,
         .stroke_width = 4,
@@ -89,32 +89,32 @@ void program_setup()
         xassert(v->topleft[1] < v->bottomright[1]);
     }
 
-    sg_buffer sbuf = sg_make_buffer(&(sg_buffer_desc){
-        .usage.storage_buffer = true,
-        .data                 = SG_RANGE(vertices),
-        .label                = "vertices",
+    sg_buffer sbuf   = sg_make_buffer(&(sg_buffer_desc){
+          .usage.storage_buffer = true,
+          .data                 = SG_RANGE(vertices),
+          .label                = "vertices",
     });
-    sg_view sbview = sg_make_view(&(sg_view_desc){
-        .storage_buffer = sbuf,
+    sg_view   sbview = sg_make_view(&(sg_view_desc){
+          .storage_buffer = sbuf,
     });
 
     // state.bind.storage_buffers[SBUF_ssbo] = sbuf;
     state.bind.views[VIEW_ssbo] = sbview;
 
     // Note we don't pass any index type or vertex layout
-    state.pip =
-        sg_make_pipeline(&(sg_pipeline_desc){.shader = sg_make_shader(vertexpull_shader_desc(sg_query_backend())),
-                                             .colors[0] =
-                                                 {.write_mask = SG_COLORMASK_RGBA,
-                                                  .blend =
-                                                      {
-                                                          .enabled          = true,
-                                                          .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                                                          .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                                                          .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                                                          .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                                                      }},
-                                             .label = "pipeline"});
+    state.pip = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader = sg_make_shader(vertexpull_shader_desc(sg_query_backend())),
+        .colors[0] =
+            {.write_mask = SG_COLORMASK_RGBA,
+             .blend =
+                 {
+                     .enabled          = true,
+                     .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                     .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                     .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                     .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                 }},
+        .label = "pipeline"});
 
     // a pass action to clear framebuffer to black
     state.pass_action =

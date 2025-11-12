@@ -113,23 +113,23 @@ void main()
     else if (type == SDF_TYPE_RECTANGLE_STROKE)
     {
         vec2 b = uv_xy_scale;
-        vec4 r = vec4(1);
-        float d = sdRoundBox(uv * uv_xy_scale, b - stroke_width, r);
-        float rect_stroke = smoothstep(stroke_width + feather, stroke_width, abs(d));
-        shape = rect_stroke;
+        vec4 r = vec4(0.5);
+
+        float d = sdRoundBox(uv * uv_xy_scale, b - (stroke_width + feather) * 0.5, r); // fill
+        float inner = smoothstep(stroke_width, stroke_width + feather, abs(d + stroke_width * 0.5));
+        shape = 1 - inner;
     }
     else if (type == SDF_TYPE_CIRCLE_FILL)
     {
-        float len = 1 - length(uv);
-        float circle_fill = smoothstep(0, feather, len);
+        float d = 1 - length(uv);
+        float circle_fill = smoothstep(0, feather, d + feather * 0.5);
         shape = circle_fill;
     }
     else if (type == SDF_TYPE_CIRCLE_STROKE)
     {
-        float len = 1 - length(uv);
-
-        float circle_fill   = smoothstep(0, feather, len);
-        float circle_stroke = smoothstep(stroke_width + feather, stroke_width, len);
+        float d = 1 - length(uv);
+        float circle_fill   = smoothstep(0, feather, d + feather * 0.5);
+        float circle_stroke = smoothstep(feather, 0, d + feather * 0.5 - stroke_width);
         shape = circle_fill * circle_stroke;
     }
     col.a = shape;
