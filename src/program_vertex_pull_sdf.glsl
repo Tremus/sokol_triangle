@@ -5,7 +5,7 @@ struct myvertex
 {
     vec2 topleft;
     vec2 bottomright;
-    uint type;
+    uint sdf_type;
     uint colour1;
     float stroke_width;
     float feather;
@@ -24,7 +24,7 @@ layout(binding=0) uniform vs_params {
 out vec2 uv;
 out flat vec2 uv_xy_scale;
 out flat vec4 colour1;
-out flat uint type;
+out flat uint sdf_type;
 out flat float feather;
 out flat float stroke_width;
 
@@ -62,7 +62,7 @@ void main() {
     // uv_xy_scale = vec2(vw > vh ? vw / vh : 1, vh > vw ? vh / vw : 1);
     uv_xy_scale = vec2(vw / vh, 1);
     colour1 = unpackUnorm4x8(vert.colour1).abgr; // swizzle
-    type = vtx[v_idx].type;
+    sdf_type = vtx[v_idx].sdf_type;
     // Good artical on setting the right feather size
     // https://bohdon.com/docs/smooth-sdf-shape-edges/
     // feather = 16.0 / min(size.x, size.y);
@@ -78,7 +78,7 @@ void main() {
 in vec2 uv;
 in flat vec2 uv_xy_scale;
 in flat vec4 colour1;
-in flat uint type;
+in flat uint sdf_type;
 in flat float feather;
 in flat float stroke_width;
 
@@ -88,6 +88,8 @@ out vec4 frag_color;
 #define SDF_TYPE_RECTANGLE_STROKE 1
 #define SDF_TYPE_CIRCLE_FILL      2
 #define SDF_TYPE_CIRCLE_STROKE    3
+#define SDF_TYPE_TRIANGLE_FILL    4
+#define SDF_TYPE_TRIANGLE_STROKE  5
 
 float sdRoundBox(in vec2 p, in vec2 b, in vec4 r)
 {
@@ -97,19 +99,26 @@ float sdRoundBox(in vec2 p, in vec2 b, in vec4 r)
     return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - r.x;
 }
 
+float sdEquilateralTriangle( in vec2 p, in float r )
+{
+    const float k = sqrt(3.0);
+    p.x = abs(p.x);
+    p -= vec2(0.5,0.5*k)*max(p.x+k*p.y,0.0);
+    p -= vec2(clamp(p.x,-r,r),-r/k );
+    return length(p)*sign(-p.y);
+}
+
 void main()
 {
-    vec4 col = colour1;
-
     float shape = 1;
-    if (type == SDF_TYPE_RECTANGLE_FILL)
+    if (sdf_type == SDF_TYPE_RECTANGLE_FILL)
     {
         vec2 b = uv_xy_scale;
         vec4 r = vec4(0.5);
         float d = sdRoundBox(uv * uv_xy_scale, b, r);
         shape = smoothstep(feather, 0, d + feather * 0.5);
     }
-    else if (type == SDF_TYPE_RECTANGLE_STROKE)
+    else if (sdf_type == SDF_TYPE_RECTANGLE_STROKE)
     {
         vec2 b = uv_xy_scale;
         vec4 r = vec4(0.5);
@@ -119,20 +128,42 @@ void main()
         float inner = smoothstep(feather, 0, d + stroke_width * 4 + feather * 0.5);
         shape = outer - inner;
     }
-    else if (type == SDF_TYPE_CIRCLE_FILL)
+    else if (sdf_type == SDF_TYPE_CIRCLE_FILL)
     {
         float d = 1 - length(uv);
         float outer = smoothstep(0, feather, d + feather * 0.5);
         shape = outer;
     }
-    else if (type == SDF_TYPE_CIRCLE_STROKE)
+    else if (sdf_type == SDF_TYPE_CIRCLE_STROKE)
     {
         float d = 1 - length(uv);
         float outer = smoothstep(0, feather, d + feather * 0.5);
         float inner = smoothstep(0, feather, d + feather * 0.5 - stroke_width);
         shape = outer - inner;
     }
-    col.a = shape;
+    else if (sdf_type == SDF_TYPE_TRIANGLE_FILL)
+    {
+        vec2 p = uv;
+        // p = -p; // point down
+        // p = vec2(p.y, p.x); // point right
+        // p = vec2(p.y, -p.x); // point left
+        float d = sdEquilateralTriangle(p, 0.86);
+        float outer = smoothstep(feather, 0, d + feather * 0.5);
+        shape = outer;
+    }
+    else if (sdf_type == SDF_TYPE_TRIANGLE_STROKE)
+    {
+        vec2 p = uv;
+        // p = -p; // point down
+        // p = vec2(p.y, p.x); // point right
+        // p = vec2(p.y, -p.x); // point left
+        float d = sdEquilateralTriangle(p, 0.86);
+        float outer = smoothstep(feather, 0, d + feather * 0.5);
+        float inner = smoothstep(feather, 0, d + feather * 0.5 + stroke_width);
+        shape = outer - inner;
+    }
+    vec4 col = vec4(colour1.rgb, shape);
+    // col = shape == 0 ? vec4(1) : col;
 
     frag_color = col;
 }
