@@ -71,7 +71,7 @@ static const myvertex_t vertices[] ={
         .bottomright = {410, 160},
         .colour1 = 0x00ff00ff,
         .type = SDF_TYPE_RECTANGLE_STROKE,
-        .stroke_width = 4,
+        .stroke_width = 20,
         .feather = 0.05,
     },
 };

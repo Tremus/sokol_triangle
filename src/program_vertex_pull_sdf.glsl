@@ -59,7 +59,8 @@ void main() {
     gl_Position = vec4(pos, 1, 1);
 
     uv = vec2(is_right  ? 1 : -1, is_bottom ? -1 : 1);
-    uv_xy_scale = vec2(vw > vh ? vw / vh : 1, vh > vw ? vh / vw : 1);
+    // uv_xy_scale = vec2(vw > vh ? vw / vh : 1, vh > vw ? vh / vw : 1);
+    uv_xy_scale = vec2(vw / vh, 1);
     colour1 = unpackUnorm4x8(vert.colour1).abgr; // swizzle
     type = vtx[v_idx].type;
     // Good artical on setting the right feather size
@@ -69,7 +70,7 @@ void main() {
     // feather = 0.01;
     feather = vert.feather;
     // stroke_width = 0.5 * vert.stroke_width / min(vw, vh);
-    stroke_width = 2 * vert.stroke_width / max(vw, vh);
+    stroke_width = 2 * vert.stroke_width / vw;
 }
 @end
 
@@ -106,31 +107,30 @@ void main()
         vec2 b = uv_xy_scale;
         vec4 r = vec4(0.5);
         float d = sdRoundBox(uv * uv_xy_scale, b, r);
-
-        shape = smoothstep(0, feather, abs(d));
-        shape = d > 0 ? 0 : shape;
+        shape = smoothstep(feather, 0, d + feather * 0.5);
     }
     else if (type == SDF_TYPE_RECTANGLE_STROKE)
     {
         vec2 b = uv_xy_scale;
         vec4 r = vec4(0.5);
 
-        float d = sdRoundBox(uv * uv_xy_scale, b - (stroke_width + feather) * 0.5, r); // fill
-        float inner = smoothstep(stroke_width, stroke_width + feather, abs(d + stroke_width * 0.5));
-        shape = 1 - inner;
+        float d = sdRoundBox(uv * uv_xy_scale, b, r);
+        float outer = smoothstep(feather, 0, d + feather * 0.5);
+        float inner = smoothstep(feather, 0, d + stroke_width * 4 + feather * 0.5);
+        shape = outer - inner;
     }
     else if (type == SDF_TYPE_CIRCLE_FILL)
     {
         float d = 1 - length(uv);
-        float circle_fill = smoothstep(0, feather, d + feather * 0.5);
-        shape = circle_fill;
+        float outer = smoothstep(0, feather, d + feather * 0.5);
+        shape = outer;
     }
     else if (type == SDF_TYPE_CIRCLE_STROKE)
     {
         float d = 1 - length(uv);
-        float circle_fill   = smoothstep(0, feather, d + feather * 0.5);
-        float circle_stroke = smoothstep(feather, 0, d + feather * 0.5 - stroke_width);
-        shape = circle_fill * circle_stroke;
+        float outer = smoothstep(0, feather, d + feather * 0.5);
+        float inner = smoothstep(0, feather, d + feather * 0.5 - stroke_width);
+        shape = outer - inner;
     }
     col.a = shape;
 
