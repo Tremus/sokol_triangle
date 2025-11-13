@@ -5,10 +5,18 @@ struct myvertex
 {
     vec2 topleft;
     vec2 bottomright;
+
     uint sdf_type;
+    uint col_type;
+
     uint colour1;
+    uint colour2;
+
     float stroke_width;
     float feather;
+
+    float start_angle;
+    float end_angle;
     // TODO
     // uint  texid;
 };
@@ -24,9 +32,13 @@ layout(binding=0) uniform vs_params {
 out vec2 uv;
 out flat vec2 uv_xy_scale;
 out flat vec4 colour1;
+out flat vec4 colour2;
 out flat uint sdf_type;
+out flat uint col_type;
 out flat float feather;
 out flat float stroke_width;
+out flat float start_angle;
+out flat float end_angle;
 
 void main() {
     uint v_idx = gl_VertexIndex / 6u;
@@ -62,7 +74,9 @@ void main() {
     // uv_xy_scale = vec2(vw > vh ? vw / vh : 1, vh > vw ? vh / vw : 1);
     uv_xy_scale = vec2(vw / vh, 1);
     colour1 = unpackUnorm4x8(vert.colour1).abgr; // swizzle
+    colour2 = unpackUnorm4x8(vert.colour2).abgr; // swizzle
     sdf_type = vtx[v_idx].sdf_type;
+    col_type = vtx[v_idx].col_type;
     // Good artical on setting the right feather size
     // https://bohdon.com/docs/smooth-sdf-shape-edges/
     // feather = 16.0 / min(size.x, size.y);
@@ -71,6 +85,9 @@ void main() {
     feather = vert.feather;
     // stroke_width = 0.5 * vert.stroke_width / min(vw, vh);
     stroke_width = 2 * vert.stroke_width / vw;
+
+    start_angle = vtx[v_idx].start_angle;
+    end_angle   = vtx[v_idx].end_angle;
 }
 @end
 
@@ -78,19 +95,36 @@ void main() {
 in vec2 uv;
 in flat vec2 uv_xy_scale;
 in flat vec4 colour1;
+in flat vec4 colour2;
 in flat uint sdf_type;
+in flat uint col_type;
 in flat float feather;
 in flat float stroke_width;
+in flat float start_angle;
+in flat float end_angle;
 
 out vec4 frag_color;
 
+#define PI 3.141592653589793
 #define SDF_TYPE_RECTANGLE_FILL   0
 #define SDF_TYPE_RECTANGLE_STROKE 1
 #define SDF_TYPE_CIRCLE_FILL      2
 #define SDF_TYPE_CIRCLE_STROKE    3
 #define SDF_TYPE_TRIANGLE_FILL    4
 #define SDF_TYPE_TRIANGLE_STROKE  5
+#define SDF_TYPE_PIE_FILL    6
+#define SDF_TYPE_PIE_STROKE  7
 
+// The MIT License
+// Copyright © 2017 Inigo Quilez
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// b.x = half width
+// b.y = half height
+// r.x = roundness top-right  
+// r.y = roundness boottom-right
+// r.z = roundness top-left
+// r.w = roundness bottom-left
 float sdRoundBox(in vec2 p, in vec2 b, in vec4 r)
 {
     r.xy = (p.x>0.0)?r.xy : r.zw;
@@ -99,6 +133,7 @@ float sdRoundBox(in vec2 p, in vec2 b, in vec4 r)
     return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - r.x;
 }
 
+// (r is half the base)
 float sdEquilateralTriangle( in vec2 p, in float r )
 {
     const float k = sqrt(3.0);
@@ -106,6 +141,15 @@ float sdEquilateralTriangle( in vec2 p, in float r )
     p -= vec2(0.5,0.5*k)*max(p.x+k*p.y,0.0);
     p -= vec2(clamp(p.x,-r,r),-r/k );
     return length(p)*sign(-p.y);
+}
+
+// c is the sin/cos of the angle. r is the radius
+float sdPie( in vec2 p, in vec2 c, in float r )
+{
+    p.x = abs(p.x);
+    float l = length(p) - r;
+	float m = length(p - c*clamp(dot(p,c),0.0,r) );
+    return max(l,m*sign(c.y*p.x-c.x*p.y));
 }
 
 void main()
@@ -162,8 +206,26 @@ void main()
         float inner = smoothstep(feather, 0, d + feather * 0.5 + stroke_width);
         shape = outer - inner;
     }
+    else if (sdf_type == SDF_TYPE_PIE_FILL)
+    {
+        // TODO handle rotaion
+        float amt = (end_angle - start_angle);
+        vec2 c = vec2(sin(amt), cos(amt));
+        float d = sdPie(uv, c, 1.0);
+        float outer = smoothstep(feather, 0, d + feather * 0.5);
+        shape = outer;
+    }
+    else if (sdf_type == SDF_TYPE_PIE_STROKE)
+    {
+        float amt = (end_angle - start_angle);
+        vec2 c = vec2(sin(amt), cos(amt));
+        float d = sdPie(uv, c, 1.0);
+        float outer = smoothstep(feather, 0, d + feather * 0.5);
+        float inner = smoothstep(feather, 0, d + feather * 0.5 + stroke_width);
+        shape = outer - inner;
+    }
     vec4 col = vec4(colour1.rgb, shape);
-    // col = shape == 0 ? vec4(1) : col;
+    // col = shape == 0 ? (vec4(1) - col) : col;
 
     frag_color = col;
 }

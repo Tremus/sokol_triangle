@@ -3,6 +3,7 @@
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 #include <xhl/debug.h>
+#include <xhl/maths.h>
 #include <xhl/vector.h>
 
 #include "program_vertex_pull_sdf.glsl.h"
@@ -29,8 +30,8 @@ enum
     SDF_TYPE_CIRCLE_STROKE,
     SDF_TYPE_TRIANGLE_FILL,
     SDF_TYPE_TRIANGLE_STROKE,
-    // SDF_TYPE_PIE_FILL,
-    // SDF_TYPE_PIE_STROKE,
+    SDF_TYPE_PIE_FILL,
+    SDF_TYPE_PIE_STROKE,
     // SDF_TYPE_ARC_ROUND_FILL,
     // SDF_TYPE_ARC_ROUND_STROKE,
     // SDF_TYPE_ARC_BUTT_FILL,
@@ -88,6 +89,25 @@ static const myvertex_t vertices[] ={
         .sdf_type = SDF_TYPE_TRIANGLE_STROKE,
         .stroke_width = 10,
         .feather = 0.05,
+    },
+    {
+        .topleft = {500, 10},
+        .bottomright = {570, 80},
+        .colour1 = 0xff7f00ff,
+        .sdf_type = SDF_TYPE_PIE_FILL,
+        .feather = 0.05,
+        .start_angle = XM_PIf * 0,
+        .end_angle = XM_PIf * 0.25,
+    },
+    {
+        .topleft = {500, 90},
+        .bottomright = {570, 160},
+        .colour1 = 0xff00ffff,
+        .sdf_type = SDF_TYPE_PIE_STROKE,
+        .stroke_width = 10,
+        .feather = 0.05,
+        .start_angle = XM_PIf * 0,
+        .end_angle = XM_PIf * 0.75,
     },
 };
 // clang-format on
