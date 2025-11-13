@@ -112,8 +112,10 @@ out vec4 frag_color;
 #define SDF_TYPE_CIRCLE_STROKE    3
 #define SDF_TYPE_TRIANGLE_FILL    4
 #define SDF_TYPE_TRIANGLE_STROKE  5
-#define SDF_TYPE_PIE_FILL    6
-#define SDF_TYPE_PIE_STROKE  7
+#define SDF_TYPE_PIE_FILL         6
+#define SDF_TYPE_PIE_STROKE       7
+#define SDF_TYPE_ARC_ROUND_STROKE 8
+#define SDF_TYPE_ARC_BUTT_STROKE  9
 
 // The MIT License
 // Copyright © 2017 Inigo Quilez
@@ -150,6 +152,22 @@ float sdPie( in vec2 p, in vec2 c, in float r )
     float l = length(p) - r;
 	float m = length(p - c*clamp(dot(p,c),0.0,r) );
     return max(l,m*sign(c.y*p.x-c.x*p.y));
+}
+
+// sc is the sin/cos of the aperture
+float sdArc( in vec2 p, in vec2 sc, in float ra, float rb )
+{
+    p.x = abs(p.x);
+    return ((sc.y*p.x>sc.x*p.y) ? length(p-sc*ra) : 
+                                  abs(length(p)-ra)) - rb;
+}
+
+float sdRing( in vec2 p, in vec2 n, in float r, float th )
+{
+    p.x = abs(p.x);
+    p = mat2x2(n.x,n.y,-n.y,n.x)*p;
+    return max( abs(length(p)-r)-th*0.5,
+                length(vec2(p.x,max(0.0,abs(r-p.y)-th*0.5)))*sign(p.x) );
 }
 
 void main()
@@ -224,6 +242,23 @@ void main()
         float inner = smoothstep(feather, 0, d + feather * 0.5 + stroke_width);
         shape = outer - inner;
     }
+    else if (sdf_type == SDF_TYPE_ARC_ROUND_STROKE)
+    {
+        float amt = (end_angle - start_angle);
+        vec2 c = vec2(sin(amt), cos(amt));
+        float d = sdArc(uv, c, 1.0 - stroke_width * 0.5, stroke_width * 0.5);
+        float outer = smoothstep(feather, 0, d + feather * 0.5);
+        shape = outer;
+    }
+    else if (sdf_type == SDF_TYPE_ARC_BUTT_STROKE)
+    {
+        float amt = (end_angle - start_angle);
+        vec2 c = vec2(cos(amt), sin(amt));
+        float d = sdRing(uv, c, 1.0 - stroke_width * 0.5, stroke_width);
+        float outer = smoothstep(feather, 0, d + feather * 0.5);
+        shape = outer;
+    }
+
     vec4 col = vec4(colour1.rgb, shape);
     // col = shape == 0 ? (vec4(1) - col) : col;
 
