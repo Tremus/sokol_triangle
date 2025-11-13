@@ -30,11 +30,12 @@ layout(binding=0) uniform vs_params {
 };
 
 out vec2 uv;
+
 out flat vec2 uv_xy_scale;
-out flat vec4 colour1;
-out flat vec4 colour2;
 out flat uint sdf_type;
 out flat uint col_type;
+out flat uint colour1;
+out flat uint colour2;
 out flat float feather;
 out flat float stroke_width;
 out flat float start_angle;
@@ -73,8 +74,10 @@ void main() {
     uv = vec2(is_right  ? 1 : -1, is_bottom ? -1 : 1);
     // uv_xy_scale = vec2(vw > vh ? vw / vh : 1, vh > vw ? vh / vw : 1);
     uv_xy_scale = vec2(vw / vh, 1);
-    colour1 = unpackUnorm4x8(vert.colour1).abgr; // swizzle
-    colour2 = unpackUnorm4x8(vert.colour2).abgr; // swizzle
+    // colour1 = unpackUnorm4x8(vert.colour1).abgr; // swizzle
+    // colour2 = unpackUnorm4x8(vert.colour2).abgr; // swizzle
+    colour1 = vert.colour1;
+    colour2 = vert.colour2;
     sdf_type = vtx[v_idx].sdf_type;
     col_type = vtx[v_idx].col_type;
     // Good artical on setting the right feather size
@@ -94,10 +97,10 @@ void main() {
 @fs fs
 in vec2 uv;
 in flat vec2 uv_xy_scale;
-in flat vec4 colour1;
-in flat vec4 colour2;
 in flat uint sdf_type;
 in flat uint col_type;
+in flat uint colour1;
+in flat uint colour2;
 in flat float feather;
 in flat float stroke_width;
 in flat float start_angle;
@@ -259,7 +262,8 @@ void main()
         shape = outer;
     }
 
-    vec4 col = vec4(colour1.rgb, shape);
+    vec4 col = unpackUnorm4x8(colour1).abgr; // swizzle
+    col.a *= shape;
     // col = shape == 0 ? (vec4(1) - col) : col;
 
     frag_color = col;
