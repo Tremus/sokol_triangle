@@ -32,12 +32,11 @@ void program_setup()
     // offscreen
     {
         sapp_desc app_desc  = sapp_query_desc();
-        state.offscreen_img = sg_make_image(&(sg_image_desc){
-            .usage.color_attachment = true,
-            .width                  = app_desc.width,
-            .height                 = app_desc.height,
-            .pixel_format           = SG_PIXELFORMAT_RGBA8,
-            .label                  = "offscreen-image"});
+        state.offscreen_img = sg_make_image(&(sg_image_desc){.usage.color_attachment = true,
+                                                             .width                  = app_desc.width,
+                                                             .height                 = app_desc.height,
+                                                             .pixel_format           = SG_PIXELFORMAT_RGBA8,
+                                                             .label                  = "offscreen-image"});
 
         state.offscreen_img_colview = sg_make_view(&(sg_view_desc){.color_attachment = state.offscreen_img});
         state.offscreen_img_texview = sg_make_view(&(sg_view_desc){.texture = state.offscreen_img});
@@ -56,9 +55,9 @@ void program_setup()
             -0.5f, -0.5f,     0.0f, 0.0f, 1.0f, 1.0f
         };
         // clang-format on
-        state.offscreen.bind = (sg_bindings){
-            .vertex_buffers[0] =
-                sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "offscreen-vertices"})};
+        state.offscreen.bind =
+            (sg_bindings){.vertex_buffers[0] = sg_make_buffer(
+                              &(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "offscreen-vertices"})};
 
         // create shader from code-generated sg_shader_desc
         sg_shader shd = sg_make_shader(offscreen_shader_desc(sg_query_backend()));
@@ -115,14 +114,14 @@ void program_setup()
         sg_shader shd = sg_make_shader(display_shader_desc(sg_query_backend()));
 
         // a pipeline state object
-        state.display.pip = sg_make_pipeline(&(sg_pipeline_desc){
-            .shader     = shd,
-            .index_type = SG_INDEXTYPE_UINT16,
-            .layout =
-                {.attrs =
-                     {[ATTR_display_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                      [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
-            .label = "quad-pipeline"});
+        state.display.pip =
+            sg_make_pipeline(&(sg_pipeline_desc){.shader     = shd,
+                                                 .index_type = SG_INDEXTYPE_UINT16,
+                                                 .layout =
+                                                     {.attrs =
+                                                          {[ATTR_display_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                                                           [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                                                 .label = "quad-pipeline"});
 
         state.display.bind.views[VIEW_tex] = state.offscreen_img_texview;
 
@@ -138,17 +137,16 @@ void program_event(const sapp_event* e)
 {
     if (e->type == SAPP_EVENTTYPE_RESIZED)
     {
-        // print("Resized %d %d", e->window_width, e->window_height);
+        // println("Resized %d %d", e->window_width, e->window_height);
         sg_destroy_view(state.offscreen_img_colview);
         sg_destroy_view(state.offscreen_img_texview);
         sg_destroy_image(state.offscreen_img);
 
-        state.offscreen_img         = sg_make_image(&(sg_image_desc){
-                    .usage.color_attachment = true,
-                    .width                  = e->window_width,
-                    .height                 = e->window_height,
-                    .pixel_format           = SG_PIXELFORMAT_RGBA8,
-                    .label                  = "offscreen-image"});
+        state.offscreen_img         = sg_make_image(&(sg_image_desc){.usage.color_attachment = true,
+                                                                     .width                  = e->window_width,
+                                                                     .height                 = e->window_height,
+                                                                     .pixel_format           = SG_PIXELFORMAT_RGBA8,
+                                                                     .label                  = "offscreen-image"});
         state.offscreen_img_colview = sg_make_view(&(sg_view_desc){.color_attachment = state.offscreen_img});
         state.offscreen_img_texview = sg_make_view(&(sg_view_desc){.texture = state.offscreen_img});
 
@@ -159,7 +157,7 @@ void program_event(const sapp_event* e)
 
 void program_tick()
 {
-    // print("image: %u", state.offscreen_img.id);
+    // println("image: %u", state.offscreen_img.id);
     // offscreen
     sg_begin_pass(&state.offscreen.pass);
     sg_apply_pipeline(state.offscreen.pip);

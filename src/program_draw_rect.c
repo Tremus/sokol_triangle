@@ -68,6 +68,8 @@ void draw_rect(float x, float y, float width, float height, uint32_t hex_rgba /*
 
 void program_setup()
 {
+    xtime_init();
+
     state.window_width  = APP_WIDTH;
     state.window_height = APP_HEIGHT;
 
@@ -81,14 +83,14 @@ void program_setup()
 
     sg_shader shd = sg_make_shader(draw_rect_shader_desc(sg_query_backend()));
 
-    state.pip = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader     = shd,
-        .index_type = SG_INDEXTYPE_UINT16,
-        .layout =
-            {.attrs =
-                 {[ATTR_draw_rect_position].format = SG_VERTEXFORMAT_FLOAT2,
-                  [ATTR_draw_rect_color0].format   = SG_VERTEXFORMAT_UBYTE4N}},
-        .label = "quad-pipeline"});
+    state.pip =
+        sg_make_pipeline(&(sg_pipeline_desc){.shader     = shd,
+                                             .index_type = SG_INDEXTYPE_UINT16,
+                                             .layout =
+                                                 {.attrs =
+                                                      {[ATTR_draw_rect_position].format = SG_VERTEXFORMAT_FLOAT2,
+                                                       [ATTR_draw_rect_color0].format   = SG_VERTEXFORMAT_UBYTE4N}},
+                                             .label = "quad-pipeline"});
 
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};

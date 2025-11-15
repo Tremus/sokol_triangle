@@ -41,13 +41,12 @@ Framebuffer make_framebuffer(int width, int height)
     xassert(width > 0);
     xassert(height > 0);
 
-    sg_image img_colour = sg_make_image(&(sg_image_desc){
-        .usage.color_attachment = true,
-        .width                  = width,
-        .height                 = height,
-        .pixel_format           = SG_PIXELFORMAT_BGRA8,
-        .sample_count           = 1,
-        .label                  = "Framebuffer image"});
+    sg_image img_colour = sg_make_image(&(sg_image_desc){.usage.color_attachment = true,
+                                                         .width                  = width,
+                                                         .height                 = height,
+                                                         .pixel_format           = SG_PIXELFORMAT_BGRA8,
+                                                         .sample_count           = 1,
+                                                         .label                  = "Framebuffer image"});
 
     rt.img         = img_colour;
     rt.img_texview = sg_make_view(&(sg_view_desc){
@@ -74,17 +73,16 @@ bool load_image_file(const char* path, Image* img)
 {
     int            comp;
     unsigned char* data = stbi_load(path, &img->width, &img->height, &comp, STBI_rgb_alpha);
-    print("%s. size %dx%d", path, img->width, img->height);
+    println("%s. size %dx%d", path, img->width, img->height);
     xassert(data);
 
-    img->img     = sg_make_image(&(sg_image_desc){
-            .width              = img->width,
-            .height             = img->height,
-            .pixel_format       = SG_PIXELFORMAT_RGBA8,
-            .data.mip_levels[0] = {
-                .ptr  = data,
-                .size = 4 * img->width * img->height,
-        }});
+    img->img     = sg_make_image(&(sg_image_desc){.width              = img->width,
+                                                  .height             = img->height,
+                                                  .pixel_format       = SG_PIXELFORMAT_RGBA8,
+                                                  .data.mip_levels[0] = {
+                                                      .ptr  = data,
+                                                      .size = 4 * img->width * img->height,
+                                              }});
     img->texview = sg_make_view(&(sg_view_desc){.texture.image = img->img});
 
     free(data);
@@ -141,35 +139,35 @@ void program_setup()
     state.fb_blur[0] = make_framebuffer(state.width / 4, state.height / 4);
     state.fb_blur[1] = make_framebuffer(state.width / 4, state.height / 4);
 
-    state.pip_lightness_filter = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader                 = sg_make_shader(lightfilter_shader_desc(sg_query_backend())),
-        .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-        .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
-    state.pip_downsample       = sg_make_pipeline(&(sg_pipeline_desc){
-              .shader                 = sg_make_shader(downsample_shader_desc(sg_query_backend())),
-              .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-              .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
-    state.pip_upsample         = sg_make_pipeline(&(sg_pipeline_desc){
-                .shader                 = sg_make_shader(upsample_shader_desc(sg_query_backend())),
-                .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-                .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
-    state.pip_blur             = sg_make_pipeline(&(sg_pipeline_desc){
-                    .shader                 = sg_make_shader(kawase_blur_shader_desc(sg_query_backend())),
-                    .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-                    .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
+    state.pip_lightness_filter =
+        sg_make_pipeline(&(sg_pipeline_desc){.shader = sg_make_shader(lightfilter_shader_desc(sg_query_backend())),
+                                             .depth  = {.pixel_format = SG_PIXELFORMAT_NONE},
+                                             .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
+    state.pip_downsample =
+        sg_make_pipeline(&(sg_pipeline_desc){.shader = sg_make_shader(downsample_shader_desc(sg_query_backend())),
+                                             .depth  = {.pixel_format = SG_PIXELFORMAT_NONE},
+                                             .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
+    state.pip_upsample =
+        sg_make_pipeline(&(sg_pipeline_desc){.shader = sg_make_shader(upsample_shader_desc(sg_query_backend())),
+                                             .depth  = {.pixel_format = SG_PIXELFORMAT_NONE},
+                                             .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
+    state.pip_blur =
+        sg_make_pipeline(&(sg_pipeline_desc){.shader = sg_make_shader(kawase_blur_shader_desc(sg_query_backend())),
+                                             .depth  = {.pixel_format = SG_PIXELFORMAT_NONE},
+                                             .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
 
-    state.pip_tex_framebuffer = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader                 = sg_make_shader(texread_shader_desc(sg_query_backend())),
-        .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-        .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
-    state.pip_tex_swapchain   = sg_make_pipeline(&(sg_pipeline_desc){
-          .shader = sg_make_shader(texread_shader_desc(sg_query_backend())),
-        //   .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-          .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
-    state.pip_bloom           = sg_make_pipeline(&(sg_pipeline_desc){
-                  .shader = sg_make_shader(bloom_shader_desc(sg_query_backend())),
-        //   .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
-                  .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
+    state.pip_tex_framebuffer =
+        sg_make_pipeline(&(sg_pipeline_desc){.shader = sg_make_shader(texread_shader_desc(sg_query_backend())),
+                                             .depth  = {.pixel_format = SG_PIXELFORMAT_NONE},
+                                             .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
+    state.pip_tex_swapchain =
+        sg_make_pipeline(&(sg_pipeline_desc){.shader = sg_make_shader(texread_shader_desc(sg_query_backend())),
+                                             //   .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
+                                             .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
+    state.pip_bloom =
+        sg_make_pipeline(&(sg_pipeline_desc){.shader = sg_make_shader(bloom_shader_desc(sg_query_backend())),
+                                             //   .depth                  = {.pixel_format = SG_PIXELFORMAT_NONE},
+                                             .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
 
     state.smp_linear  = sg_make_sampler(&(sg_sampler_desc){
          .min_filter = SG_FILTER_LINEAR,

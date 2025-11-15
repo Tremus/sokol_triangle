@@ -28,17 +28,16 @@ bool load_image_file(const char* path, Image* img)
 {
     int            comp;
     unsigned char* data = stbi_load(path, &img->width, &img->height, &comp, STBI_rgb_alpha);
-    print("%s. size %dx%d", path, img->width, img->height);
+    println("%s. size %dx%d", path, img->width, img->height);
     xassert(data);
 
-    img->img = sg_make_image(&(sg_image_desc){
-        .width              = img->width,
-        .height             = img->height,
-        .pixel_format       = SG_PIXELFORMAT_RGBA8,
-        .data.mip_levels[0] = {
-            .ptr  = data,
-            .size = 4 * img->width * img->height,
-        }});
+    img->img = sg_make_image(&(sg_image_desc){.width              = img->width,
+                                              .height             = img->height,
+                                              .pixel_format       = SG_PIXELFORMAT_RGBA8,
+                                              .data.mip_levels[0] = {
+                                                  .ptr  = data,
+                                                  .size = 4 * img->width * img->height,
+                                              }});
 
     free(data);
 
@@ -183,13 +182,12 @@ void program_tick()
     sg_end_pass();
 
     // swapchain render pass to display the result
-    sg_begin_pass(&(sg_pass){
-        .action =
-            {
-                .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1}},
-            },
-        .swapchain = sglue_swapchain(),
-        .label     = "display-pass"});
+    sg_begin_pass(&(sg_pass){.action =
+                                 {
+                                     .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1}},
+                                 },
+                             .swapchain = sglue_swapchain(),
+                             .label     = "display-pass"});
     sg_apply_pipeline(state.display.pip);
     sg_apply_bindings(&(sg_bindings){
         .views[VIEW_disp_tex]   = state.compute.storage_tex_views[1],

@@ -36,12 +36,11 @@ void program_setup()
     // offscreen
     {
         sapp_desc app_desc          = sapp_query_desc();
-        state.offscreen_img         = sg_make_image(&(sg_image_desc){
-                    .usage.color_attachment = true,
-                    .width                  = state.width,
-                    .height                 = state.height,
-                    .pixel_format           = SG_PIXELFORMAT_RGBA8,
-                    .label                  = "offscreen-image"});
+        state.offscreen_img         = sg_make_image(&(sg_image_desc){.usage.color_attachment = true,
+                                                                     .width                  = state.width,
+                                                                     .height                 = state.height,
+                                                                     .pixel_format           = SG_PIXELFORMAT_RGBA8,
+                                                                     .label                  = "offscreen-image"});
         state.offscreen_img_colview = sg_make_view(&(sg_view_desc){
             .color_attachment.image = state.offscreen_img,
         });
@@ -63,9 +62,9 @@ void program_setup()
             -0.5f, -0.5f,     0.0f, 0.0f, 1.0f, 1.0f
         };
         // clang-format on
-        state.offscreen.bind = (sg_bindings){
-            .vertex_buffers[0] =
-                sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "offscreen-vertices"})};
+        state.offscreen.bind =
+            (sg_bindings){.vertex_buffers[0] = sg_make_buffer(
+                              &(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "offscreen-vertices"})};
 
         state.offscreen.pip = sg_make_pipeline(
             &(sg_pipeline_desc){// if the vertex layout doesn't have gaps, don't need to provide strides and offsets
@@ -111,21 +110,21 @@ void program_setup()
         state.display.bind.vertex_buffers[0] =
             sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
 
-        state.display.bind.index_buffer = state.display.bind.index_buffer = sg_make_buffer(&(sg_buffer_desc){
-            .usage.index_buffer = true,
-            .usage.immutable    = true,
-            .data               = SG_RANGE(indices),
-            .label              = "quad-indices"});
+        state.display.bind.index_buffer = state.display.bind.index_buffer =
+            sg_make_buffer(&(sg_buffer_desc){.usage.index_buffer = true,
+                                             .usage.immutable    = true,
+                                             .data               = SG_RANGE(indices),
+                                             .label              = "quad-indices"});
 
         // a pipeline state object
-        state.display.pip = sg_make_pipeline(&(sg_pipeline_desc){
-            .shader     = sg_make_shader(display_shader_desc(sg_query_backend())),
-            .index_type = SG_INDEXTYPE_UINT16,
-            .layout =
-                {.attrs =
-                     {[ATTR_display_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                      [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
-            .label = "quad-pipeline"});
+        state.display.pip =
+            sg_make_pipeline(&(sg_pipeline_desc){.shader     = sg_make_shader(display_shader_desc(sg_query_backend())),
+                                                 .index_type = SG_INDEXTYPE_UINT16,
+                                                 .layout =
+                                                     {.attrs =
+                                                          {[ATTR_display_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                                                           [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                                                 .label = "quad-pipeline"});
 
         // a sampler object
         state.display.bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc){
@@ -141,17 +140,16 @@ void program_event(const sapp_event* e)
 {
     if (e->type == SAPP_EVENTTYPE_RESIZED)
     {
-        // print("Resized %d %d", e->window_width, e->window_height);
+        // println("Resized %d %d", e->window_width, e->window_height);
         sg_destroy_view(state.offscreen_img_colview);
         sg_destroy_view(state.offscreen_img_texview);
         sg_destroy_image(state.offscreen_img);
 
-        state.offscreen_img = sg_make_image(&(sg_image_desc){
-            .usage.color_attachment = true,
-            .width                  = e->window_width,
-            .height                 = e->window_height,
-            .pixel_format           = SG_PIXELFORMAT_RGBA8,
-            .label                  = "offscreen-image"});
+        state.offscreen_img = sg_make_image(&(sg_image_desc){.usage.color_attachment = true,
+                                                             .width                  = e->window_width,
+                                                             .height                 = e->window_height,
+                                                             .pixel_format           = SG_PIXELFORMAT_RGBA8,
+                                                             .label                  = "offscreen-image"});
 
         state.offscreen_img_texview                       = sg_make_view(&(sg_view_desc){
                                   .texture.image = state.offscreen_img,
@@ -169,7 +167,7 @@ void program_event(const sapp_event* e)
 
 void program_tick()
 {
-    // print("image: %u", state.offscreen_img.id);
+    // println("image: %u", state.offscreen_img.id);
     // offscreen
     sg_begin_pass(&state.offscreen.pass);
     sg_apply_pipeline(state.offscreen.pip);

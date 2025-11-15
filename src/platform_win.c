@@ -11,7 +11,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-void print(const char* const fmt, ...)
+void println(const char* const fmt, ...)
 {
     char    buf[256] = {0};
     va_list args;

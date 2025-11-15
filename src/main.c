@@ -3,6 +3,7 @@
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
+#include <stdio.h>
 #include <xhl/time.h>
 
 static void my_logger(
@@ -24,12 +25,11 @@ static void my_logger(
     SOKOL_ASSERT(log_level < ARRLEN(LOG_LEVEL));
     if (!message_or_null)
         message_or_null = "";
-    print("[%s] %s %u:%s", LOG_LEVEL[log_level], message_or_null, line_nr, filename_or_null);
+    printf("[%s] %s %u:%s\n", LOG_LEVEL[log_level], message_or_null, line_nr, filename_or_null);
 }
 
 static void init(void)
 {
-    xtime_init();
     sg_setup(&(sg_desc){
         .environment        = sglue_environment(),
         .logger.func        = my_logger,

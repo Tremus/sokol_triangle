@@ -51,14 +51,13 @@ void program_setup()
     sg_shader shd = sg_make_shader(msdf_shader_desc(sg_query_backend()));
 
     // a pipeline state object
-    state.pip = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader     = shd,
-        .index_type = SG_INDEXTYPE_UINT16,
-        .layout =
-            {.attrs =
-                 {[ATTR_msdf_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                  [ATTR_msdf_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
-        .label = "quad-pipeline"});
+    state.pip = sg_make_pipeline(&(sg_pipeline_desc){.shader     = shd,
+                                                     .index_type = SG_INDEXTYPE_UINT16,
+                                                     .layout =
+                                                         {.attrs =
+                                                              {[ATTR_msdf_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                                                               [ATTR_msdf_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                                                     .label = "quad-pipeline"});
 
     // default pass action
     state.pass_action =
@@ -84,18 +83,17 @@ void program_setup()
     stbi_set_flip_vertically_on_load(1);
     int            comp = 0;
     unsigned char* data = stbi_load(path_buf, &tex_width, &tex_height, &comp, STBI_rgb_alpha);
-    print("img size %dx%d", tex_width, tex_height);
+    println("img size %dx%d", tex_width, tex_height);
     xassert(comp == STBI_rgb_alpha);
     xassert(data);
 
-    sg_image img               = sg_make_image(&(sg_image_desc){
-                      .width              = tex_width,
-                      .height             = tex_height,
-                      .pixel_format       = SG_PIXELFORMAT_RGBA8,
-                      .data.mip_levels[0] = {
-                          .ptr  = data,
-                          .size = comp * tex_width * tex_height,
-        }});
+    sg_image img               = sg_make_image(&(sg_image_desc){.width              = tex_width,
+                                                                .height             = tex_height,
+                                                                .pixel_format       = SG_PIXELFORMAT_RGBA8,
+                                                                .data.mip_levels[0] = {
+                                                                    .ptr  = data,
+                                                                    .size = comp * tex_width * tex_height,
+                                                  }});
     state.bind.views[VIEW_tex] = sg_make_view(&(sg_view_desc){.texture.image = img});
 }
 

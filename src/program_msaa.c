@@ -37,13 +37,12 @@ void program_setup()
 
         // create a MSAA render target image, this will be rendered to
         // in the offscreen render pass
-        state.msaa_image = sg_make_image(&(sg_image_desc){
-            .usage.color_attachment = true,
-            .width                  = app_desc.width,
-            .height                 = app_desc.height,
-            .pixel_format           = SG_PIXELFORMAT_RGBA8,
-            .sample_count           = OFFSCREEN_SAMPLE_COUNT,
-            .label                  = "msaa-image"});
+        state.msaa_image = sg_make_image(&(sg_image_desc){.usage.color_attachment = true,
+                                                          .width                  = app_desc.width,
+                                                          .height                 = app_desc.height,
+                                                          .pixel_format           = SG_PIXELFORMAT_RGBA8,
+                                                          .sample_count           = OFFSCREEN_SAMPLE_COUNT,
+                                                          .label                  = "msaa-image"});
 
         // create a matching resolve-image where the MSAA-rendered content will
         // be resolved to at the end of the offscreen pass, and which will be
@@ -143,14 +142,14 @@ void program_setup()
                 .mag_filter = SG_FILTER_LINEAR,
             })};
 
-        state.display.pip = sg_make_pipeline(&(sg_pipeline_desc){
-            .shader     = sg_make_shader(display_shader_desc(sg_query_backend())),
-            .index_type = SG_INDEXTYPE_UINT16,
-            .layout =
-                {.attrs =
-                     {[ATTR_display_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                      [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
-            .label = "quad-pipeline"});
+        state.display.pip =
+            sg_make_pipeline(&(sg_pipeline_desc){.shader     = sg_make_shader(display_shader_desc(sg_query_backend())),
+                                                 .index_type = SG_INDEXTYPE_UINT16,
+                                                 .layout =
+                                                     {.attrs =
+                                                          {[ATTR_display_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                                                           [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+                                                 .label = "quad-pipeline"});
     }
 }
 
@@ -158,20 +157,19 @@ void program_event(const sapp_event* e)
 {
     if (e->type == SAPP_EVENTTYPE_RESIZED)
     {
-        // print("Resized %d %d", e->window_width, e->window_height);
+        // println("Resized %d %d", e->window_width, e->window_height);
         sg_destroy_view(state.msaa_colview);
         sg_destroy_view(state.resolve_colview);
         sg_destroy_view(state.resolve_texview);
         sg_destroy_image(state.resolve_image);
         sg_destroy_image(state.msaa_image);
 
-        state.msaa_image = sg_make_image(&(sg_image_desc){
-            .usage.color_attachment = true,
-            .width                  = e->window_width,
-            .height                 = e->window_height,
-            .pixel_format           = SG_PIXELFORMAT_RGBA8,
-            .sample_count           = OFFSCREEN_SAMPLE_COUNT,
-            .label                  = "msaa-image"});
+        state.msaa_image = sg_make_image(&(sg_image_desc){.usage.color_attachment = true,
+                                                          .width                  = e->window_width,
+                                                          .height                 = e->window_height,
+                                                          .pixel_format           = SG_PIXELFORMAT_RGBA8,
+                                                          .sample_count           = OFFSCREEN_SAMPLE_COUNT,
+                                                          .label                  = "msaa-image"});
 
         state.resolve_image = sg_make_image(&(sg_image_desc){
             .usage.color_attachment = true,

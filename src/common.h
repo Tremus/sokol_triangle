@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-void print(const char* const fmt, ...);
+void println(const char* const fmt, ...);
 void program_setup();
 void program_tick();
 void program_event(const sapp_event* event);
