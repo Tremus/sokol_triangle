@@ -3,12 +3,14 @@
 #define SOKOL_GFX_IMPL
 #define SOKOL_GLUE_IMPL
 #define XHL_TIME_IMPL
+#define XHL_FILES_IMPL
 #define NANOVG_SOKOL_IMPLEMENTATION
 
 #include "common.h"
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <xhl/files.h>
 
 void println(const char* const fmt, ...)
 {

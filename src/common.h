@@ -21,6 +21,7 @@ extern "C" {
 
 void println(const char* const fmt, ...);
 void program_setup();
+void program_shutdown();
 void program_tick();
 void program_event(const sapp_event* event);
 
