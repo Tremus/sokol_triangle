@@ -10,8 +10,7 @@
 
 #include <vector>
 
-#include "pathkit/core/SkStroke.h"
-#include "pathkit/pathkit.h"
+#include "pathkit.h"
 
 static struct
 {
@@ -67,28 +66,49 @@ void program_tick()
 
     using namespace pk;
 
-    SkRect             clipBounds({0, 0, (float)state.window_width, (float)state.window_height});
-    static SkPath      path;
-    static SkPath      line;
-    std::vector<float> vertices;
+    SkRect clipBounds({0, 0, (float)state.window_width * 0.5f, (float)state.window_height * 0.5f});
 
-    path.reset();
+    // static SkPath path;
+    static SkPath      line;
+    static SkStrokeRec stroker(SkStrokeRec::kHairline_InitStyle);
+
+    static std::vector<float> vertices;
+
+    // #define NO_AA 1
+#define NO_AA 0
+
+    // path.reset();
     line.reset();
     vertices.clear();
+    vertices.reserve(2000);
 
     line.moveTo(32, 150);
     line.quadTo(50, 50, 100, 100);
     line.lineTo(100, 200);
     line.cubicTo(20, 20, 300, 300, 300, 20);
-    SkStroke stroke;
-    stroke.setWidth(5.0f);
-    stroke.strokePath(line, &path);
+    // SkStroke stroke;
+    // stroke.setWidth(5.0f);
+    // stroke.strokePath(line, &path);
+    stroker.setStrokeStyle(5.0f, 0);
+    bool did_apply = stroker.applyToPath(&line, line);
 
-    bool   isLinear      = false;
-    size_t num_triangles = path.toTriangles(0.5f, clipBounds, &vertices, &isLinear);
+    bool        isLinear         = false;
+    const float DefaultTolerance = 0.25f;
+
+#if NO_AA
+    size_t num_triangles = line.toTriangles(DefaultTolerance, clipBounds, &vertices, &isLinear);
+#else
+    size_t num_triangles = line.toAATriangles(DefaultTolerance, clipBounds, &vertices);
+#endif
     SOKOL_ASSERT(vertices.size() < BIG_VERTICES_BUFFER_CAP);
 
-    for (int i = 0; i < vertices.size(); i += 2)
+    size_t N = vertices.size();
+#if NO_AA
+    for (int i = 0; i < N; i += 2)
+#else
+    // TODO: figure out what the third float in the AA vertices is supposed to be
+    for (int i = 0, k = 0; i < N; i += 3, k += 2)
+#endif
     {
         float x = vertices[i];
         float y = vertices[i + 1];
@@ -96,8 +116,13 @@ void program_tick()
         x = mapf(x, 0, state.window_width, -1.0f, 1.0f);
         y = mapf(y, 0, state.window_height, 1.0f, -1.0f);
 
+#if NO_AA
         vertices[i]     = x;
         vertices[i + 1] = y;
+#else
+        vertices[k]     = x;
+        vertices[k + 1] = y;
+#endif
     }
 
     if (vertices.size())
