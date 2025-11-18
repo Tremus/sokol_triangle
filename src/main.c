@@ -32,7 +32,7 @@ static void my_logger(
 
 xfiles_watch_context_t g_filewatch_ctx = NULL;
 
-int cb_filewatch(enum XFILES_WATCH_TYPE type, const char* path, void* udata)
+void cb_filewatch(enum XFILES_WATCH_TYPE type, const char* path, void* udata)
 {
     switch (type)
     {
@@ -46,7 +46,6 @@ int cb_filewatch(enum XFILES_WATCH_TYPE type, const char* path, void* udata)
         println("Modified: %s", path);
         break;
     }
-    return 1;
 }
 
 static void init(void)
@@ -81,13 +80,14 @@ sapp_desc sokol_main(int argc, char* argv[])
 {
     (void)argc;
     (void)argv;
-    return (sapp_desc){.init_cb            = init,
-                       .frame_cb           = frame,
-                       .cleanup_cb         = cleanup,
-                       .event_cb           = program_event,
-                       .width              = APP_WIDTH,
-                       .height             = APP_HEIGHT,
-                       .window_title       = "GFX (sokol-app)",
-                       .icon.sokol_default = true,
-                       .logger.func        = my_logger};
+    return (sapp_desc){
+        .init_cb            = init,
+        .frame_cb           = frame,
+        .cleanup_cb         = cleanup,
+        .event_cb           = program_event,
+        .width              = APP_WIDTH,
+        .height             = APP_HEIGHT,
+        .window_title       = "GFX (sokol-app)",
+        .icon.sokol_default = true,
+        .logger.func        = my_logger};
 }
