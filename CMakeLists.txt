@@ -1,21 +1,95 @@
 cmake_minimum_required(VERSION 3.15)
 project(sokol_triangle VERSION 0.0.1)
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+
 set(CMAKE_CXX_STANDARD 20)
 
-set(SRC_DIR ${PROJECT_SOURCE_DIR})
-if (WIN32)
-    string(REPLACE "/" "\\\\" SRC_DIR ${PROJECT_SOURCE_DIR})
+if (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    set(CMAKE_C_STANDARD 11)
+else()
+    set(CMAKE_C_STANDARD 99)
 endif()
-message(STATUS ${SRC_DIR})
 
-### PATHKIT ###
-add_library(pathkit STATIC
-    modules/pathkit/unity_pathkit_core.cpp
-    modules/pathkit/unity_pathkit_misc.cpp
-    modules/pathkit/unity_pathkit_pathops1.cpp
-    modules/pathkit/unity_pathkit_pathops2.cpp
+set(SRC_DIR ${PROJECT_SOURCE_DIR})
+set(BIN_DIR ${CMAKE_BINARY_DIR})
+if (WIN32)
+    # Windows paths are complicated
+    string(REPLACE "/" "\\\\" SRC_DIR ${SRC_DIR})
+    string(REPLACE "/" "\\\\" BIN_DIR ${BIN_DIR})
+endif()
+
+set(PLUGIN_OPTIONS "")
+
+# https://clang.llvm.org/docs/ClangCommandLineReference.html
+if (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
+    list(APPEND PLUGIN_OPTIONS
+        -Werror=absolute-value
+        -Werror=return-type
+        -Werror=shadow
+        -Werror=incompatible-pointer-types
+        -Werror=parentheses
+        -Werror=excess-initializers
+        -Werror=array-bounds
+        # -Wunused-function
+        # -Wunused-variable
+
+        -Wno-deprecated-declarations
+        -Wno-deprecated
+        -Wno-multichar
+        -Wno-nullability-completeness
+        -Wno-writable-strings
+        -Wno-c2x-extensions
+        -Wno-c++14-extensions
+        -Wno-c++17-extensions
+        -Wno-c++20-extensions
+        -Wno-microsoft-enum-forward-reference
+        )
+endif()
+# list(APPEND CMAKE_C_FLAGS -fsanitize=address)
+# list(APPEND CMAKE_CXX_FLAGS -fsanitize=address)
+
+if (CMAKE_C_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    list(APPEND PLUGIN_OPTIONS /GR- /EHasc- "/FI${PROJECT_SOURCE_DIR}/src/common.h")
+    list(APPEND PLUGIN_OPTIONS "$<$<NOT:$<CONFIG:Debug>>:/Zi>")
+    add_link_options("$<$<CONFIG:RELEASE>:/DEBUG>")
+    if (CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+        list(APPEND PLUGIN_OPTIONS /Od)
+    endif()
+else()
+    list(APPEND PLUGIN_OPTIONS -fno-rtti -fno-exceptions)
+    if (CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+        list(APPEND PLUGIN_OPTIONS -fno-inline-functions)
+    endif()
+endif()
+
+set(PLUGIN_INCLUDE
+    modules/xhl/include
+    modules/CPLUG/src/
+    modules/sokol_gfx_multiinstance
+    # modules/wip_libs/src/
     )
-target_include_directories(pathkit PRIVATE modules/pathkit/)
+
+set(PLUGIN_LIBRARIES "")
+
+set(PLUGIN_DEFINITIONS
+    CPLUG_COMPANY_NAME="${COMPANY_NAME}"
+    CPLUG_COMPANY_EMAIL="contact@exacoustics.com"
+    CPLUG_PLUGIN_NAME="${PROJECT_NAME}"
+    CPLUG_PLUGIN_URI="${PROJECT_HOMEPAGE_URL}"
+    CPLUG_PLUGIN_VERSION="${PROJECT_VERSION}"
+    _HAS_EXCEPTIONS=0
+    STBI_NO_STDIO
+    STBI_NO_LINEAR
+    NVG_NO_STB
+
+    SRC_DIR="${SRC_DIR}"
+    BIN_DIR="${BIN_DIR}"
+    )
+
+set(PLUGIN_SOURCES src/main.c)
 
 ### SELECT PROGRAM ###
 # set(SRC_FILE program_hello_triangle.c)
@@ -31,7 +105,7 @@ target_include_directories(pathkit PRIVATE modules/pathkit/)
 # set(SRC_FILE program_gaussian_blur.c)
 # set(SRC_FILE program_sdf_shapes.c)
 # set(SRC_FILE program_flatten_quadbez.c)
-set(SRC_FILE program_pathkit.cpp)
+# set(SRC_FILE program_pathkit.cpp)
 # set(SRC_FILE program_pathkit_msaa.cpp)
 # NOTE: nanovg doesn't work in its current state. The sokol backend still needs a bit of work
 # set(SRC_FILE program_nanovg.c)
@@ -42,73 +116,95 @@ set(SRC_FILE program_pathkit.cpp)
 # set(SRC_FILE program_vertex_pull_square.c)
 # set(SRC_FILE program_vertex_pull_sdf.c)
 # set(SRC_FILE program_square_no_vbuf.c)
+list(APPEND PLUGIN_SOURCES src/program_vertex_pull_sdf.c)
 
-string(REPLACE ".cpp" "" FILENAME ${SRC_FILE})
-string(REPLACE ".c" "" FILENAME ${FILENAME})
+if (WIN32)
+    list(APPEND PLUGIN_DEFINITIONS UNICODE _UNICODE _USE_MATH_DEFINES PW_DX11)
 
-set(LIBS pathkit)
-set(SOURCES
-    src/main.c
-    src/${SRC_FILE}
-    src/nanovg.c
-    )
-set(COMPILE_SHADER_CMD "")
-
-if (APPLE)
+    if (CMAKE_BUILD_TYPE MATCHES Release)
+        if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+            list(APPEND PLUGIN_OPTIONS /arch:AVX)
+        else()
+            list(APPEND PLUGIN_OPTIONS -march=corei7-avx)
+        endif()
+    else()
+        if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+            list(APPEND PLUGIN_OPTIONS /arch:AVX2)
+        else()
+            list(APPEND PLUGIN_OPTIONS -march=haswell)
+        endif()
+    endif()
+    list(APPEND PLUGIN_SOURCES
+        src/platform_win.c
+        modules/CPLUG/src/cplug_extensions/window_win.c
+        modules/sokol_gfx_multiinstance/sokol_gfx_d3d11.c
+        )
+    list(APPEND PLUGIN_LIBRARIES dxguid)
+elseif(APPLE)
     enable_language(OBJC)
-    
-    list(APPEND SOURCES src/platform_mac.m)
-    list(APPEND LIBS "-framework Cocoa -framework QuartzCore -framework Metal -framework MetalKit")
-    set(COMPILE_SHADER_CMD sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/${FILENAME}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h --slang metal_macos)
-elseif(WIN32)
-    list(APPEND SOURCES src/platform_win.c)
-    set(COMPILE_SHADER_CMD sokol-shdc "--input \"${PROJECT_SOURCE_DIR}/src/${FILENAME}.glsl\" --output \"${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h\" --slang hlsl5")
+    # if (CMAKE_BUILD_TYPE MATCHES Release)
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
+    list(APPEND PLUGIN_OPTIONS -g)
+    # endif()
+
+    list(APPEND PLUGIN_SOURCES
+        src/platform_mac.m
+        modules/CPLUG/src/cplug_extensions/window_osx.m
+        modules/sokol_gfx_multiinstance/sokol_gfx_metal.m
+        )
+    list(APPEND PLUGIN_LIBRARIES
+        "-framework Quartz"
+        "-framework Cocoa"
+        "-framework Metal"
+        "-framework MetalKit"
+        "-framework AudioToolbox"
+        )
+    list(APPEND PLUGIN_DEFINITIONS PW_METAL)
 endif()
 
-### COMPILE SHADERS ###
-# https://discourse.cmake.org/t/pre-ninja-bash-command/1418/5
-add_custom_command(
-    OUTPUT
-        ${CMAKE_CURRENT_BINARY_DIR}/shaders/shader.h.noexist
-        ${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h
-    COMMAND
-        ${COMPILE_SHADER_CMD}
-)
-add_custom_target(shader_header
-    DEPENDS
-        ${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILENAME}.h
-)
-
-### MAIN TARGET ###
-add_executable(${PROJECT_NAME} ${SOURCES})
-# add_dependencies(${PROJECT_NAME} shader_header)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
-target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_CURRENT_BINARY_DIR}/shaders/
-    modules/pathkit
-    modules/xhl/include
-    src/
+### PATHKIT ###
+add_library(pathkit STATIC
+    modules/pathkit/unity_pathkit_core.cpp
+    modules/pathkit/unity_pathkit_misc.cpp
+    modules/pathkit/unity_pathkit_pathops1.cpp
+    modules/pathkit/unity_pathkit_pathops2.cpp
     )
-target_compile_options(${PROJECT_NAME} PRIVATE
-    -Werror=absolute-value
-    -Werror=return-type
-    -Werror=shadow
-    -Werror=incompatible-pointer-types
-    -Werror=parentheses
-    -Werror=excess-initializers
-    # -Wunused-function
-    # -Wunused-variable
+target_include_directories(pathkit PRIVATE modules/pathkit/)
 
-    -Wno-deprecated
-    -Wno-multichar
-    -Wno-nullability-completeness
-    -Wno-writable-strings
-    -Wno-c2x-extensions
-    -Wno-c++14-extensions
-    -Wno-c++17-extensions
-    -Wno-c++20-extensions
-    -Wno-microsoft-enum-forward-reference
-    -Wno-c99-designator
-)
-target_compile_definitions(${PROJECT_NAME} PRIVATE SRC_DIR="${SRC_DIR}")
+# ██╗  ██╗ ██████╗ ████████╗██████╗ ███████╗██╗      ██████╗  █████╗ ██████╗
+# ██║  ██║██╔═══██╗╚══██╔══╝██╔══██╗██╔════╝██║     ██╔═══██╗██╔══██╗██╔══██╗
+# ███████║██║   ██║   ██║   ██████╔╝█████╗  ██║     ██║   ██║███████║██║  ██║
+# ██╔══██║██║   ██║   ██║   ██╔══██╗██╔══╝  ██║     ██║   ██║██╔══██║██║  ██║
+# ██║  ██║╚██████╔╝   ██║   ██║  ██║███████╗███████╗╚██████╔╝██║  ██║██████╔╝
+# ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝
+
+set(HOTRELOAD_LIB_NAME ${PROJECT_NAME}_hotreload_lib)
+add_library(${HOTRELOAD_LIB_NAME} MODULE ${PLUGIN_SOURCES})
+target_compile_definitions(${HOTRELOAD_LIB_NAME} PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_SHARED CPLUG_BUILD_STANDALONE)
+target_include_directories(${HOTRELOAD_LIB_NAME} PRIVATE ${PLUGIN_INCLUDE})
+target_compile_options(${HOTRELOAD_LIB_NAME} PRIVATE ${PLUGIN_OPTIONS})
+
+set(HOTRELOAD_WATCH_DIR "")
+set(HOTRELOAD_LIB_PATH "")
+
+if (WIN32)
+    add_executable(${PROJECT_NAME}_hotreload WIN32 modules/CPLUG/src/cplug_standalone_win.c)
+    set(HOTRELOAD_WATCH_DIR "${SRC_DIR}\\\\src")
+    set(HOTRELOAD_LIB_PATH "${BIN_DIR}\\\\${CMAKE_BUILD_TYPE}\\\\${HOTRELOAD_LIB_NAME}.dll")
+endif()
+
+message(${HOTRELOAD_WATCH_DIR})
+message(${HOTRELOAD_LIB_PATH})
+
+target_compile_definitions(${PROJECT_NAME}_hotreload PRIVATE
+    HOTRELOAD_WATCH_DIR="${HOTRELOAD_WATCH_DIR}"
+    HOTRELOAD_LIB_PATH="${HOTRELOAD_LIB_PATH}"
+    HOTRELOAD_BUILD_COMMAND="cmake --build ${BIN_DIR} --config Debug --target ${HOTRELOAD_LIB_NAME}"
+    CPLUG_SHARED
+    CPLUG_BUILD_STANDALONE
+    )
+target_compile_definitions(${PROJECT_NAME}_hotreload PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_SHARED)
+target_include_directories(${PROJECT_NAME}_hotreload PRIVATE ${PLUGIN_INCLUDE})
+target_compile_options(${PROJECT_NAME}_hotreload PRIVATE ${PLUGIN_OPTIONS})
+# Forces plugin to be built before the host
+add_dependencies(${PROJECT_NAME}_hotreload ${HOTRELOAD_LIB_NAME})

@@ -1,10 +1,5 @@
-#define SOKOL_D3D11
-#define SOKOL_APP_IMPL
-#define SOKOL_GFX_IMPL
-#define SOKOL_GLUE_IMPL
 #define XHL_TIME_IMPL
 #define XHL_FILES_IMPL
-#define NANOVG_SOKOL_IMPLEMENTATION
 
 #include "common.h"
 
@@ -32,12 +27,5 @@ void println(const char* const fmt, ...)
     }
 }
 
-#include "sokol_app.h"
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
-
-// #include "nanovg_sokol.h"
-#include "sokol_app.c"
-#include "sokol_gfx.c"
 #include <xhl/files.h>
 #include <xhl/time.h>

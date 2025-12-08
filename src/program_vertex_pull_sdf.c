@@ -1,7 +1,5 @@
 #include "common.h"
 
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
 #include <xhl/debug.h>
 #include <xhl/maths.h>
 #include <xhl/vector.h>
@@ -235,18 +233,36 @@ void program_setup()
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 }
 
-void program_event(const sapp_event* e)
+void program_shutdown() {}
+
+bool pw_event(const PWEvent* e)
 {
-    if (e->type == SAPP_EVENTTYPE_RESIZED)
+    if (e->type == PW_EVENT_RESIZE)
     {
-        state.window_width  = e->window_width;
-        state.window_height = e->window_height;
+        state.window_width  = e->resize.width;
+        state.window_height = e->resize.height;
     }
+    return false;
 }
 
 void program_tick()
 {
-    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = sglue_swapchain()});
+    sg_begin_pass(&(sg_pass){
+        .action    = state.pass_action,
+        .swapchain = (sg_swapchain){
+            .width        = state.window_width,
+            .height       = state.window_height,
+            .sample_count = 1,
+            .color_format = SG_PIXELFORMAT_RGBA8,
+#if __APPLE__
+            .metal.current_drawable      = pw_get_metal_drawable(g_pw),
+            .metal.depth_stencil_texture = pw_get_metal_depth_stencil_texture(g_pw),
+#endif
+#if _WIN32
+            .d3d11.render_view        = pw_get_dx11_render_target_view(g_pw),
+            .d3d11.depth_stencil_view = pw_get_dx11_depth_stencil_view(g_pw),
+#endif
+        }});
     sg_apply_pipeline(state.pip);
     sg_apply_bindings(&state.bind);
 

@@ -8,22 +8,27 @@
 #endif
 #endif // NDEBUG
 
-#define APP_WIDTH  640
-#define APP_HEIGHT 480
+enum
+{
+    APP_WIDTH  = 640,
+    APP_HEIGHT = 480,
+};
 
 #define ARRLEN(a) (sizeof(a) / sizeof(a[0]))
 
-#include "sokol_app.h"
+#include <cplug_extensions/window.h>
+#include <sokol_gfx.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void println(const char* const fmt, ...);
-void program_setup();
-void program_shutdown();
-void program_tick();
-void program_event(const sapp_event* event);
+extern void* g_pw;
+void         println(const char* const fmt, ...);
+void         program_setup();
+void         program_shutdown();
+void         program_tick();
+void         program_event(const PWEvent* event);
 
 #ifdef __cplusplus
 }
