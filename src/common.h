@@ -24,11 +24,14 @@ extern "C" {
 #endif
 
 extern void* g_pw;
-void         println(const char* const fmt, ...);
-void         program_setup();
-void         program_shutdown();
-void         program_tick();
-void         program_event(const PWEvent* event);
+
+void println(const char* const fmt, ...);
+void program_setup();
+void program_shutdown();
+void program_tick();
+bool program_event(const PWEvent* event);
+
+sg_swapchain get_swapchain(sg_pixel_format pixel_format);
 
 #ifdef __cplusplus
 }

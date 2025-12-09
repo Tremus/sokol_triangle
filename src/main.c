@@ -78,6 +78,19 @@ void pw_get_info(struct PWGetInfo* info)
     }
 }
 
+int g_width  = APP_WIDTH;
+int g_height = APP_HEIGHT;
+
+bool pw_event(const PWEvent* e)
+{
+    if (e->type == PW_EVENT_RESIZE)
+    {
+        g_width  = e->resize.width;
+        g_height = e->resize.height;
+    }
+    return program_event(e);
+}
+
 void pw_tick(void* _gui)
 {
     sg_set_global(g_sg);
@@ -86,6 +99,24 @@ void pw_tick(void* _gui)
     sg_commit();
 
     sg_set_global(NULL);
+}
+
+sg_swapchain get_swapchain(sg_pixel_format pixel_format)
+{
+    return (sg_swapchain){
+        .width        = g_width,
+        .height       = g_height,
+        .sample_count = 1,
+        .color_format = pixel_format,
+#if __APPLE__
+        .metal.current_drawable      = pw_get_metal_drawable(g_pw),
+        .metal.depth_stencil_texture = pw_get_metal_depth_stencil_texture(g_pw),
+#endif
+#if _WIN32
+        .d3d11.render_view        = pw_get_dx11_render_target_view(g_pw),
+        .d3d11.depth_stencil_view = pw_get_dx11_depth_stencil_view(g_pw),
+#endif
+    };
 }
 
 //=============================================================================

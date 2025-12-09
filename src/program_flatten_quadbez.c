@@ -4,8 +4,6 @@
 
 #include "common.h"
 
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
 #include <xhl/time.h>
 
 #include "program_flatten_quadbez.h"
@@ -129,15 +127,16 @@ void program_setup()
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 }
+void program_shutdown() {}
 
-void program_event(const sapp_event* e)
+bool program_event(const PWEvent* e)
 {
-    if (e->type == SAPP_EVENTTYPE_RESIZED)
+    if (e->type == PW_EVENT_RESIZE)
     {
-        state.window_width  = e->window_width;
-        state.window_height = e->window_height;
+        state.window_width  = e->resize.width;
+        state.window_height = e->resize.height;
     }
-    else if (e->type == SAPP_EVENTTYPE_MOUSE_DOWN)
+    else if (e->type == PW_EVENT_MOUSE_LEFT_DOWN)
     {
         // Check user is dragging points
         for (int i = 0; i < ARRLEN(points); i++)
@@ -146,7 +145,7 @@ void program_event(const sapp_event* e)
             const point_t* pt  = &points[i];
             point_t        tl  = {pt->x - POINT_RADIUS, pt->y - POINT_RADIUS};
             point_t        br  = {pt->x + POINT_RADIUS, pt->y + POINT_RADIUS};
-            const bool     hit = e->mouse_x >= tl.x && e->mouse_y >= tl.y && e->mouse_x <= br.x && e->mouse_y <= br.y;
+            const bool     hit = e->mouse.x >= tl.x && e->mouse.y >= tl.y && e->mouse.x <= br.x && e->mouse.y <= br.y;
             if (hit)
             {
                 drag_point_idx = i;
@@ -154,19 +153,20 @@ void program_event(const sapp_event* e)
             }
         }
     }
-    else if (e->type == SAPP_EVENTTYPE_MOUSE_UP)
+    else if (e->type == PW_EVENT_MOUSE_LEFT_UP)
     {
         drag_point_idx = -1;
     }
-    else if (e->type == SAPP_EVENTTYPE_MOUSE_MOVE)
+    else if (e->type == PW_EVENT_MOUSE_MOVE)
     {
         // Drag point
         if (drag_point_idx >= 0)
         {
-            points[drag_point_idx].x = e->mouse_x;
-            points[drag_point_idx].y = e->mouse_y;
+            points[drag_point_idx].x = e->mouse.x;
+            points[drag_point_idx].y = e->mouse.y;
         }
     }
+    return false;
 }
 
 point_t eval(float t)
@@ -251,7 +251,7 @@ void program_tick()
     BIG_INDICES_BUFFER_LENGTH  = 0;
     BIG_PATH_BUFFER_LEN        = 0;
 
-    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = sglue_swapchain()});
+    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
 
     // Draw subdivision points
     const float threshold = 0.5f;

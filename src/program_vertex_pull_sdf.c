@@ -235,7 +235,7 @@ void program_setup()
 
 void program_shutdown() {}
 
-bool pw_event(const PWEvent* e)
+bool program_event(const PWEvent* e)
 {
     if (e->type == PW_EVENT_RESIZE)
     {
@@ -247,22 +247,7 @@ bool pw_event(const PWEvent* e)
 
 void program_tick()
 {
-    sg_begin_pass(&(sg_pass){
-        .action    = state.pass_action,
-        .swapchain = (sg_swapchain){
-            .width        = state.window_width,
-            .height       = state.window_height,
-            .sample_count = 1,
-            .color_format = SG_PIXELFORMAT_RGBA8,
-#if __APPLE__
-            .metal.current_drawable      = pw_get_metal_drawable(g_pw),
-            .metal.depth_stencil_texture = pw_get_metal_depth_stencil_texture(g_pw),
-#endif
-#if _WIN32
-            .d3d11.render_view        = pw_get_dx11_render_target_view(g_pw),
-            .d3d11.depth_stencil_view = pw_get_dx11_depth_stencil_view(g_pw),
-#endif
-        }});
+    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
     sg_apply_pipeline(state.pip);
     sg_apply_bindings(&state.bind);
 

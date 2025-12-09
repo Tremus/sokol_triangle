@@ -1,7 +1,4 @@
 #include "common.h"
-
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
 #include <xhl/time.h>
 
 #include "program_pathkit.h"
@@ -49,19 +46,21 @@ void program_setup()
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 }
+void program_shutdown() {}
 
-void program_event(const sapp_event* e)
+bool program_event(const PWEvent* e)
 {
-    if (e->type == SAPP_EVENTTYPE_RESIZED)
+    if (e->type == PW_EVENT_RESIZE)
     {
-        state.window_width  = e->window_width;
-        state.window_height = e->window_height;
+        state.window_width  = e->resize.width;
+        state.window_height = e->resize.height;
     }
+    return false;
 }
 
 void program_tick()
 {
-    sg_pass pass = (sg_pass){.action = state.pass_action, .swapchain = sglue_swapchain()};
+    sg_pass pass = (sg_pass){.action = state.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)};
     sg_begin_pass(&pass);
 
     using namespace pk;

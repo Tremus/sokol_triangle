@@ -1,15 +1,13 @@
 #include "common.h"
 
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
 #include <xhl/time.h>
 
 #include <math.h>
 
 #include <vector>
 
-#include "pathkit/core/SkStroke.h"
-#include "pathkit/pathkit.h"
+// #include "pathkit/core/SkStroke.h"
+#include "pathkit.h"
 
 #include "program_pathkit_msaa.h"
 
@@ -162,13 +160,14 @@ void program_setup()
         state.display.pip                                    = sg_make_pipeline(&pip_desc);
     }
 }
+void program_shutdown() {}
 
-void program_event(const sapp_event* e)
+bool program_event(const PWEvent* e)
 {
-    if (e->type == SAPP_EVENTTYPE_RESIZED)
+    if (e->type == PW_EVENT_RESIZE)
     {
-        state.window_width  = e->window_width;
-        state.window_height = e->window_height;
+        state.window_width  = e->resize.width;
+        state.window_height = e->resize.height;
 
         sg_destroy_view(state.resolve_colview);
         sg_destroy_view(state.resolve_texview);
@@ -180,6 +179,7 @@ void program_event(const sapp_event* e)
 
         state.display.bind.views[VIEW_tex] = state.resolve_texview;
     }
+    return false;
 }
 
 void program_tick()
@@ -238,7 +238,7 @@ void program_tick()
     sg_end_pass();
 
     // main
-    sg_pass pass = (sg_pass){.action = state.display.pass_action, .swapchain = sglue_swapchain()};
+    sg_pass pass = (sg_pass){.action = state.display.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)};
     sg_begin_pass(&pass);
     sg_apply_pipeline(state.display.pip);
     sg_apply_bindings(&state.display.bind);

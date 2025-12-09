@@ -1,7 +1,5 @@
 #include "common.h"
 
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
 #include <xhl/time.h>
 
 #include "program_draw_rect.h"
@@ -83,26 +81,28 @@ void program_setup()
 
     sg_shader shd = sg_make_shader(draw_rect_shader_desc(sg_query_backend()));
 
-    state.pip =
-        sg_make_pipeline(&(sg_pipeline_desc){.shader     = shd,
-                                             .index_type = SG_INDEXTYPE_UINT16,
-                                             .layout =
-                                                 {.attrs =
-                                                      {[ATTR_draw_rect_position].format = SG_VERTEXFORMAT_FLOAT2,
-                                                       [ATTR_draw_rect_color0].format   = SG_VERTEXFORMAT_UBYTE4N}},
-                                             .label = "quad-pipeline"});
+    state.pip = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader     = shd,
+        .index_type = SG_INDEXTYPE_UINT16,
+        .layout =
+            {.attrs =
+                 {[ATTR_draw_rect_position].format = SG_VERTEXFORMAT_FLOAT2,
+                  [ATTR_draw_rect_color0].format   = SG_VERTEXFORMAT_UBYTE4N}},
+        .label = "quad-pipeline"});
 
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 }
+void program_shutdown() {}
 
-void program_event(const sapp_event* e)
+bool program_event(const PWEvent* e)
 {
-    if (e->type == SAPP_EVENTTYPE_RESIZED)
+    if (e->type == PW_EVENT_RESIZE)
     {
-        state.window_width  = e->window_width;
-        state.window_height = e->window_height;
+        state.window_width  = e->resize.width;
+        state.window_height = e->resize.height;
     }
+    return false;
 }
 
 void program_tick()
@@ -110,7 +110,7 @@ void program_tick()
     BIG_VERTICES_BUFFER_LENGTH = 0;
     BIG_INDICES_BUFFER_LENGTH  = 0;
 
-    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = sglue_swapchain()});
+    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
 
     draw_rect(20, 20, 50, 80, 0xffe7700d);
     draw_rect(state.window_width - 120, 120, 70, 20, 0xff7adc06);

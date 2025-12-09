@@ -1,8 +1,5 @@
 #include "common.h"
 
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
-
 #include "program_animated_vertices.h"
 
 static struct
@@ -38,12 +35,13 @@ void program_setup()
     state.pass_action =
         (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
 }
+void program_shutdown() {}
 
-void program_event(const sapp_event* event) {}
+bool program_event(const PWEvent* event) { return false; }
 
 void program_tick()
 {
-    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = sglue_swapchain()});
+    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
 
     static float x_pos = 0;
     static float x_inc = 2.0 / 60.0f;

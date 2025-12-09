@@ -1,8 +1,5 @@
 #include "common.h"
 
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
-
 #include "program_line_stroke_texquad_1D.h"
 
 #include <math.h>
@@ -51,26 +48,26 @@ void program_setup()
 
     state.bind.views[VIEW_storage_buffer] = sg_make_view(&(sg_view_desc){.storage_buffer = state.buf});
 }
+void program_shutdown() {}
 
-void program_event(const sapp_event* e)
+bool program_event(const PWEvent* e)
 {
-    if (e->type == SAPP_EVENTTYPE_RESIZED)
+    if (e->type == PW_EVENT_RESIZE)
     {
-        state.window_width  = e->window_width;
-        state.window_height = e->window_height;
+        state.window_width  = e->resize.width;
+        state.window_height = e->resize.height;
     }
-    else if (
-        e->type == SAPP_EVENTTYPE_MOUSE_MOVE || e->type == SAPP_EVENTTYPE_MOUSE_ENTER ||
-        e->type == SAPP_EVENTTYPE_MOUSE_LEAVE)
+    else if (e->type == PW_EVENT_MOUSE_MOVE || e->type == PW_EVENT_MOUSE_ENTER || e->type == PW_EVENT_MOUSE_EXIT)
     {
-        state.mouse_xy[0] = e->mouse_x / (float)state.window_width;
-        state.mouse_xy[1] = e->mouse_y / (float)state.window_height;
+        state.mouse_xy[0] = e->mouse.x / (float)state.window_width;
+        state.mouse_xy[1] = e->mouse.y / (float)state.window_height;
     }
+    return false;
 }
 
 void program_tick()
 {
-    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = sglue_swapchain()});
+    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
 
     // Animated sine wave
     static float START_PHASE = 0.0f;

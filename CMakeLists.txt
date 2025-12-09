@@ -46,6 +46,7 @@ if (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleC
         -Wno-c++17-extensions
         -Wno-c++20-extensions
         -Wno-microsoft-enum-forward-reference
+        -Wno-c99-designator
         )
 endif()
 # list(APPEND CMAKE_C_FLAGS -fsanitize=address)
@@ -70,6 +71,8 @@ set(PLUGIN_INCLUDE
     modules/CPLUG/src/
     modules/sokol_gfx_multiinstance
     # modules/wip_libs/src/
+
+    modules/pathkit
     )
 
 set(PLUGIN_LIBRARIES "")
@@ -89,33 +92,35 @@ set(PLUGIN_DEFINITIONS
     BIN_DIR="${BIN_DIR}"
     )
 
-set(PLUGIN_SOURCES src/main.c)
+set(PLUGIN_SOURCES
+    src/main.c
+    src/stb_image.c
+    )
 
 ### SELECT PROGRAM ###
-# set(SRC_FILE program_hello_triangle.c)
-# set(SRC_FILE program_hello_quad.c)
-# set(SRC_FILE program_minimal.c)
-# set(SRC_FILE program_texquad.c)
-# set(SRC_FILE program_offscreen_render.c)
-# set(SRC_FILE program_fxaa.c)
-# set(SRC_FILE program_msaa.c)
-# set(SRC_FILE program_animated_vertices.c)
-# set(SRC_FILE program_draw_rect.c)
-# set(SRC_FILE program_line_stroke_texquad_1D.c)
-# set(SRC_FILE program_gaussian_blur.c)
-# set(SRC_FILE program_sdf_shapes.c)
-# set(SRC_FILE program_flatten_quadbez.c)
-# set(SRC_FILE program_pathkit.cpp)
-# set(SRC_FILE program_pathkit_msaa.cpp)
-# NOTE: nanovg doesn't work in its current state. The sokol backend still needs a bit of work
-# set(SRC_FILE program_nanovg.c)
-# set(SRC_FILE program_msdf.c)
-# set(SRC_FILE program_dualfilter_blur.c)
-# set(SRC_FILE program_blur_compute.c)
-# set(SRC_FILE program_vertex_pull.c)
-# set(SRC_FILE program_vertex_pull_square.c)
-# set(SRC_FILE program_vertex_pull_sdf.c)
-# set(SRC_FILE program_square_no_vbuf.c)
+# list(APPEND PLUGIN_SOURCES src/program_hello_triangle.c)
+# list(APPEND PLUGIN_SOURCES src/program_hello_quad.c)
+# list(APPEND PLUGIN_SOURCES src/program_minimal.c)
+# list(APPEND PLUGIN_SOURCES src/program_texquad.c)
+# list(APPEND PLUGIN_SOURCES src/program_offscreen_render.c)
+# list(APPEND PLUGIN_SOURCES src/program_fxaa.c)
+# list(APPEND PLUGIN_SOURCES src/program_msaa.c) # this one isn't working and Im too lazy to fix it
+# list(APPEND PLUGIN_SOURCES src/program_animated_vertices.c)
+# list(APPEND PLUGIN_SOURCES src/program_draw_rect.c)
+# list(APPEND PLUGIN_SOURCES src/program_line_stroke_texquad_1D.c)
+# list(APPEND PLUGIN_SOURCES src/program_gaussian_blur.c)
+# list(APPEND PLUGIN_SOURCES src/program_sdf_shapes.c)
+# list(APPEND PLUGIN_SOURCES src/program_flatten_quadbez.c)
+# list(APPEND PLUGIN_SOURCES src/program_pathkit.cpp)
+# list(APPEND PLUGIN_SOURCES src/program_pathkit_msaa.cpp) # also not working
+# list(APPEND PLUGIN_SOURCES src/program_nanovg.c) # NOTE: nanovg doesn't work in its current state. The sokol backend still needs a bit of work
+# list(APPEND PLUGIN_SOURCES src/program_msdf.c)
+# list(APPEND PLUGIN_SOURCES src/program_dualfilter_blur.c)
+# list(APPEND PLUGIN_SOURCES src/program_blur_compute.c)
+# list(APPEND PLUGIN_SOURCES src/program_vertex_pull.c)
+# list(APPEND PLUGIN_SOURCES src/program_vertex_pull_square.c)
+# list(APPEND PLUGIN_SOURCES src/program_vertex_pull_sdf.c)
+# list(APPEND PLUGIN_SOURCES src/program_square_no_vbuf.c)
 list(APPEND PLUGIN_SOURCES src/program_vertex_pull_sdf.c)
 
 if (WIN32)
@@ -183,6 +188,7 @@ add_library(${HOTRELOAD_LIB_NAME} MODULE ${PLUGIN_SOURCES})
 target_compile_definitions(${HOTRELOAD_LIB_NAME} PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_SHARED CPLUG_BUILD_STANDALONE)
 target_include_directories(${HOTRELOAD_LIB_NAME} PRIVATE ${PLUGIN_INCLUDE})
 target_compile_options(${HOTRELOAD_LIB_NAME} PRIVATE ${PLUGIN_OPTIONS})
+target_link_libraries(${HOTRELOAD_LIB_NAME} PRIVATE pathkit)
 
 set(HOTRELOAD_WATCH_DIR "")
 set(HOTRELOAD_LIB_PATH "")

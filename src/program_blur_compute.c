@@ -4,10 +4,6 @@
 #include <xhl/debug.h>
 #include <xhl/files.h>
 
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
-
-// #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 #include "program_blur_compute.h"
@@ -24,22 +20,38 @@ typedef struct Image
     int      height;
 } Image;
 
+typedef struct XFile
+{
+    void*  data;
+    size_t size;
+} XFile;
+static XFile read_file(const char* path)
+{
+    XFile file = {0};
+    xfiles_read(path, &file.data, &file.size);
+    return file;
+}
+
 bool load_image_file(const char* path, Image* img)
 {
+    XFile file = read_file(path);
+    xassert(file.data);
     int            comp;
-    unsigned char* data = stbi_load(path, &img->width, &img->height, &comp, STBI_rgb_alpha);
+    unsigned char* data = stbi_load_from_memory(file.data, file.size, &img->width, &img->height, &comp, STBI_rgb_alpha);
     println("%s. size %dx%d", path, img->width, img->height);
     xassert(data);
 
-    img->img = sg_make_image(&(sg_image_desc){.width              = img->width,
-                                              .height             = img->height,
-                                              .pixel_format       = SG_PIXELFORMAT_RGBA8,
-                                              .data.mip_levels[0] = {
-                                                  .ptr  = data,
-                                                  .size = 4 * img->width * img->height,
-                                              }});
+    img->img = sg_make_image(&(sg_image_desc){
+        .width              = img->width,
+        .height             = img->height,
+        .pixel_format       = SG_PIXELFORMAT_RGBA8,
+        .data.mip_levels[0] = {
+            .ptr  = data,
+            .size = 4 * img->width * img->height,
+        }});
 
     free(data);
+    XFILES_FREE(file.data);
 
     return true;
 }
@@ -129,12 +141,14 @@ void program_setup(void)
         .label  = "display-pipeline",
     });
 }
+void program_shutdown() {}
 
-void program_event(const sapp_event* e)
+bool program_event(const PWEvent* e)
 {
-    if (e->type == SAPP_EVENTTYPE_RESIZED)
+    if (e->type == PW_EVENT_RESIZE)
     {
     }
+    return false;
 }
 
 // perform a horizontal or vertical blur pass in a compute shader
@@ -182,12 +196,13 @@ void program_tick()
     sg_end_pass();
 
     // swapchain render pass to display the result
-    sg_begin_pass(&(sg_pass){.action =
-                                 {
-                                     .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1}},
-                                 },
-                             .swapchain = sglue_swapchain(),
-                             .label     = "display-pass"});
+    sg_begin_pass(&(sg_pass){
+        .action =
+            {
+                .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1}},
+            },
+        .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8),
+        .label     = "display-pass"});
     sg_apply_pipeline(state.display.pip);
     sg_apply_bindings(&(sg_bindings){
         .views[VIEW_disp_tex]   = state.compute.storage_tex_views[1],
