@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_msaa.h"
+#include "program_msaa.glsl.h"
 
 #define OFFSCREEN_SAMPLE_COUNT (4)
 
@@ -143,7 +143,7 @@ void program_shutdown() {}
 
 bool program_event(const PWEvent* e)
 {
-    if (e->type == PW_EVENT_RESIZE)
+    if (e->type == PW_EVENT_RESIZE_UPDATE)
     {
         // println("Resized %d %d", e->resize.width, e->resize.height);
         sg_destroy_view(state.msaa_colview);

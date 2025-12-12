@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_square_no_vbuf.h"
+#include "program_square_no_vbuf.glsl.h"
 
 // application state
 static struct
@@ -23,7 +23,7 @@ void program_shutdown() {}
 
 bool program_event(const PWEvent* event)
 {
-    if (event->type == PW_EVENT_RESIZE)
+    if (event->type == PW_EVENT_RESIZE_UPDATE)
     {
         state.width  = event->resize.width;
         state.height = event->resize.height;

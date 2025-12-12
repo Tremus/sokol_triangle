@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_vertex_pull_square.h"
+#include "program_vertex_pull_square.glsl.h"
 
 // application state
 static struct

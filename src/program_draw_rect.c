@@ -2,7 +2,7 @@
 
 #include <xhl/time.h>
 
-#include "program_draw_rect.h"
+#include "program_draw_rect.glsl.h"
 
 static struct
 {
@@ -97,7 +97,7 @@ void program_shutdown() {}
 
 bool program_event(const PWEvent* e)
 {
-    if (e->type == PW_EVENT_RESIZE)
+    if (e->type == PW_EVENT_RESIZE_UPDATE)
     {
         state.window_width  = e->resize.width;
         state.window_height = e->resize.height;

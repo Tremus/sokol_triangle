@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_minimal.h"
+#include "program_minimal.glsl.h"
 
 // application state
 static struct

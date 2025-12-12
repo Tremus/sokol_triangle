@@ -6,7 +6,7 @@
 // #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#include "program_dualfilter_blur.h"
+#include "program_dualfilter_blur.glsl.h"
 
 // Kawase blur https://www.youtube.com/watch?v=ml-5OGZC7vE
 // Dual filter blur. Marius Bjorge - Bandwith-Efficient Rendering, Siggraph 2015
@@ -195,7 +195,7 @@ void program_shutdown() {}
 
 bool program_event(const PWEvent* e)
 {
-    if (e->type == PW_EVENT_RESIZE)
+    if (e->type == PW_EVENT_RESIZE_UPDATE)
     {
     }
     return false;

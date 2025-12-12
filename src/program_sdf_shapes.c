@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_sdf_shapes.h"
+#include "program_sdf_shapes.glsl.h"
 
 // application state
 static struct
@@ -61,7 +61,7 @@ void program_shutdown() {}
 
 bool program_event(const PWEvent* event)
 {
-    if (event->type == PW_EVENT_RESIZE)
+    if (event->type == PW_EVENT_RESIZE_UPDATE)
     {
         state.width  = event->resize.width;
         state.height = event->resize.height;

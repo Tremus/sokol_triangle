@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_offscreen_render.h"
+#include "program_offscreen_render.glsl.h"
 
 // application state
 static struct
@@ -133,7 +133,7 @@ void program_shutdown() {}
 
 bool program_event(const PWEvent* e)
 {
-    if (e->type == PW_EVENT_RESIZE)
+    if (e->type == PW_EVENT_RESIZE_UPDATE)
     {
         // println("Resized %d %d", e->resize.width, e->resize.height);
         sg_destroy_view(state.offscreen_img_colview);

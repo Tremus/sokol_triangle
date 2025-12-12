@@ -6,7 +6,7 @@
 
 #include <xhl/time.h>
 
-#include "program_flatten_quadbez.h"
+#include "program_flatten_quadbez.glsl.h"
 
 #include <math.h>
 
@@ -131,7 +131,7 @@ void program_shutdown() {}
 
 bool program_event(const PWEvent* e)
 {
-    if (e->type == PW_EVENT_RESIZE)
+    if (e->type == PW_EVENT_RESIZE_UPDATE)
     {
         state.window_width  = e->resize.width;
         state.window_height = e->resize.height;

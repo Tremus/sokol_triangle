@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_hello_quad.h"
+#include "program_hello_quad.glsl.h"
 
 // application state
 static struct

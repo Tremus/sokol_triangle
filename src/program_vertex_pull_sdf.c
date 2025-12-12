@@ -63,6 +63,11 @@ This is 92-95.2% less data per shape, and should hopefully see a 12.5-20x perfor
 Text doesn't really improve all that much, and probably isn't a bottleneck
 
 Lines are currently unsolved. They have always been the biggest bottleneck
+
+Icons:
+In production apps, most complex filled/stroked polygons are static icons. They're small, often and have simple colours.
+They could easily fit in a sprite sheet type thing / megatexture. Very plain coloured icon could fit in a megatexture
+using a single colour cannel. Emojis will need an RGBA megatexture
 */
 
 // application state
@@ -237,7 +242,7 @@ void program_shutdown() {}
 
 bool program_event(const PWEvent* e)
 {
-    if (e->type == PW_EVENT_RESIZE)
+    if (e->type == PW_EVENT_RESIZE_UPDATE)
     {
         state.window_width  = e->resize.width;
         state.window_height = e->resize.height;

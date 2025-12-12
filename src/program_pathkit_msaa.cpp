@@ -9,7 +9,7 @@
 // #include "pathkit/core/SkStroke.h"
 #include "pathkit.h"
 
-#include "program_pathkit_msaa.h"
+#include "program_pathkit_msaa.glsl.h"
 
 #define OFFSCREEN_SAMPLE_COUNT (4)
 

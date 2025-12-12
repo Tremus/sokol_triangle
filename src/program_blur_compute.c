@@ -6,7 +6,7 @@
 
 #include "stb_image.h"
 
-#include "program_blur_compute.h"
+#include "program_blur_compute.glsl.h"
 
 // Adapted from here
 // https://github.com/floooh/sokol-samples/blob/29d5e9f4a56ae1884c4ffa7178b1af739d827d07/sapp/imageblur-sapp.c Which was
@@ -145,7 +145,7 @@ void program_shutdown() {}
 
 bool program_event(const PWEvent* e)
 {
-    if (e->type == PW_EVENT_RESIZE)
+    if (e->type == PW_EVENT_RESIZE_UPDATE)
     {
     }
     return false;

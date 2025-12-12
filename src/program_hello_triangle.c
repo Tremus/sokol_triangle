@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_hello_triangle.h"
+#include "program_hello_triangle.glsl.h"
 
 // application state
 static struct

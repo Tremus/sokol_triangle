@@ -83,7 +83,7 @@ int g_height = APP_HEIGHT;
 
 bool pw_event(const PWEvent* e)
 {
-    if (e->type == PW_EVENT_RESIZE)
+    if (e->type == PW_EVENT_RESIZE_UPDATE)
     {
         g_width  = e->resize.width;
         g_height = e->resize.height;

@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_animated_vertices.h"
+#include "program_animated_vertices.glsl.h"
 
 static struct
 {

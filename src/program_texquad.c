@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "program_texquad.h"
+#include "program_texquad.glsl.h"
 
 // application state
 static struct
