@@ -8,7 +8,6 @@ struct myvertex
 
     uint sdf_type;
     uint col_type;
-
     uint colour1;
     uint colour2;
 
@@ -19,6 +18,9 @@ struct myvertex
 
     float start_angle; // Arcs, pies, 
     float end_angle;
+
+    vec2 p1;
+    vec2 p2;
     // TODO
     // uint  texid;
 };
@@ -43,6 +45,8 @@ out flat float feather;
 out flat float stroke_width;
 out flat float start_angle;
 out flat float end_angle;
+out flat vec2 p1;
+out flat vec2 p2;
 
 void main() {
     uint v_idx = gl_VertexIndex / 6u;
@@ -97,6 +101,9 @@ void main() {
 
     start_angle = vtx[v_idx].start_angle;
     end_angle   = vtx[v_idx].end_angle;
+
+    p1 = (vtx[v_idx].p1 - vtx[v_idx].topleft) / vec2(vw, vh);
+    p2 = (vtx[v_idx].p2 - vtx[v_idx].topleft) / vec2(vw, vh);
 }
 @end
 
@@ -112,6 +119,8 @@ in flat float feather;
 in flat float stroke_width;
 in flat float start_angle;
 in flat float end_angle;
+in flat vec2 p1;
+in flat vec2 p2;
 
 out vec4 frag_color;
 
@@ -126,6 +135,12 @@ out vec4 frag_color;
 #define SDF_TYPE_PIE_STROKE       7
 #define SDF_TYPE_ARC_ROUND_STROKE 8
 #define SDF_TYPE_ARC_BUTT_STROKE  9
+
+#define SDF_COLOUR_SOLID           0
+#define SDF_COLOUR_LINEAR_GRADEINT 1
+#define SDF_COLOUR_RADIAL_GRADEINT 2
+#define SDF_COLOUR_CONIC_GRADEINT  3
+#define SDF_COLOUR_BOX_GRADEINT    4
 
 // The MIT License
 // Copyright © 2017 Inigo Quilez
@@ -183,6 +198,7 @@ float sdRing( in vec2 p, in vec2 n, in float r, float th )
 void main()
 {
     float shape = 1;
+    vec4 col = vec4(0);
     if (sdf_type == SDF_TYPE_RECTANGLE_FILL)
     {
         vec2 b = uv_xy_scale;
@@ -266,7 +282,21 @@ void main()
         shape = outer;
     }
 
-    vec4 col = unpackUnorm4x8(colour1).abgr; // swizzle
+    if (col_type == SDF_COLOUR_SOLID)
+    {
+        col = unpackUnorm4x8(colour1).abgr; // swizzle
+    }
+    else if (col_type == SDF_COLOUR_LINEAR_GRADEINT)
+    {
+        vec2 lmao = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
+
+        vec2 v  = p1 - p2;
+        vec2 w  = p1 - lmao;
+        float t = dot(v, w) / dot(v, v);
+        t = clamp(t, 0, 1);
+        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
+    }
+
     col.a *= shape;
     // col = shape == 0 ? (vec4(1) - col) : col;
 

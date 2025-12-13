@@ -104,6 +104,15 @@ enum
     // SDF_TYPE_PENTAGRAM_STROKE,
 };
 
+enum
+{
+    SDF_COLOUR_SOLID,
+    SDF_COLOUR_LINEAR_GRADEINT,
+    SDF_COLOUR_RADIAL_GRADEINT,
+    SDF_COLOUR_CONIC_GRADEINT,
+    SDF_COLOUR_BOX_GRADEINT,
+};
+
 // clang-format off
 // Compressed squares
 static const myvertex_t vertices[] ={
@@ -191,6 +200,22 @@ static const myvertex_t vertices[] ={
         .feather = 0.05,
         .start_angle = XM_PIf * 0,
         .end_angle = XM_PIf * 0.75,
+    },
+
+    {
+        .topleft = {10, 320},
+        .bottomright = {90, 450},
+        .colour1 = 0xffff00ff, // yellow
+        .colour2 = 0x0000ffff, // blue
+        .sdf_type = SDF_TYPE_RECTANGLE_FILL,
+        .col_type = SDF_COLOUR_LINEAR_GRADEINT,
+        .feather = 0.05,
+        // .p1 = {0, 320}, // Vertical
+        // .p2 = {0, 450},
+        // .p1 = {10, 0}, // Horizontal
+        // .p2 = {90, 0},
+        .p1 = {10, 320}, // Diagonal
+        .p2 = {90, 450},
     },
 };
 // clang-format on
