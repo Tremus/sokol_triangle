@@ -134,6 +134,7 @@ static const myvertex_t vertices[] ={
         .bottomright = {410, 160},
         .colour1 = 0x00ff00ff,
         .sdf_type = SDF_TYPE_RECTANGLE_STROKE,
+        .border_radius = {16,16,16,16},
         .stroke_width = 10,
         .feather = 0.05,
     },

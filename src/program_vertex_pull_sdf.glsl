@@ -12,10 +12,12 @@ struct myvertex
     uint colour1;
     uint colour2;
 
+    vec4 border_radius; // rounded rectangles
+
     float stroke_width;
     float feather;
 
-    float start_angle;
+    float start_angle; // Arcs, pies, 
     float end_angle;
     // TODO
     // uint  texid;
@@ -36,6 +38,7 @@ out flat uint sdf_type;
 out flat uint col_type;
 out flat uint colour1;
 out flat uint colour2;
+out flat vec4 border_radius;
 out flat float feather;
 out flat float stroke_width;
 out flat float start_angle;
@@ -80,6 +83,9 @@ void main() {
     colour2 = vert.colour2;
     sdf_type = vtx[v_idx].sdf_type;
     col_type = vtx[v_idx].col_type;
+
+    float smallest_dimension = min(vw, vh);
+    border_radius = vtx[v_idx].border_radius / vec4(smallest_dimension * 0.5);
     // Good artical on setting the right feather size
     // https://bohdon.com/docs/smooth-sdf-shape-edges/
     // feather = 16.0 / min(size.x, size.y);
@@ -101,6 +107,7 @@ in flat uint sdf_type;
 in flat uint col_type;
 in flat uint colour1;
 in flat uint colour2;
+in flat vec4 border_radius;
 in flat float feather;
 in flat float stroke_width;
 in flat float start_angle;
@@ -179,16 +186,13 @@ void main()
     if (sdf_type == SDF_TYPE_RECTANGLE_FILL)
     {
         vec2 b = uv_xy_scale;
-        vec4 r = vec4(0.5);
-        float d = sdRoundBox(uv * uv_xy_scale, b, r);
+        float d = sdRoundBox(uv * uv_xy_scale, b, border_radius);
         shape = smoothstep(feather, 0, d + feather * 0.5);
     }
     else if (sdf_type == SDF_TYPE_RECTANGLE_STROKE)
     {
         vec2 b = uv_xy_scale;
-        vec4 r = vec4(0.5);
-
-        float d = sdRoundBox(uv * uv_xy_scale, b, r);
+        float d = sdRoundBox(uv * uv_xy_scale, b, border_radius);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         float inner = smoothstep(feather, 0, d + stroke_width * 4 + feather * 0.5);
         shape = outer - inner;
