@@ -101,8 +101,7 @@ void main() {
     // feather = 0.01 * (vw > vh ? size.x / vw : size.y / vh);
     // feather = 0.01;
     feather = vert.feather;
-    // stroke_width = 0.5 * vert.stroke_width / min(vw, vh);
-    stroke_width = 2 * vert.stroke_width / vw;
+    stroke_width = 2 * vert.stroke_width / vw * uv_xy_scale.x;
 
     start_angle = vert.start_angle;
     end_angle   = vert.end_angle;
@@ -220,7 +219,7 @@ void main()
         vec2 b = uv_xy_scale;
         float d = sdRoundBox(uv * uv_xy_scale, b, border_radius);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
-        float inner = smoothstep(feather, 0, d + stroke_width * 4 + feather * 0.5);
+        float inner = smoothstep(feather, 0, d + stroke_width + feather * 0.5);
         shape = outer - inner;
     }
     else if (sdf_type == SDF_TYPE_CIRCLE_FILL)
@@ -320,7 +319,7 @@ void main()
         vec2 rotated = vec2(uv.x * cos(rotate_amt) - uv.y * sin(rotate_amt),
                             uv.x * sin(rotate_amt) + uv.y * cos(rotate_amt));
         float angle = atan(rotated.x, rotated.y);
-        
+
         float angle_start = -PI * 0.5;
         float angle_end = PI * 0.5;
 

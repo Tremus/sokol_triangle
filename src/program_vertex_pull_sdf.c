@@ -145,17 +145,16 @@ static const myvertex_t vertices[] ={
         .colour1 = 0x00ff00ff,
         .sdf_type = SDF_TYPE_RECTANGLE_STROKE,
         .border_radius = {16,16,16,16},
-        .stroke_width = 5,
+        .stroke_width = 10,
         .feather = 0.05,
     },
-    // TODO: fix stroke width of vertical rectangles in shader
     {
         .topleft = {110, 170},
         .bottomright = {220, 310},
         .colour1 = 0x00ff00ff,
         .sdf_type = SDF_TYPE_RECTANGLE_STROKE,
         .border_radius = {16,16,16,16},
-        .stroke_width = 1,
+        .stroke_width = 2,
         .feather = 0.02,
     },
     {
