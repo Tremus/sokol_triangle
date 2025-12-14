@@ -24,6 +24,9 @@ struct myvertex
 
     vec2 radial_gradient_pos;
     vec2 radial_gradient_radius;
+
+    vec2  conic_gradient_angle_range;
+    float conic_gradient_rotate;
     // TODO
     // uint  texid;
 };
@@ -36,22 +39,38 @@ layout(binding=0) uniform vs_params {
     vec2 size;
 };
 
+#define PI 3.141592653589793
+
 out vec2 uv;
 
 out flat vec2 uv_xy_scale;
+
 out flat uint sdf_type;
 out flat uint col_type;
 out flat uint colour1;
 out flat uint colour2;
+
 out flat vec4 border_radius;
+
 out flat float feather;
 out flat float stroke_width;
 out flat float start_angle;
 out flat float end_angle;
-out flat vec2 linear_gradient_begin;
-out flat vec2 linear_gradient_end;
-out flat vec2 radial_gradient_pos;
-out flat vec2 radial_gradient_radius_scale;
+
+// linear_gradient_begin
+// radial_gradient_pos
+// conic_gradient_rotate
+out vec2 gradient_a;
+// linear_gradient_end
+// radial_gradient_radius_scale
+// conic_gradient_angle
+out vec2 gradient_b;
+
+#define SDF_COLOUR_SOLID           0
+#define SDF_COLOUR_LINEAR_GRADEINT 1
+#define SDF_COLOUR_RADIAL_GRADEINT 2
+#define SDF_COLOUR_CONIC_GRADEINT  3
+#define SDF_COLOUR_BOX_GRADEINT    4
 
 void main() {
     uint v_idx = gl_VertexIndex / 6u;
@@ -106,11 +125,21 @@ void main() {
     start_angle = vert.start_angle;
     end_angle   = vert.end_angle;
 
-    linear_gradient_begin        = (vert.linear_gradient_begin - vert.topleft) / vec2(vw, vh);
-    linear_gradient_end          = (vert.linear_gradient_end   - vert.topleft) / vec2(vw, vh);
-
-    radial_gradient_pos          = (vert.radial_gradient_pos   - vert.topleft) / vec2(vw, vh);
-    radial_gradient_radius_scale = vec2(vw, vh) / vert.radial_gradient_radius;
+    if (vert.col_type == SDF_COLOUR_LINEAR_GRADEINT)
+    {
+        gradient_a = (vert.linear_gradient_begin - vert.topleft) / vec2(vw, vh);
+        gradient_b = (vert.linear_gradient_end   - vert.topleft) / vec2(vw, vh);
+    }
+    else if (vert.col_type == SDF_COLOUR_RADIAL_GRADEINT)
+    {
+        gradient_a = (vert.radial_gradient_pos   - vert.topleft) / vec2(vw, vh);
+        gradient_b = vec2(vw, vh) / vert.radial_gradient_radius;
+    }
+    else if (vert.col_type == SDF_COLOUR_CONIC_GRADEINT)
+    {
+        gradient_a = vec2(cos(vert.conic_gradient_rotate), sin(vert.conic_gradient_rotate));
+        gradient_b = vert.conic_gradient_angle_range;
+    }
 }
 @end
 
@@ -126,10 +155,9 @@ in flat float feather;
 in flat float stroke_width;
 in flat float start_angle;
 in flat float end_angle;
-in flat vec2 linear_gradient_begin;
-in flat vec2 linear_gradient_end;
-in flat vec2 radial_gradient_pos;
-in flat vec2 radial_gradient_radius_scale;
+
+in vec2 gradient_a;
+in vec2 gradient_b;
 
 out vec4 frag_color;
 
@@ -297,34 +325,32 @@ void main()
     }
     else if (col_type == SDF_COLOUR_LINEAR_GRADEINT)
     {
-        vec2 lmao = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
+        vec2 uv_norm = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
 
-        vec2 v  = linear_gradient_begin - linear_gradient_end;
-        vec2 w  = linear_gradient_begin - lmao;
+        vec2 v  = gradient_a - gradient_b;
+        vec2 w  = gradient_a - uv_norm;
         float t = dot(v, w) / dot(v, v);
         t = clamp(t, 0, 1);
         col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
     }
     else if (col_type == SDF_COLOUR_RADIAL_GRADEINT)
     {
-        vec2 lmao = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
-        vec2 ellipse_space = (lmao - radial_gradient_pos) * radial_gradient_radius_scale;
+        // translate & scale
+        vec2 uv_norm       = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
+        vec2 ellipse_space = (uv_norm - gradient_a) * gradient_b;
+
         float t = clamp(length(ellipse_space), 0.0, 1.0);
         col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
     }
     else if (col_type == SDF_COLOUR_CONIC_GRADEINT)
     {
-        // Rotate the gradient
-        float rotate_amt = PI * 0.75;
-        vec2 rotated = vec2(uv.x * cos(rotate_amt) - uv.y * sin(rotate_amt),
-                            uv.x * sin(rotate_amt) + uv.y * cos(rotate_amt));
-        float angle = atan(rotated.x, rotated.y);
+        // Change start/end position of the gradient 
+        vec2 uv_rotated = vec2(uv.x * gradient_a.x - uv.y * gradient_a.y,
+                               uv.x * gradient_a.y + uv.y * gradient_a.x);
+        float angle = atan(uv_rotated.x, uv_rotated.y);
 
-        float angle_start = -PI * 0.5;
-        float angle_end = PI * 0.5;
-
-        // Clamps the gradient
-        float t = smoothstep(angle_start, angle_end, angle);
+        // Crops the gradient range
+        float t = smoothstep(gradient_b.x, gradient_b.y, angle);
 
         col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
     }

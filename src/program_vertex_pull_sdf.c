@@ -245,6 +245,9 @@ static const myvertex_t vertices[] ={
         .sdf_type = SDF_TYPE_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_CONIC_GRADEINT,
         .feather = 0.05,
+
+        .conic_gradient_angle_range = {-M_PI * 0.5f, M_PI * 0.5f},
+        .conic_gradient_rotate = M_PI * 0.75f,
     },
 };
 // clang-format on
