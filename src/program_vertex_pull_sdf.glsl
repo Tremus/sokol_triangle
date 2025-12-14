@@ -19,8 +19,11 @@ struct myvertex
     float start_angle; // Arcs, pies, 
     float end_angle;
 
-    vec2 p1;
-    vec2 p2;
+    vec2 linear_gradient_begin;
+    vec2 linear_gradient_end;
+
+    vec2 radial_gradient_pos;
+    vec2 radial_gradient_radius;
     // TODO
     // uint  texid;
 };
@@ -45,8 +48,10 @@ out flat float feather;
 out flat float stroke_width;
 out flat float start_angle;
 out flat float end_angle;
-out flat vec2 p1;
-out flat vec2 p2;
+out flat vec2 linear_gradient_begin;
+out flat vec2 linear_gradient_end;
+out flat vec2 radial_gradient_pos;
+out flat vec2 radial_gradient_radius_scale;
 
 void main() {
     uint v_idx = gl_VertexIndex / 6u;
@@ -102,8 +107,11 @@ void main() {
     start_angle = vtx[v_idx].start_angle;
     end_angle   = vtx[v_idx].end_angle;
 
-    p1 = (vtx[v_idx].p1 - vtx[v_idx].topleft) / vec2(vw, vh);
-    p2 = (vtx[v_idx].p2 - vtx[v_idx].topleft) / vec2(vw, vh);
+    linear_gradient_begin        = (vtx[v_idx].linear_gradient_begin - vtx[v_idx].topleft) / vec2(vw, vh);
+    linear_gradient_end          = (vtx[v_idx].linear_gradient_end   - vtx[v_idx].topleft) / vec2(vw, vh);
+
+    radial_gradient_pos          = (vtx[v_idx].radial_gradient_pos   - vtx[v_idx].topleft) / vec2(vw, vh);
+    radial_gradient_radius_scale = vec2(vw, vh) / vtx[v_idx].radial_gradient_radius;
 }
 @end
 
@@ -119,8 +127,10 @@ in flat float feather;
 in flat float stroke_width;
 in flat float start_angle;
 in flat float end_angle;
-in flat vec2 p1;
-in flat vec2 p2;
+in flat vec2 linear_gradient_begin;
+in flat vec2 linear_gradient_end;
+in flat vec2 radial_gradient_pos;
+in flat vec2 radial_gradient_radius_scale;
 
 out vec4 frag_color;
 
@@ -290,11 +300,18 @@ void main()
     {
         vec2 lmao = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
 
-        vec2 v  = p1 - p2;
-        vec2 w  = p1 - lmao;
+        vec2 v  = linear_gradient_begin - linear_gradient_end;
+        vec2 w  = linear_gradient_begin - lmao;
         float t = dot(v, w) / dot(v, v);
         t = clamp(t, 0, 1);
         col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
+    }
+    else if (col_type == SDF_COLOUR_RADIAL_GRADEINT)
+    {
+        vec2 lmao = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
+        vec2 ellipse_space = (lmao - radial_gradient_pos) * radial_gradient_radius_scale;
+        float ellipse_distance = clamp(length(ellipse_space), 0.0, 1.0);
+        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, ellipse_distance);
     }
 
     col.a *= shape;

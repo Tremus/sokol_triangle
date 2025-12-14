@@ -202,6 +202,7 @@ static const myvertex_t vertices[] ={
         .end_angle = XM_PIf * 0.75,
     },
 
+    // Gradients
     {
         .topleft = {10, 320},
         .bottomright = {90, 450},
@@ -214,8 +215,19 @@ static const myvertex_t vertices[] ={
         // .p2 = {0, 450},
         // .p1 = {10, 0}, // Horizontal
         // .p2 = {90, 0},
-        .p1 = {10, 320}, // Diagonal
-        .p2 = {90, 450},
+        .linear_gradient_begin = {10, 320}, // Diagonal
+        .linear_gradient_end   = {90, 450},
+    },
+    {
+        .topleft = {110, 320},
+        .bottomright = {190, 450},
+        .colour1 = 0xffff00ff, // yellow
+        .colour2 = 0x0000ffff, // blue
+        .sdf_type = SDF_TYPE_RECTANGLE_FILL,
+        .col_type = SDF_COLOUR_RADIAL_GRADEINT,
+        .feather = 0.05,
+        .radial_gradient_pos = {170, 420},
+        .radial_gradient_radius = {40, 30},
     },
 };
 // clang-format on
