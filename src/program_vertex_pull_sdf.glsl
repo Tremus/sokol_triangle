@@ -310,8 +310,24 @@ void main()
     {
         vec2 lmao = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
         vec2 ellipse_space = (lmao - radial_gradient_pos) * radial_gradient_radius_scale;
-        float ellipse_distance = clamp(length(ellipse_space), 0.0, 1.0);
-        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, ellipse_distance);
+        float t = clamp(length(ellipse_space), 0.0, 1.0);
+        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
+    }
+    else if (col_type == SDF_COLOUR_CONIC_GRADEINT)
+    {
+        // Rotate the gradient
+        float rotate_amt = PI * 0.75;
+        vec2 rotated = vec2(uv.x * cos(rotate_amt) - uv.y * sin(rotate_amt),
+                            uv.x * sin(rotate_amt) + uv.y * cos(rotate_amt));
+        float angle = atan(rotated.x, rotated.y);
+        
+        float angle_start = -PI * 0.5;
+        float angle_end = PI * 0.5;
+
+        // Clamps the gradient
+        float t = smoothstep(angle_start, angle_end, angle);
+
+        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
     }
 
     col.a *= shape;

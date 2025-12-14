@@ -148,6 +148,15 @@ static const myvertex_t vertices[] ={
         .feather = 0.05,
     },
     {
+        .topleft = {110, 170},
+        .bottomright = {220, 310},
+        .colour1 = 0x00ff00ff,
+        .sdf_type = SDF_TYPE_RECTANGLE_STROKE,
+        .border_radius = {16,16,16,16},
+        .stroke_width = 2,
+        .feather = 0.02,
+    },
+    {
         .topleft = {420, 10},
         .bottomright = {490, 80},
         .colour1 = 0xff0000ff,
@@ -210,7 +219,6 @@ static const myvertex_t vertices[] ={
         .colour2 = 0x0000ffff, // blue
         .sdf_type = SDF_TYPE_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_LINEAR_GRADEINT,
-        .feather = 0.05,
         // .p1 = {0, 320}, // Vertical
         // .p2 = {0, 450},
         // .p1 = {10, 0}, // Horizontal
@@ -225,9 +233,17 @@ static const myvertex_t vertices[] ={
         .colour2 = 0x0000ffff, // blue
         .sdf_type = SDF_TYPE_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_RADIAL_GRADEINT,
-        .feather = 0.05,
         .radial_gradient_pos = {170, 420},
         .radial_gradient_radius = {40, 30},
+    },
+    {
+        .topleft = {210, 320},
+        .bottomright = {290, 450},
+        .colour1 = 0xffff00ff, // yellow
+        .colour2 = 0x0000ffff, // blue
+        .sdf_type = SDF_TYPE_RECTANGLE_FILL,
+        .col_type = SDF_COLOUR_CONIC_GRADEINT,
+        .feather = 0.05,
     },
 };
 // clang-format on
