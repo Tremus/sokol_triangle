@@ -43,7 +43,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
     env.defaults.sample_count = 1;
     env.defaults.color_format = SG_PIXELFORMAT_RGBA8;
 #if __APPLE__
-    env.metal.device = pw_get_metal_device(_p);
+    env.metal.device = pw_get_metal_device(_pw);
 #elif _WIN32
     env.d3d11.device         = pw_get_dx11_device(_pw);
     env.d3d11.device_context = pw_get_dx11_device_context(_pw);
