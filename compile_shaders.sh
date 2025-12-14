@@ -22,3 +22,5 @@ sokol-shdc --input src/program_vertex_pull.glsl            --output src/program_
 sokol-shdc --input src/program_vertex_pull_square.glsl     --output src/program_vertex_pull_square.glsl.h     --slang metal_macos
 sokol-shdc --input src/program_vertex_pull_sdf.glsl        --output src/program_vertex_pull_sdf.glsl.h        --slang metal_macos
 sokol-shdc --input src/program_square_no_vbuf.glsl         --output src/program_square_no_vbuf.glsl.h         --slang metal_macos
+
+shader-hotreloader -i src

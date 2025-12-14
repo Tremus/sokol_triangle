@@ -115,6 +115,7 @@ enum
 
 // clang-format off
 // Compressed squares
+static const size_t struct_size = sizeof(myvertex_t); 
 static const myvertex_t vertices[] ={
     {
         .topleft = {10, 10},
@@ -144,16 +145,17 @@ static const myvertex_t vertices[] ={
         .colour1 = 0x00ff00ff,
         .sdf_type = SDF_TYPE_RECTANGLE_STROKE,
         .border_radius = {16,16,16,16},
-        .stroke_width = 10,
+        .stroke_width = 5,
         .feather = 0.05,
     },
+    // TODO: fix stroke width of vertical rectangles in shader
     {
         .topleft = {110, 170},
         .bottomright = {220, 310},
         .colour1 = 0x00ff00ff,
         .sdf_type = SDF_TYPE_RECTANGLE_STROKE,
         .border_radius = {16,16,16,16},
-        .stroke_width = 2,
+        .stroke_width = 1,
         .feather = 0.02,
     },
     {

@@ -90,11 +90,11 @@ void main() {
     // colour2 = unpackUnorm4x8(vert.colour2).abgr; // swizzle
     colour1 = vert.colour1;
     colour2 = vert.colour2;
-    sdf_type = vtx[v_idx].sdf_type;
-    col_type = vtx[v_idx].col_type;
+    sdf_type = vert.sdf_type;
+    col_type = vert.col_type;
 
     float smallest_dimension = min(vw, vh);
-    border_radius = vtx[v_idx].border_radius / vec4(smallest_dimension * 0.5);
+    border_radius = vert.border_radius / vec4(smallest_dimension * 0.5);
     // Good artical on setting the right feather size
     // https://bohdon.com/docs/smooth-sdf-shape-edges/
     // feather = 16.0 / min(size.x, size.y);
@@ -104,14 +104,14 @@ void main() {
     // stroke_width = 0.5 * vert.stroke_width / min(vw, vh);
     stroke_width = 2 * vert.stroke_width / vw;
 
-    start_angle = vtx[v_idx].start_angle;
-    end_angle   = vtx[v_idx].end_angle;
+    start_angle = vert.start_angle;
+    end_angle   = vert.end_angle;
 
-    linear_gradient_begin        = (vtx[v_idx].linear_gradient_begin - vtx[v_idx].topleft) / vec2(vw, vh);
-    linear_gradient_end          = (vtx[v_idx].linear_gradient_end   - vtx[v_idx].topleft) / vec2(vw, vh);
+    linear_gradient_begin        = (vert.linear_gradient_begin - vert.topleft) / vec2(vw, vh);
+    linear_gradient_end          = (vert.linear_gradient_end   - vert.topleft) / vec2(vw, vh);
 
-    radial_gradient_pos          = (vtx[v_idx].radial_gradient_pos   - vtx[v_idx].topleft) / vec2(vw, vh);
-    radial_gradient_radius_scale = vec2(vw, vh) / vtx[v_idx].radial_gradient_radius;
+    radial_gradient_pos          = (vert.radial_gradient_pos   - vert.topleft) / vec2(vw, vh);
+    radial_gradient_radius_scale = vec2(vw, vh) / vert.radial_gradient_radius;
 }
 @end
 
