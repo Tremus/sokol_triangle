@@ -21,6 +21,7 @@ CALL sokol-shdc.exe --input src\program_vertex_pull.glsl            --output src
 CALL sokol-shdc.exe --input src\program_vertex_pull_square.glsl     --output src\program_vertex_pull_square.glsl.h     --slang hlsl5
 CALL sokol-shdc.exe --input src\program_vertex_pull_sdf.glsl        --output src\program_vertex_pull_sdf.glsl.h        --slang hlsl5
 CALL sokol-shdc.exe --input src\program_square_no_vbuf.glsl         --output src\program_square_no_vbuf.glsl.h         --slang hlsl5
+CALL sokol-shdc.exe --input src\program_sdf_line_segment.glsl       --output src\program_sdf_line_segment.glsl.h       --slang hlsl5
 
 shader-hotreloader.exe -i src
 

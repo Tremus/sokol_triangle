@@ -120,7 +120,8 @@ set(PLUGIN_SOURCES
 # list(APPEND PLUGIN_SOURCES src/program_vertex_pull.c)
 # list(APPEND PLUGIN_SOURCES src/program_vertex_pull_square.c)
 # list(APPEND PLUGIN_SOURCES src/program_square_no_vbuf.c)
-list(APPEND PLUGIN_SOURCES src/program_vertex_pull_sdf.c)
+# list(APPEND PLUGIN_SOURCES src/program_vertex_pull_sdf.c)
+list(APPEND PLUGIN_SOURCES src/program_sdf_line_segment.c)
 
 if (WIN32)
     list(APPEND PLUGIN_DEFINITIONS UNICODE _UNICODE _USE_MATH_DEFINES PW_DX11)
