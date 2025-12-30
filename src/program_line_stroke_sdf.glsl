@@ -16,7 +16,6 @@ in vec2 uv;
 out vec4 frag_colour;
 
 layout(binding=0) uniform fs_uniforms {
-    vec2  u_mouse_xy;
     vec2  u_view_size;
     float u_stroke_width;
     int   u_buffer_length;

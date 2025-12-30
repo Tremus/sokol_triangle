@@ -73,11 +73,18 @@ bool program_event(const PWEvent* e)
 void program_tick()
 {
     sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
-    const size_t N = state.window_width;
 
-    // if (init_buffer == false)
-    // {
-    //     init_buffer = true;
+#ifdef __APPLE__
+    // Note: this code was written with the assumption the app will only ever run on a macbook retina screen
+    // Other devices will likely see bad results
+    // Unfortunately this will cause our lovely 2px line to look like a 1px line. This is because we will now need to
+    // read from twice the amount of pixels from the left and right
+    // This means the shader will likely need to be rewritten to support macOS.
+    const int backingScaleFactor = 2;
+#else
+    const int backingScaleFactor = 1;
+#endif
+    const size_t N = state.window_width * backingScaleFactor;
 
     const size_t job_len = xm_minull(ARRLEN(AUDIO_BUFFER), N + 1);
 
@@ -101,10 +108,8 @@ void program_tick()
     sg_apply_bindings(&state.bind);
 
     const fs_uniforms_t uniforms = {
-        .u_mouse_xy[0]   = state.mouse_xy[0],
-        .u_mouse_xy[1]   = state.mouse_xy[1],
-        .u_view_size[0]  = state.window_width,
-        .u_view_size[1]  = state.window_height,
+        .u_view_size[0]  = state.window_width * backingScaleFactor,
+        .u_view_size[1]  = state.window_height * backingScaleFactor,
         .u_stroke_width  = 2.0f,
         .u_buffer_length = ARRLEN(AUDIO_BUFFER),
     };
