@@ -32,15 +32,16 @@ void main() {
         is_bottom ? 1 : 0
     );
     x_scale      = u_size.x / u_size.y;
-    stroke_width = u_stroke_width / u_size.y;
+    stroke_width = u_stroke_width / u_size.y * 0.5;
 }
 @end
 
 @fs fs
-in      vec2  uv;
-in flat float x_scale;
-in flat float stroke_width;
-out vec4 frag_colour;
+in       vec2  uv;
+in  flat float x_scale;
+in  flat float stroke_width;
+
+out      vec4  frag_colour;
 
 float sdSegment(in vec2 p, in vec2 a, in vec2 b)
 {
@@ -56,26 +57,17 @@ void main() {
     p.x *= x_scale;
     vec2 a = vec2(-1.0, -0.5);
     vec2 b = vec2(0.8, 0.5);
-    // vec2 c = vec2(1.2, -0.5);
+    vec2 c = vec2(1.2, -0.5);
 
     float d1 = sdSegment(p, a, b);
-    // float d2 = sdSegment(p, b, c);
-    // float d3 = abs(d1) + abs(d2);
-    // float d3 = min(d1, d2) + max(d1, d2);
-    // float d = min(min(d1, d2), d3);
-    // float d = min(min(d1, d2), max(d1, d2));
-    // float d = min(d1, d2);
-    // float d = d3;
+    float d2 = sdSegment(p, b, c);
+    float d = min(d1, d2);
 
-    // float stroke_width
     vec3 col_bg   = vec3(0.9, 0.6, 0.3);
     vec3 col_line = vec3(1.0);
-    float feather = 0.002;
-    // float feather = 0.0;
-    float line1 = smoothstep(stroke_width, 0.0 - feather, abs(d1) - feather);
-    // float line2 = smoothstep(stroke_width, 0.0 - feather, abs(d2) - feather);
-    // vec3 col = mix(col_bg, col_line, max(line1, line2));
-    vec3 col = mix(col_bg, col_line, line1);
+    float feather = 0.005;
+    float shape = smoothstep(stroke_width + feather, stroke_width, abs(d));
+    vec3 col = mix(col_bg, col_line, shape);
     frag_colour = vec4(col, 1.0);
 }
 @end
