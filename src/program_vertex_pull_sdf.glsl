@@ -162,16 +162,16 @@ in vec2 gradient_b;
 out vec4 frag_color;
 
 #define PI 3.141592653589793
-#define SDF_TYPE_RECTANGLE_FILL   0
-#define SDF_TYPE_RECTANGLE_STROKE 1
-#define SDF_TYPE_CIRCLE_FILL      2
-#define SDF_TYPE_CIRCLE_STROKE    3
-#define SDF_TYPE_TRIANGLE_FILL    4
-#define SDF_TYPE_TRIANGLE_STROKE  5
-#define SDF_TYPE_PIE_FILL         6
-#define SDF_TYPE_PIE_STROKE       7
-#define SDF_TYPE_ARC_ROUND_STROKE 8
-#define SDF_TYPE_ARC_BUTT_STROKE  9
+#define SDF_TYPE_RECTANGLE_FILL   1
+#define SDF_TYPE_RECTANGLE_STROKE 2
+#define SDF_TYPE_CIRCLE_FILL      3
+#define SDF_TYPE_CIRCLE_STROKE    4
+#define SDF_TYPE_TRIANGLE_FILL    5
+#define SDF_TYPE_TRIANGLE_STROKE  6
+#define SDF_TYPE_PIE_FILL         7
+#define SDF_TYPE_PIE_STROKE       8
+#define SDF_TYPE_ARC_ROUND_STROKE 9
+#define SDF_TYPE_ARC_BUTT_STROKE  10
 
 #define SDF_COLOUR_SOLID           0
 #define SDF_COLOUR_LINEAR_GRADEINT 1
@@ -351,6 +351,15 @@ void main()
 
         // Crops the gradient range
         float t = smoothstep(gradient_b.x, gradient_b.y, angle);
+
+        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
+    }
+    else if (col_type == SDF_COLOUR_BOX_GRADEINT)
+    {
+        vec2  b = uv_xy_scale;
+        float d = sdRoundBox(uv * uv_xy_scale, b, border_radius);
+        float blur_radius = 0.4;
+        float t = smoothstep(blur_radius, 0, d + blur_radius * 0.5);
 
         col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
     }
