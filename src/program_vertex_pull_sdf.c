@@ -118,148 +118,168 @@ enum
 // Compressed squares
 static const size_t struct_size = sizeof(myvertex_t); 
 static const myvertex_t vertices[] ={
-    // {
-    //     .topleft = {10, 10},
-    //     .bottomright = {80, 80},
-    //     .colour1 = 0xffff00ff,
-    //     .sdf_type = SDF_TYPE_CIRCLE_FILL,
-    //     .feather = 0.05,
-    // },
-    // {
-    //     .topleft = {10, 90},
-    //     .bottomright = {80, 160},
-    //     .colour1 = 0xff00ffff,
-    //     .sdf_type = SDF_TYPE_CIRCLE_STROKE,
-    //     .stroke_width = 4,
-    //     .feather = 0.05,
-    // },
-    // {
-    //     .topleft = {110, 10},
-    //     .bottomright = {210, 80},
-    //     .colour1 = 0x00ffffff,
-    //     .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
-    //     .feather = 0.04,
-    // },
-    // {
-    //     .topleft = {110, 90},
-    //     .bottomright = {410, 160},
-    //     .colour1 = 0x00ff00ff,
-    //     .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_STROKE,
-    //     .border_radius = {16,16,16,16},
-    //     .stroke_width = 10,
-    //     .feather = 0.05,
-    // },
-    // {
-    //     .topleft = {110, 170},
-    //     .bottomright = {220, 310},
-    //     .colour1 = 0x00ff00ff,
-    //     .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_STROKE,
-    //     .border_radius = {16,16,16,16},
-    //     .stroke_width = 2,
-    //     .feather = 0.02,
-    // },
-    // {
-    //     .topleft = {420, 10},
-    //     .bottomright = {490, 80},
-    //     .colour1 = 0xff0000ff,
-    //     .sdf_type = SDF_TYPE_TRIANGLE_FILL,
-    //     .feather = 0.02,
-    // },
-    // {
-    //     .topleft = {420, 90 + 0.5},
-    //     .bottomright = {490 - 1, 160 - 1 + 0.5}, // odd number of pixels for size helps keep the edges sharp
-    //     .colour1 = 0xffff00ff,
-    //     .sdf_type = SDF_TYPE_TRIANGLE_STROKE,
-    //     .stroke_width = 10,
-    //     .feather = 0.05,
-    // },
-    // {
-    //     .topleft = {500, 10},
-    //     .bottomright = {570, 80},
-    //     .colour1 = 0xff9321ff,
-    //     .sdf_type = SDF_TYPE_PIE_FILL,
-    //     .feather = 0.05,
-    //     .start_angle = XM_PIf * 0,
-    //     .end_angle = XM_PIf * 0.25,
-    // },
-    // {
-    //     .topleft = {500, 90},
-    //     .bottomright = {570, 160},
-    //     .colour1 = 0xff00ffff,
-    //     .sdf_type = SDF_TYPE_PIE_STROKE,
-    //     .stroke_width = 10,
-    //     .feather = 0.05,
-    //     .start_angle = XM_PIf * 0,
-    //     .end_angle = XM_PIf * 0.75,
-    // },
-    // {
-    //     .topleft = {10, 10 + 160},
-    //     .bottomright = {80, 80 + 160},
-    //     .colour1 = 0x45beffff,
-    //     .sdf_type = SDF_TYPE_ARC_ROUND_STROKE,
-    //     .stroke_width = 12,
-    //     .feather = 0.05,
-    //     .start_angle = XM_PIf * 0,
-    //     .end_angle = XM_PIf * 0.75,
-    // },
-    // {
-    //     .topleft = {10, 90 + 160},
-    //     .bottomright = {80, 160 + 160},
-    //     .colour1 = 0xc1ff45ff,
-    //     .sdf_type = SDF_TYPE_ARC_BUTT_STROKE,
-    //     .stroke_width = 12,
-    //     .feather = 0.05,
-    //     .start_angle = XM_PIf * 0,
-    //     .end_angle = XM_PIf * 0.75,
-    // },
-
-    // // Gradients
-    // {
-    //     .topleft = {10, 320},
-    //     .bottomright = {90, 450},
-    //     .colour1 = 0xffff00ff, // yellow
-    //     .colour2 = 0x0000ffff, // blue
-    //     .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
-    //     .col_type = SDF_COLOUR_LINEAR_GRADEINT,
-    //     // .p1 = {0, 320}, // Vertical
-    //     // .p2 = {0, 450},
-    //     // .p1 = {10, 0}, // Horizontal
-    //     // .p2 = {90, 0},
-    //     .linear_gradient_begin = {10, 320}, // Diagonal
-    //     .linear_gradient_end   = {90, 450},
-    // },
-    // {
-    //     .topleft = {110, 320},
-    //     .bottomright = {190, 450},
-    //     .colour1 = 0xffff00ff, // yellow
-    //     .colour2 = 0x0000ffff, // blue
-    //     .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
-    //     .col_type = SDF_COLOUR_RADIAL_GRADEINT,
-    //     .radial_gradient_pos = {170, 420},
-    //     .radial_gradient_radius = {40, 30},
-    // },
-    // {
-    //     .topleft = {210, 320},
-    //     .bottomright = {290, 450},
-    //     .colour1 = 0xffff00ff, // yellow
-    //     .colour2 = 0x0000ffff, // blue
-    //     .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
-    //     .col_type = SDF_COLOUR_CONIC_GRADEINT,
-    //     .feather = 0.05,
-
-    //     .conic_gradient_angle_range = {-M_PI * 0.5f, M_PI * 0.5f},
-    //     .conic_gradient_rotate = M_PI * 0.75f,
-    // },
     {
-        // .topleft = {310, 320},
-        // .bottomright = {390, 400},
         .topleft = {10, 10},
-        .bottomright = {APP_WIDTH-10, APP_HEIGHT-10},
+        .bottomright = {80, 80},
+        .colour1 = 0xffff00ff,
+        .sdf_type = SDF_TYPE_CIRCLE_FILL,
+        .feather = 0.05,
+    },
+    {
+        .topleft = {10, 90},
+        .bottomright = {80, 160},
+        .colour1 = 0xff00ffff,
+        .sdf_type = SDF_TYPE_CIRCLE_STROKE,
+        .stroke_width = 4,
+        .feather = 0.05,
+    },
+    {
+        .topleft = {110, 10},
+        .bottomright = {210, 80},
+        .colour1 = 0x00ffffff,
+        .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
+        .feather = 0.04,
+    },
+    {
+        .topleft = {110, 90},
+        .bottomright = {410, 160},
+        .colour1 = 0x00ff00ff,
+        .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_STROKE,
+        .border_radius = {16,16,16,16},
+        .stroke_width = 10,
+        .feather = 0.05,
+    },
+    {
+        .topleft = {110, 170},
+        .bottomright = {220, 310},
+        .colour1 = 0x00ff00ff,
+        .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_STROKE,
+        .border_radius = {16,16,16,16},
+        .stroke_width = 2,
+        .feather = 0.02,
+    },
+    {
+        .topleft = {420, 10},
+        .bottomright = {490, 80},
+        .colour1 = 0xff0000ff,
+        .sdf_type = SDF_TYPE_TRIANGLE_FILL,
+        .feather = 0.02,
+    },
+    {
+        .topleft = {420, 90 + 0.5},
+        .bottomright = {490 - 1, 160 - 1 + 0.5}, // odd number of pixels for size helps keep the edges sharp
+        .colour1 = 0xffff00ff,
+        .sdf_type = SDF_TYPE_TRIANGLE_STROKE,
+        .stroke_width = 10,
+        .feather = 0.05,
+    },
+    {
+        .topleft = {500, 10},
+        .bottomright = {570, 80},
+        .colour1 = 0xff9321ff,
+        .sdf_type = SDF_TYPE_PIE_FILL,
+        .feather = 0.05,
+        .start_angle = XM_PIf * 0,
+        .end_angle = XM_PIf * 0.25,
+    },
+    {
+        .topleft = {500, 90},
+        .bottomright = {570, 160},
+        .colour1 = 0xff00ffff,
+        .sdf_type = SDF_TYPE_PIE_STROKE,
+        .stroke_width = 10,
+        .feather = 0.05,
+        .start_angle = XM_PIf * 0,
+        .end_angle = XM_PIf * 0.75,
+    },
+    {
+        .topleft = {10, 10 + 160},
+        .bottomright = {80, 80 + 160},
+        .colour1 = 0x45beffff,
+        .sdf_type = SDF_TYPE_ARC_ROUND_STROKE,
+        .stroke_width = 12,
+        .feather = 0.05,
+        .start_angle = XM_PIf * 0,
+        .end_angle = XM_PIf * 0.75,
+    },
+    {
+        .topleft = {10, 90 + 160},
+        .bottomright = {80, 160 + 160},
+        .colour1 = 0xc1ff45ff,
+        .sdf_type = SDF_TYPE_ARC_BUTT_STROKE,
+        .stroke_width = 12,
+        .feather = 0.05,
+        .start_angle = XM_PIf * 0,
+        .end_angle = XM_PIf * 0.75,
+    },
+
+    // Gradients
+    {
+        .topleft = {10, 320},
+        .bottomright = {90, 450},
+        .colour1 = 0xffff00ff, // yellow
+        .colour2 = 0x0000ffff, // blue
+        .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
+        .col_type = SDF_COLOUR_LINEAR_GRADEINT,
+        // .p1 = {0, 320}, // Vertical
+        // .p2 = {0, 450},
+        // .p1 = {10, 0}, // Horizontal
+        // .p2 = {90, 0},
+        .linear_gradient_begin = {10, 320}, // Diagonal
+        .linear_gradient_end   = {90, 450},
+    },
+    {
+        .topleft = {110, 320},
+        .bottomright = {190, 450},
+        .colour1 = 0xffff00ff, // yellow
+        .colour2 = 0x0000ffff, // blue
+        .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
+        .col_type = SDF_COLOUR_RADIAL_GRADEINT,
+        .radial_gradient_pos = {170, 420},
+        .radial_gradient_radius = {40, 30},
+    },
+    {
+        .topleft = {210, 320},
+        .bottomright = {290, 450},
+        .colour1 = 0xffff00ff, // yellow
+        .colour2 = 0x0000ffff, // blue
+        .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
+        .col_type = SDF_COLOUR_CONIC_GRADEINT,
+        .feather = 0.05,
+
+        .conic_gradient_angle_range = {-M_PI * 0.5f, M_PI * 0.5f},
+        .conic_gradient_rotate = M_PI * 0.75f,
+    },
+    {
+        .topleft = {310, 320},
+        // .bottomright = {390, 400},
+        .bottomright = {390, 450},
+        // .topleft = {10, 10},
+        // .bottomright = {APP_WIDTH-10, APP_HEIGHT-10},
         .colour1 = 0xffff00ff, // yellow
         .colour2 = 0x0000ffff, // blue
         .sdf_type = 0,
+        // .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_BOX_GRADEINT,
-        .border_radius = {80,80,80,80},
+        // .col_type = SDF_COLOUR_BOX_GRADEINT,
+        .border_radius = {8,8,8,8},
+        // .border_radius = {80,80,80,80},
+        .feather = 0.04,
+    },
+    // Note: blur radius for horizontal shapes does not match vertical
+    {
+        .topleft = {410, 320},
+        .bottomright = {530, 400},
+        // .topleft = {10, 10},
+        // .bottomright = {APP_WIDTH-10, APP_HEIGHT-10},
+        .colour1 = 0xffff00ff, // yellow
+        .colour2 = 0x0000ffff, // blue
+        .sdf_type = 0,
+        // .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
+        .col_type = SDF_COLOUR_BOX_GRADEINT,
+        // .col_type = SDF_COLOUR_BOX_GRADEINT,
+        .border_radius = {8,8,8,8},
+        // .border_radius = {80,80,80,80},
         .feather = 0.04,
     },
 };

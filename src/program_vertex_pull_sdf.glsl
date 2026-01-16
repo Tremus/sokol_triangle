@@ -356,10 +356,13 @@ void main()
     }
     else if (col_type == SDF_COLOUR_BOX_GRADEINT)
     {
-        vec2  b = uv_xy_scale;
-        float d = sdRoundBox(uv * uv_xy_scale, b, border_radius);
-        float blur_radius = 0.4;
-        float t = smoothstep(blur_radius, 0, d + blur_radius * 0.5);
+        float blur_radius = 0.3;
+        vec2 b  = uv_xy_scale - blur_radius * 0.5;
+        vec4 br = border_radius;
+        vec2 xy_offset = vec2(0);
+        // vec2  xy_offset = vec2(-0.2, 0.2);
+        float d = sdRoundBox((uv + xy_offset) * uv_xy_scale, b, br);
+        float t = smoothstep(blur_radius, 0, d);
 
         col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
     }
