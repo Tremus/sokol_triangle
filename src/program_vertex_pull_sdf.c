@@ -252,18 +252,13 @@ static const myvertex_t vertices[] ={
     },
     {
         .topleft = {310, 320},
-        // .bottomright = {390, 400},
         .bottomright = {390, 450},
-        // .topleft = {10, 10},
-        // .bottomright = {APP_WIDTH-10, APP_HEIGHT-10},
         .colour1 = 0xffff00ff, // yellow
         .colour2 = 0x0000ffff, // blue
-        .sdf_type = 0,
-        // .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
+        // .sdf_type = 0,
+        .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_BOX_GRADEINT,
-        // .col_type = SDF_COLOUR_BOX_GRADEINT,
         .border_radius = {8,8,8,8},
-        // .border_radius = {80,80,80,80},
         .feather = 0.04,
     },
     // Note: blur radius for horizontal shapes does not match vertical
@@ -274,10 +269,9 @@ static const myvertex_t vertices[] ={
         // .bottomright = {APP_WIDTH-10, APP_HEIGHT-10},
         .colour1 = 0xffff00ff, // yellow
         .colour2 = 0x0000ffff, // blue
-        .sdf_type = 0,
-        // .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
+        // .sdf_type = 0,
+        .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_BOX_GRADEINT,
-        // .col_type = SDF_COLOUR_BOX_GRADEINT,
         .border_radius = {8,8,8,8},
         // .border_radius = {80,80,80,80},
         .feather = 0.04,

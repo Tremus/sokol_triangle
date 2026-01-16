@@ -112,8 +112,7 @@ void main() {
     sdf_type = vert.sdf_type;
     col_type = vert.col_type;
 
-    float smallest_dimension = min(vw, vh);
-    border_radius = vert.border_radius / vec4(smallest_dimension * 0.5);
+    border_radius = vert.border_radius / vec4(vh * 0.5);
     // Good artical on setting the right feather size
     // https://bohdon.com/docs/smooth-sdf-shape-edges/
     // feather = 16.0 / min(size.x, size.y);
@@ -319,6 +318,7 @@ void main()
         shape = outer;
     }
 
+    float t = 0;
     if (col_type == SDF_COLOUR_SOLID)
     {
         col = unpackUnorm4x8(colour1).abgr; // swizzle
@@ -329,9 +329,8 @@ void main()
 
         vec2 v  = gradient_a - gradient_b;
         vec2 w  = gradient_a - uv_norm;
-        float t = dot(v, w) / dot(v, v);
+        t = dot(v, w) / dot(v, v);
         t = clamp(t, 0, 1);
-        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
     }
     else if (col_type == SDF_COLOUR_RADIAL_GRADEINT)
     {
@@ -339,8 +338,7 @@ void main()
         vec2 uv_norm       = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
         vec2 ellipse_space = (uv_norm - gradient_a) * gradient_b;
 
-        float t = clamp(length(ellipse_space), 0.0, 1.0);
-        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
+        t = clamp(length(ellipse_space), 0.0, 1.0);
     }
     else if (col_type == SDF_COLOUR_CONIC_GRADEINT)
     {
@@ -350,22 +348,23 @@ void main()
         float angle = atan(uv_rotated.x, uv_rotated.y);
 
         // Crops the gradient range
-        float t = smoothstep(gradient_b.x, gradient_b.y, angle);
-
-        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
+        t = smoothstep(gradient_b.x, gradient_b.y, angle);
     }
     else if (col_type == SDF_COLOUR_BOX_GRADEINT)
     {
-        float blur_radius = 0.3;
-        vec2 b  = uv_xy_scale - blur_radius * 0.5;
-        vec4 br = border_radius;
+        // TODO: replace these constants
+        float blur_radius = 0.5;
         vec2 xy_offset = vec2(0);
         // vec2  xy_offset = vec2(-0.2, 0.2);
-        float d = sdRoundBox((uv + xy_offset) * uv_xy_scale, b, br);
-        float t = smoothstep(blur_radius, 0, d);
 
-        col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
+        blur_radius = blur_radius * (uv_xy_scale.x + 1) * 0.5;
+        vec2 half_wh  = uv_xy_scale - blur_radius * 0.5;
+        vec4 br = border_radius - blur_radius * 0.5;
+
+        float d = sdRoundBox((uv + xy_offset) * uv_xy_scale, half_wh, br);
+        t = smoothstep(blur_radius, 0, d);
     }
+    col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
 
     col.a *= shape;
     // col = shape == 0 ? (vec4(1) - col) : col;
