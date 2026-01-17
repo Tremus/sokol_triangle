@@ -217,8 +217,10 @@ static const myvertex_t vertices[] ={
     {
         .topleft = {10, 320},
         .bottomright = {90, 450},
-        .colour1 = 0xffff00ff, // yellow
-        .colour2 = 0x0000ffff, // blue
+        // .colour1 = 0xffff00ff, // yellow
+        // .colour2 = 0x0000ffff, // blue
+        .colour1 = 0xff0000ff, // red
+        .colour2 = 0x00ff00ff, // green
         .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_LINEAR_GRADEINT,
         // .p1 = {0, 320}, // Vertical
@@ -253,13 +255,17 @@ static const myvertex_t vertices[] ={
     {
         .topleft = {310, 320},
         .bottomright = {390, 450},
-        .colour1 = 0xffff00ff, // yellow
-        .colour2 = 0x0000ffff, // blue
+        // .colour1 = 0xff0000ff, // red
+        // .colour2 = 0x0000ffff, // blue
+        .colour1 = 0xffffffff, // white
+        .colour2 = 0x000000ff, // black
         // .sdf_type = 0,
         .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_BOX_GRADEINT,
         .border_radius = {8,8,8,8},
         .feather = 0.04,
+        // .box_gradient_translate = {20, 20},
+        .box_gradient_radius = 20,
     },
     // Note: blur radius for horizontal shapes does not match vertical
     {
@@ -267,14 +273,21 @@ static const myvertex_t vertices[] ={
         .bottomright = {530, 400},
         // .topleft = {10, 10},
         // .bottomright = {APP_WIDTH-10, APP_HEIGHT-10},
-        .colour1 = 0xffff00ff, // yellow
-        .colour2 = 0x0000ffff, // blue
+        // .colour1 = 0xff0000ff, // red
+        // // .colour2 = 0x0000ffff, // blue
+        // .colour2 = 0x00ff00ff, // green
+        .colour1 = 0xffffffff, // white
+        .colour2 = 0x000000ff, // black
         // .sdf_type = 0,
         .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_BOX_GRADEINT,
         .border_radius = {8,8,8,8},
         // .border_radius = {80,80,80,80},
         .feather = 0.04,
+        // .box_gradient_translate = {20, 20},
+        .box_gradient_radius = 40,
+        // .box_gradient_radius = 20,
+        // .box_gradient_radius = 10,
     },
 };
 // clang-format on
@@ -308,6 +321,7 @@ void program_setup()
         .shader = sg_make_shader(vertexpull_shader_desc(sg_query_backend())),
         .colors[0] =
             {.write_mask = SG_COLORMASK_RGBA,
+            // .pixel_format = PIXEL_FORMAT,
              .blend =
                  {
                      .enabled          = true,
@@ -337,7 +351,7 @@ bool program_event(const PWEvent* e)
 
 void program_tick()
 {
-    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
+    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = get_swapchain(0)});
     sg_apply_pipeline(state.pip);
     sg_apply_bindings(&state.bind);
 

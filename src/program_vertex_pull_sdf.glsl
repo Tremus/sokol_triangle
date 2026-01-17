@@ -27,6 +27,9 @@ struct myvertex
 
     vec2  conic_gradient_angle_range;
     float conic_gradient_rotate;
+
+    float box_gradient_radius;
+    vec2  box_gradient_translate;
     // TODO
     // uint  texid;
 };
@@ -138,6 +141,11 @@ void main() {
     {
         gradient_a = vec2(cos(vert.conic_gradient_rotate), sin(vert.conic_gradient_rotate));
         gradient_b = vert.conic_gradient_angle_range;
+    }
+    else if (vert.col_type == SDF_COLOUR_BOX_GRADEINT)
+    {
+        gradient_a = vec2(vert.box_gradient_radius / vh);
+        gradient_b = vec2(vert.box_gradient_translate) / vec2(-vw, vh);
     }
 }
 @end
@@ -342,7 +350,7 @@ void main()
     }
     else if (col_type == SDF_COLOUR_CONIC_GRADEINT)
     {
-        // Change start/end position of the gradient 
+        // Change start/end position of the gradient
         vec2 uv_rotated = vec2(uv.x * gradient_a.x - uv.y * gradient_a.y,
                                uv.x * gradient_a.y + uv.y * gradient_a.x);
         float angle = atan(uv_rotated.x, uv_rotated.y);
@@ -352,17 +360,25 @@ void main()
     }
     else if (col_type == SDF_COLOUR_BOX_GRADEINT)
     {
-        // TODO: replace these constants
-        float blur_radius = 0.5;
-        vec2 xy_offset = vec2(0);
-        // vec2  xy_offset = vec2(-0.2, 0.2);
+        float blur_radius = gradient_a.x;
+        vec2  xy_offset   = gradient_b;
 
-        blur_radius = blur_radius * (uv_xy_scale.x + 1) * 0.5;
-        vec2 half_wh  = uv_xy_scale - blur_radius * 0.5;
-        vec4 br = border_radius - blur_radius * 0.5;
+        vec2 p = (uv + xy_offset) * uv_xy_scale;
+        // blur_radius = blur_radius * (uv_xy_scale.x + 1) * 0.5;
+        // vec2 half_wh  = uv_xy_scale - blur_radius * 0.5;
+        vec2 half_wh  = uv_xy_scale - blur_radius * 2;
+        // vec2 half_wh  = uv_xy_scale - blur_radius;
+        // vec4 br = border_radius - blur_radius * 0.5;
+        vec4 br = border_radius - blur_radius;
 
-        float d = sdRoundBox((uv + xy_offset) * uv_xy_scale, half_wh, br);
-        t = smoothstep(blur_radius, 0, d);
+        float d = sdRoundBox(p, half_wh, br);
+        // t = smoothstep(blur_radius * 0.5, blur_radius * -0.5, d - blur_radius * 0.5);
+        // t = smoothstep(blur_radius * 2, 0, d - blur_radius * 0.25);
+        // t = smoothstep(blur_radius * 2, 0, d - half_wh.x);
+        // t = smoothstep(blur_radius * 2, 0, d);
+        // t = sqrt(t);
+        t = 1 - fract(d * 2);
+        // t = 1 - d;
     }
     col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
 

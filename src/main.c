@@ -41,6 +41,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
     sg_environment env;
     memset(&env, 0, sizeof(env));
     env.defaults.sample_count = 1;
+    // env.defaults.color_format = SG_PIXELFORMAT_SRGB8A8;
     env.defaults.color_format = SG_PIXELFORMAT_RGBA8;
 #if __APPLE__
     env.metal.device = pw_get_metal_device(_pw);
