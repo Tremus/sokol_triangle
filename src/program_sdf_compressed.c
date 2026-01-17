@@ -134,6 +134,18 @@ void add_obj(const SDFShape* obj)
     }
 }
 
+uint32_t compress_sdf_data(unsigned sdf_type, unsigned grad_type, float feather, float stroke_width)
+{
+    xassert(stroke_width >= 0 && stroke_width < 16);
+    xvecu compressed = {
+        .r = sdf_type,
+        .g = grad_type,
+        .b = (uint8_t)(xm_minf(255, feather * 255)),
+        .a = (uint8_t)(xm_minf(255, stroke_width * 16)),
+    };
+    return compressed.u32;
+}
+
 uint32_t compress_border_radius(float tr, float br, float tl, float bl)
 {
     xvecu compressed = {
@@ -198,8 +210,7 @@ void draw_circle_fill(float cx, float cy, float radius_px, uint32_t colour)
         .topleft     = {cx - radius_px, cy - radius_px},
         .bottomright = {cx + radius_px, cy + radius_px},
         .colour1     = colour,
-        .sdf_type    = SDF_SHAPE_CIRCLE_FILL,
-        .feather     = feather,
+        .sdf_data    = compress_sdf_data(SDF_SHAPE_CIRCLE_FILL, 0, feather, 0),
     });
 }
 
@@ -207,12 +218,10 @@ void draw_circle_stroke(float cx, float cy, float radius_px, float stroke_width,
 {
     float feather = 2.0f / radius_px;
     add_obj(&(SDFShape){
-        .topleft      = {cx - radius_px, cy - radius_px},
-        .bottomright  = {cx + radius_px, cy + radius_px},
-        .colour1      = colour,
-        .sdf_type     = SDF_SHAPE_CIRCLE_STROKE,
-        .stroke_width = stroke_width,
-        .feather      = feather,
+        .topleft     = {cx - radius_px, cy - radius_px},
+        .bottomright = {cx + radius_px, cy + radius_px},
+        .colour1     = colour,
+        .sdf_data    = compress_sdf_data(SDF_SHAPE_CIRCLE_STROKE, 0, feather, stroke_width),
     });
 }
 
@@ -222,10 +231,9 @@ void draw_rounded_rectangle_fill(float x, float y, float w, float h, float borde
     add_obj(&(SDFShape){
         .topleft             = {x, y},
         .bottomright         = {x + w, y + h},
-        .colour1             = colour,
-        .sdf_type            = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
+        .sdf_data            = compress_sdf_data(SDF_SHAPE_ROUNDED_RECTANGLE_FILL, 0, feather, 0),
         .borderradius_arcpie = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
-        .feather             = feather,
+        .colour1             = colour,
     });
 }
 
@@ -246,14 +254,13 @@ void draw_rounded_rectangle_fill_linear(
     add_obj(&(SDFShape){
         .topleft             = {x, y},
         .bottomright         = {x + w, y + h},
-        .colour1             = col_stop_1,
-        .colour2             = col_stop_2,
-        .sdf_type            = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
-        .grad_type           = SDF_GRADEINT_LINEAR,
+        .sdf_data            = compress_sdf_data(SDF_SHAPE_ROUNDED_RECTANGLE_FILL, SDF_GRADEINT_LINEAR, feather, 0),
         .borderradius_arcpie = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
-        .feather             = feather,
-        .gradient_a          = {x_stop_1, y_stop_1},
-        .gradient_b          = {x_stop_2, y_stop_2},
+
+        .colour1    = col_stop_1,
+        .colour2    = col_stop_2,
+        .gradient_a = {x_stop_1, y_stop_1},
+        .gradient_b = {x_stop_2, y_stop_2},
     });
 }
 
@@ -272,14 +279,13 @@ void draw_rounded_rectangle_fill_radial(
 {
     float feather = 4.0f / xm_minf(w, h);
     add_obj(&(SDFShape){
-        .topleft             = {x, y},
-        .bottomright         = {x + w, y + h},
+        .topleft     = {x, y},
+        .bottomright = {x + w, y + h},
+        .sdf_data    = compress_sdf_data(SDF_SHAPE_ROUNDED_RECTANGLE_FILL, SDF_GRADEINT_RADIAL, feather, 0),
+
         .colour1             = col_stop_1,
         .colour2             = col_stop_2,
-        .sdf_type            = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
-        .grad_type           = SDF_GRADEINT_RADIAL,
         .borderradius_arcpie = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
-        .feather             = feather,
         .gradient_a          = {cx_stop_1, cy_stop_1},
         .gradient_b          = {x_radius_stop_2, y_radius_stop_2},
     });
@@ -303,14 +309,13 @@ void draw_rounded_rectangle_fill_conic(
     float b     = range / XM_TAUf;
 
     add_obj(&(SDFShape){
-        .topleft             = {x, y},
-        .bottomright         = {x + w, y + h},
+        .topleft     = {x, y},
+        .bottomright = {x + w, y + h},
+        .sdf_data    = compress_sdf_data(SDF_SHAPE_ROUNDED_RECTANGLE_FILL, SDF_GRADEINT_CONIC, feather, 0),
+
         .colour1             = col_stop_1,
         .colour2             = col_stop_2,
-        .sdf_type            = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
-        .grad_type           = SDF_GRADEINT_CONIC,
         .borderradius_arcpie = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
-        .feather             = feather,
 
         .gradient_a = {a, a},
         .gradient_b = {b, b},
@@ -331,14 +336,14 @@ void draw_rounded_rectangle_fill_box(
 {
     float feather = 4.0f / xm_minf(w, h);
     add_obj(&(SDFShape){
-        .topleft             = {x, y},
-        .bottomright         = {x + w, y + h},
+        .topleft     = {x, y},
+        .bottomright = {x + w, y + h},
+
+        .sdf_data = compress_sdf_data(SDF_SHAPE_ROUNDED_RECTANGLE_FILL, SDF_GRADEINT_BOX, feather, 0),
+
         .colour1             = col_stop_outer,
         .colour2             = col_stop_inner,
-        .sdf_type            = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
-        .grad_type           = SDF_GRADEINT_BOX,
         .borderradius_arcpie = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
-        .feather             = feather,
         .gradient_a          = {x_translate, y_translate},
         .gradient_b          = {blur_radius, blur_radius},
     });
@@ -355,13 +360,12 @@ void draw_rounded_rectangle_stroke(
 {
     float feather = 4.0f / xm_minf(w, h);
     add_obj(&(SDFShape){
-        .topleft             = {x, y},
-        .bottomright         = {x + w, y + h},
+        .topleft     = {x, y},
+        .bottomright = {x + w, y + h},
+        .sdf_data    = compress_sdf_data(SDF_SHAPE_ROUNDED_RECTANGLE_STROKE, 0, feather, stroke_width),
+
         .colour1             = colour,
-        .sdf_type            = SDF_SHAPE_ROUNDED_RECTANGLE_STROKE,
         .borderradius_arcpie = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
-        .stroke_width        = stroke_width,
-        .feather             = feather,
     });
 }
 
@@ -369,11 +373,11 @@ void draw_triangle_fill(float x, float y, float w, float h, float rotate_radians
 {
     float feather = 4.0f / xm_minf(w, h);
     add_obj(&(SDFShape){
-        .topleft             = {x, y},
-        .bottomright         = {x + w, y + h},
-        .colour1             = colour,
-        .sdf_type            = SDF_SHAPE_TRIANGLE_FILL,
-        .feather             = feather,
+        .topleft     = {x, y},
+        .bottomright = {x + w, y + h},
+        .colour1     = colour,
+        .sdf_data    = compress_sdf_data(SDF_SHAPE_TRIANGLE_FILL, 0, feather, 0),
+
         .borderradius_arcpie = compress_arc_rotate_and_range(rotate_radians, 0),
     });
 }
@@ -384,11 +388,9 @@ void draw_triangle_stroke(float x, float y, float w, float h, float rotate_radia
     add_obj(&(SDFShape){
         .topleft             = {x, y},
         .bottomright         = {x + w, y + h},
-        .colour1             = colour,
-        .sdf_type            = SDF_SHAPE_TRIANGLE_STROKE,
-        .stroke_width        = stroke_width,
-        .feather             = feather,
+        .sdf_data            = compress_sdf_data(SDF_SHAPE_TRIANGLE_STROKE, 0, feather, stroke_width),
         .borderradius_arcpie = compress_arc_rotate_and_range(rotate_radians, 0),
+        .colour1             = colour,
     });
 }
 
@@ -400,10 +402,9 @@ void draw_pie_fill(float cx, float cy, float radius_px, float start_radians, flo
     add_obj(&(SDFShape){
         .topleft             = {cx - radius_px, cy - radius_px},
         .bottomright         = {cx + radius_px, cy + radius_px},
-        .colour1             = colour,
-        .sdf_type            = SDF_SHAPE_PIE_FILL,
-        .feather             = feather,
+        .sdf_data            = compress_sdf_data(SDF_SHAPE_PIE_FILL, 0, feather, 0),
         .borderradius_arcpie = compress_arc_rotate_and_range(angle_rotate * 0.5f, angle_range * 0.5f),
+        .colour1             = colour,
 
     });
 }
@@ -423,11 +424,9 @@ void draw_pie_stroke(
     add_obj(&(SDFShape){
         .topleft             = {cx - radius_px, cy - radius_px},
         .bottomright         = {cx + radius_px, cy + radius_px},
-        .colour1             = colour,
-        .sdf_type            = SDF_SHAPE_PIE_STROKE,
-        .stroke_width        = stroke_width,
-        .feather             = feather,
+        .sdf_data            = compress_sdf_data(SDF_SHAPE_PIE_STROKE, 0, feather, stroke_width),
         .borderradius_arcpie = compress_arc_rotate_and_range(angle_rotate * 0.5f, angle_range * 0.5f),
+        .colour1             = colour,
     });
 }
 
@@ -445,13 +444,12 @@ void draw_arc_stroke(
     float angle_range  = end_radians - start_radians;
     float angle_rotate = (end_radians + start_radians);
     add_obj(&(SDFShape){
-        .topleft             = {cx - radius_px, cy - radius_px},
-        .bottomright         = {cx + radius_px, cy + radius_px},
-        .colour1             = colour,
-        .sdf_type            = butt ? SDF_SHAPE_ARC_BUTT_STROKE : SDF_SHAPE_ARC_ROUND_STROKE,
-        .stroke_width        = stroke_width,
-        .feather             = feather,
+        .topleft     = {cx - radius_px, cy - radius_px},
+        .bottomright = {cx + radius_px, cy + radius_px},
+        .sdf_data =
+            compress_sdf_data(butt ? SDF_SHAPE_ARC_BUTT_STROKE : SDF_SHAPE_ARC_ROUND_STROKE, 0, feather, stroke_width),
         .borderradius_arcpie = compress_arc_rotate_and_range(angle_rotate * 0.5f, angle_range * 0.5f),
+        .colour1             = colour,
     });
 }
 

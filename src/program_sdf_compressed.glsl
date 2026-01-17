@@ -6,13 +6,14 @@ struct myvertex
     vec2 topleft;
     vec2 bottomright;
 
-    uint sdf_type;   // could probably be compressed to one byte
-    uint grad_type;
-
-    // stroking is usually in the range of 0.8-8px. We could set an arbitrary maximum of 16px
-    // stroke widths such as 1.2, 2.5px etc are common
-    float stroke_width;
-    float feather;
+    // unorm4x8 comprised of:
+    //   - uint sdf_type;   // could probably be compressed to one byte
+    //   - uint grad_type;
+    //     stroking is usually in the range of 0.8-8px. We could set an arbitrary maximum of 16px
+    //     stroke widths such as 1.2, 2.5px etc are common
+    //   - float stroke_width;
+    //   - float feather;
+    uint sdf_data;
 
     // packed with either:
     // - border radius (unorm4x8)
@@ -25,7 +26,7 @@ struct myvertex
     vec2 gradient_a;
     vec2 gradient_b;
 
-    // uint  texid;
+    // uint  texid; // ???
 };
 
 layout(binding=0) readonly buffer ssbo {
@@ -43,6 +44,9 @@ out flat vec2 uv_xy_scale;
 
 out flat uint sdf_type;
 out flat uint grad_type;
+out flat float feather;
+out flat float stroke_width;
+
 out flat uint colour1;
 out flat uint colour2;
 
@@ -51,8 +55,6 @@ out flat vec4 border_radius;
 out flat vec2 cossin_angle_rotate; // pie, arc
 out flat vec2 sincos_angle_range;  // pie, arc
 
-out flat float feather;
-out flat float stroke_width;
 // linear_gradient_begin
 // radial_gradient_pos
 // conic_gradient_rotate
@@ -61,6 +63,17 @@ out flat vec2 gradient_a;
 // radial_gradient_radius_scale
 // conic_gradient_angle
 out flat vec2 gradient_b;
+
+#define SDF_SHAPE_RECTANGLE_FILL   1
+#define SDF_SHAPE_RECTANGLE_STROKE 2
+#define SDF_SHAPE_CIRCLE_FILL      3
+#define SDF_SHAPE_CIRCLE_STROKE    4
+#define SDF_SHAPE_TRIANGLE_FILL    5
+#define SDF_SHAPE_TRIANGLE_STROKE  6
+#define SDF_SHAPE_PIE_FILL         7
+#define SDF_SHAPE_PIE_STROKE       8
+#define SDF_SHAPE_ARC_ROUND_STROKE 9
+#define SDF_SHAPE_ARC_BUTT_STROKE  10
 
 #define SDF_GRADEINT_SOLID  0
 #define SDF_GRADEINT_LINEAR 1
@@ -101,38 +114,52 @@ void main() {
     uv = vec2(is_right  ? 1 : -1, is_bottom ? -1 : 1);
     // uv_xy_scale = vec2(vw > vh ? vw / vh : 1, vh > vw ? vh / vw : 1);
     uv_xy_scale = vec2(vw / vh, 1);
-    // colour1 = unpackUnorm4x8(vert.colour1).abgr; // swizzle
-    // colour2 = unpackUnorm4x8(vert.colour2).abgr; // swizzle
+
     colour1 = vert.colour1;
     colour2 = vert.colour2;
-    sdf_type = vert.sdf_type;
-    grad_type = vert.grad_type; 
 
-    border_radius = (unpackUnorm4x8(vert.borderradius_arcpie) * 255) / vec4(vh * 0.5);
+    vec4 sdf_data = unpackUnorm4x8(vert.sdf_data);
+    vec2 arcpie   = 2 * PI * unpackUnorm2x16(vert.borderradius_arcpie);
 
-    feather = vert.feather;
-    stroke_width = 2 * vert.stroke_width / vw * uv_xy_scale.x;
+    sdf_type     = uint(sdf_data.x * 255);
+    grad_type    = uint(sdf_data.y * 255); 
+    feather      =      sdf_data.z * 1;
+    stroke_width =      sdf_data.w * 16;
+    stroke_width = 2 * stroke_width / vw * uv_xy_scale.x;
 
-    vec2 arcpie = 2 * PI * unpackUnorm2x16(vert.borderradius_arcpie);
-    cossin_angle_rotate = vec2(cos(arcpie.x), sin(arcpie.x));
-    sincos_angle_range = vec2(sin(arcpie.y), cos(arcpie.y));
+    if (sdf_type == SDF_SHAPE_RECTANGLE_FILL ||
+        sdf_type == SDF_SHAPE_RECTANGLE_STROKE)
+    {
+        border_radius = (unpackUnorm4x8(vert.borderradius_arcpie) * 255) / vec4(vh * 0.5);        
+    }
 
-    if (vert.grad_type == SDF_GRADEINT_LINEAR)
+    if (sdf_type == SDF_SHAPE_TRIANGLE_FILL    ||
+        sdf_type == SDF_SHAPE_TRIANGLE_STROKE  ||
+        sdf_type == SDF_SHAPE_PIE_FILL         ||
+        sdf_type == SDF_SHAPE_PIE_STROKE       ||
+        sdf_type == SDF_SHAPE_ARC_ROUND_STROKE ||
+        sdf_type == SDF_SHAPE_ARC_BUTT_STROKE)
+    {
+        cossin_angle_rotate = vec2(cos(arcpie.x), sin(arcpie.x));
+        sincos_angle_range = vec2(sin(arcpie.y), cos(arcpie.y));
+    }
+
+    if (grad_type == SDF_GRADEINT_LINEAR)
     {
         gradient_a = (vert.gradient_a - vert.topleft) / vec2(vw, vh);  // stop 1 xy
         gradient_b = (vert.gradient_b   - vert.topleft) / vec2(vw, vh); // stop 2 xy
     }
-    else if (vert.grad_type == SDF_GRADEINT_RADIAL)
+    else if (grad_type == SDF_GRADEINT_RADIAL)
     {
         gradient_a = (vert.gradient_a   - vert.topleft) / vec2(vw, vh); // stop 2 cx,cy
         gradient_b = vec2(vw, vh) / vert.gradient_b;                    // stop 1 radius
     }
-    else if (vert.grad_type == SDF_GRADEINT_CONIC)
+    else if (grad_type == SDF_GRADEINT_CONIC)
     {
         gradient_a = vec2(cos(vert.gradient_a.x), sin(vert.gradient_a.x)); // rotation, radians
         gradient_b = vert.gradient_b;                                      // range, radians
     }
-    else if (vert.grad_type == SDF_GRADEINT_BOX)
+    else if (grad_type == SDF_GRADEINT_BOX)
     {
         gradient_a = vec2(vert.gradient_a) / vec2(-vw, vh); // translate x/y
         gradient_b = vec2(vert.gradient_b     / vh);        // blur radius
@@ -146,15 +173,15 @@ in flat vec2 uv_xy_scale;
 
 in flat uint sdf_type;
 in flat uint grad_type;
+in flat float feather;
+in flat float stroke_width;
+
 in flat uint colour1;
 in flat uint colour2;
 
 in flat vec4 border_radius;
 in flat vec2 cossin_angle_rotate; // pie, arc
 in flat vec2 sincos_angle_range;
-
-in flat float feather;
-in flat float stroke_width;
 
 in flat vec2 gradient_a;
 in flat vec2 gradient_b;
@@ -173,7 +200,7 @@ out vec4 frag_color;
 #define SDF_SHAPE_ARC_ROUND_STROKE 9
 #define SDF_SHAPE_ARC_BUTT_STROKE  10
 
-#define SDF_GRADEINT_SOLID           0
+#define SDF_GRADEINT_SOLID  0
 #define SDF_GRADEINT_LINEAR 1
 #define SDF_GRADEINT_RADIAL 2
 #define SDF_GRADEINT_CONIC  3
