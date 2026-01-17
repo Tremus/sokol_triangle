@@ -121,9 +121,8 @@ void main() {
     feather = vert.feather;
     stroke_width = 2 * vert.stroke_width / vw * uv_xy_scale.x;
 
-    // float angle_range = vert.end_angle - vert.start_angle;
-    cossin_angle_rotate = vec2(cos(vert.angle_rotate * 0.5), sin(vert.angle_rotate * 0.5));
-    sincos_angle_range = vec2(sin(vert.angle_range * 0.5), cos(vert.angle_range * 0.5));
+    cossin_angle_rotate = vec2(cos(vert.angle_rotate), sin(vert.angle_rotate));
+    sincos_angle_range = vec2(sin(vert.angle_range), cos(vert.angle_range));
 
     if (vert.grad_type == SDF_GRADEINT_LINEAR)
     {
@@ -273,20 +272,16 @@ void main()
     }
     else if (sdf_type == SDF_SHAPE_TRIANGLE_FILL)
     {
-        vec2 p = uv;
-        // p = -p; // point down
-        // p = vec2(p.y, p.x); // point right
-        // p = vec2(p.y, -p.x); // point left
+        vec2 p = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
+                      uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
         float d = sdEquilateralTriangle(p, 0.86);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         shape = outer;
     }
     else if (sdf_type == SDF_SHAPE_TRIANGLE_STROKE)
     {
-        vec2 p = uv;
-        // p = -p; // point down
-        // p = vec2(p.y, p.x); // point right
-        // p = vec2(p.y, -p.x); // point left
+        vec2 p = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
+                      uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
         float d = sdEquilateralTriangle(p, 0.86);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         float inner = smoothstep(feather, 0, d + feather * 0.5 + stroke_width);

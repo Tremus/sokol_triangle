@@ -81,9 +81,6 @@ static struct
 
     int window_width;
     int window_height;
-
-    float compress_ratio_x;
-    float compress_ratio_y;
 } state;
 
 // TODO do scissoring
@@ -320,19 +317,20 @@ void draw_rounded_rectangle_stroke(
     });
 }
 
-void draw_triangle_fill(float x, float y, float w, float h, uint32_t colour)
+void draw_triangle_fill(float x, float y, float w, float h, float rotate_radians, uint32_t colour)
 {
     float feather = 4.0f / xm_minf(w, h);
     add_obj(&(SDFShape){
-        .topleft     = {x, y},
-        .bottomright = {x + w, y + h},
-        .colour1     = colour,
-        .sdf_type    = SDF_SHAPE_TRIANGLE_FILL,
-        .feather     = feather,
+        .topleft      = {x, y},
+        .bottomright  = {x + w, y + h},
+        .colour1      = colour,
+        .sdf_type     = SDF_SHAPE_TRIANGLE_FILL,
+        .feather      = feather,
+        .angle_rotate = rotate_radians,
     });
 }
 
-void draw_triangle_stroke(float x, float y, float w, float h, float stroke_width, uint32_t colour)
+void draw_triangle_stroke(float x, float y, float w, float h, float rotate_radians, float stroke_width, uint32_t colour)
 {
     float feather = 4.0f / xm_minf(w, h);
     add_obj(&(SDFShape){
@@ -342,6 +340,7 @@ void draw_triangle_stroke(float x, float y, float w, float h, float stroke_width
         .sdf_type     = SDF_SHAPE_TRIANGLE_STROKE,
         .stroke_width = stroke_width,
         .feather      = feather,
+        .angle_rotate = rotate_radians,
     });
 }
 
@@ -356,8 +355,8 @@ void draw_pie_fill(float cx, float cy, float radius_px, float start_radians, flo
         .colour1      = colour,
         .sdf_type     = SDF_SHAPE_PIE_FILL,
         .feather      = feather,
-        .angle_rotate = angle_rotate,
-        .angle_range  = angle_range,
+        .angle_rotate = angle_rotate * 0.5f,
+        .angle_range  = angle_range * 0.5f,
     });
 }
 
@@ -380,8 +379,8 @@ void draw_pie_stroke(
         .sdf_type     = SDF_SHAPE_PIE_STROKE,
         .stroke_width = stroke_width,
         .feather      = feather,
-        .angle_rotate = angle_rotate,
-        .angle_range  = angle_range,
+        .angle_rotate = angle_rotate * 0.5f,
+        .angle_range  = angle_range * 0.5f,
 
     });
 }
@@ -406,8 +405,8 @@ void draw_arc_stroke(
         .sdf_type     = butt ? SDF_SHAPE_ARC_BUTT_STROKE : SDF_SHAPE_ARC_ROUND_STROKE,
         .stroke_width = stroke_width,
         .feather      = feather,
-        .angle_rotate = angle_rotate,
-        .angle_range  = angle_range,
+        .angle_rotate = angle_rotate * 0.5f,
+        .angle_range  = angle_range * 0.5f,
     });
 }
 
@@ -471,8 +470,8 @@ void program_tick()
     draw_rounded_rectangle_fill(110, 10, 100, 70, 16, 0x00ffffff);
     draw_rounded_rectangle_stroke(110, 90, 300, 70, 16, 10, 0x00ff00ff);
     draw_rounded_rectangle_stroke(110, 170, 100, 140, 16, 2, 0x00ff00ff);
-    draw_triangle_fill(420, 10, 70, 70, 0xff0000ff);
-    draw_triangle_stroke(420, 90, 70, 70, 10, 0xffff00ff);
+    draw_triangle_fill(420, 10, 70, 70, XM_PIf * 0.5, 0xff0000ff);
+    draw_triangle_stroke(420, 90, 70, 70, XM_PIf, 10, 0xffff00ff);
 
     draw_pie_fill(535, 45, 35, XM_TAUf * -0.125, XM_TAUf * 0.125, 0xff9321ff);
     draw_pie_stroke(535, 125, 35, XM_TAUf * -0.375, XM_TAUf * 0.375, 10, 0xff00ffff);
