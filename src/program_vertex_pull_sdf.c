@@ -255,10 +255,10 @@ static const myvertex_t vertices[] ={
     {
         .topleft = {310, 320},
         .bottomright = {390, 450},
-        // .colour1 = 0xff0000ff, // red
-        // .colour2 = 0x0000ffff, // blue
-        .colour1 = 0xffffffff, // white
-        .colour2 = 0x000000ff, // black
+        .colour1 = 0xff0000ff, // red
+        .colour2 = 0x0000ffff, // blue
+        // .colour1 = 0xffffffff, // white
+        // .colour2 = 0x000000ff, // black
         // .sdf_type = 0,
         .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_BOX_GRADEINT,
@@ -271,13 +271,11 @@ static const myvertex_t vertices[] ={
     {
         .topleft = {410, 320},
         .bottomright = {530, 400},
-        // .topleft = {10, 10},
-        // .bottomright = {APP_WIDTH-10, APP_HEIGHT-10},
-        // .colour1 = 0xff0000ff, // red
-        // // .colour2 = 0x0000ffff, // blue
-        // .colour2 = 0x00ff00ff, // green
-        .colour1 = 0xffffffff, // white
-        .colour2 = 0x000000ff, // black
+
+        .colour1 = 0xffff00ff, // yellow
+        .colour2 = 0x0000ffff, // blue
+        // .colour1 = 0xffffffff, // white
+        // .colour2 = 0x000000ff, // black
         // .sdf_type = 0,
         .sdf_type = SDF_TYPE_ROUNDED_RECTANGLE_FILL,
         .col_type = SDF_COLOUR_BOX_GRADEINT,
@@ -285,9 +283,7 @@ static const myvertex_t vertices[] ={
         // .border_radius = {80,80,80,80},
         .feather = 0.04,
         // .box_gradient_translate = {20, 20},
-        .box_gradient_radius = 40,
-        // .box_gradient_radius = 20,
-        // .box_gradient_radius = 10,
+        .box_gradient_radius = 20,
     },
 };
 // clang-format on
@@ -321,7 +317,7 @@ void program_setup()
         .shader = sg_make_shader(vertexpull_shader_desc(sg_query_backend())),
         .colors[0] =
             {.write_mask = SG_COLORMASK_RGBA,
-            // .pixel_format = PIXEL_FORMAT,
+             // .pixel_format = PIXEL_FORMAT,
              .blend =
                  {
                      .enabled          = true,

@@ -372,13 +372,8 @@ void main()
         vec4 br = border_radius - blur_radius;
 
         float d = sdRoundBox(p, half_wh, br);
-        // t = smoothstep(blur_radius * 0.5, blur_radius * -0.5, d - blur_radius * 0.5);
-        // t = smoothstep(blur_radius * 2, 0, d - blur_radius * 0.25);
-        // t = smoothstep(blur_radius * 2, 0, d - half_wh.x);
-        // t = smoothstep(blur_radius * 2, 0, d);
-        // t = sqrt(t);
-        t = 1 - fract(d * 2);
-        // t = 1 - d;
+        t = 1 - d / (blur_radius * 2);
+        t = clamp(t, 0, 1);
     }
     col = mix(unpackUnorm4x8(colour1).abgr, unpackUnorm4x8(colour2).abgr, t);
 
