@@ -17,8 +17,8 @@ struct myvertex
     float stroke_width;
     float feather;
 
-    float start_angle; // Arcs, pies, 
-    float end_angle;
+    float angle_rotate; // Arcs, pies, 
+    float angle_range;
 
     vec2 linear_gradient_begin;
     vec2 linear_gradient_end;
@@ -31,7 +31,7 @@ struct myvertex
 
     float box_gradient_radius;
     vec2  box_gradient_translate;
-    // TODO
+
     // uint  texid;
 };
 
@@ -46,7 +46,6 @@ layout(binding=0) uniform vs_params {
 #define PI 3.141592653589793
 
 out vec2 uv;
-
 out flat vec2 uv_xy_scale;
 
 out flat uint sdf_type;
@@ -58,23 +57,24 @@ out flat vec4 border_radius;
 
 out flat float feather;
 out flat float stroke_width;
-out flat float start_angle;
-out flat float end_angle;
+
+out flat vec2 cossin_angle_rotate; // pie, arc
+out flat vec2 sincos_angle_range;  // pie, arc
 
 // linear_gradient_begin
 // radial_gradient_pos
 // conic_gradient_rotate
-out vec2 gradient_a;
+out flat vec2 gradient_a;
 // linear_gradient_end
 // radial_gradient_radius_scale
 // conic_gradient_angle
-out vec2 gradient_b;
+out flat vec2 gradient_b;
 
-#define SDF_GRADEINT_SOLID           0
-#define SDF_GRADEINT_LINEAR_GRADEINT 1
-#define SDF_GRADEINT_RADIAL_GRADEINT 2
-#define SDF_GRADEINT_CONIC_GRADEINT  3
-#define SDF_GRADEINT_BOX_GRADEINT    4
+#define SDF_GRADEINT_SOLID  0
+#define SDF_GRADEINT_LINEAR 1
+#define SDF_GRADEINT_RADIAL 2
+#define SDF_GRADEINT_CONIC  3
+#define SDF_GRADEINT_BOX    4
 
 void main() {
     uint v_idx = gl_VertexIndex / 6u;
@@ -117,33 +117,30 @@ void main() {
     grad_type = vert.grad_type;
 
     border_radius = (unpackUnorm4x8(vert.border_radius_unorm4x8) * 255) / vec4(vh * 0.5);
-    // Good artical on setting the right feather size
-    // https://bohdon.com/docs/smooth-sdf-shape-edges/
-    // feather = 16.0 / min(size.x, size.y);
-    // feather = 0.01 * (vw > vh ? size.x / vw : size.y / vh);
-    // feather = 0.01;
+
     feather = vert.feather;
     stroke_width = 2 * vert.stroke_width / vw * uv_xy_scale.x;
 
-    start_angle = vert.start_angle;
-    end_angle   = vert.end_angle;
+    // float angle_range = vert.end_angle - vert.start_angle;
+    cossin_angle_rotate = vec2(cos(vert.angle_rotate * 0.5), sin(vert.angle_rotate * 0.5));
+    sincos_angle_range = vec2(sin(vert.angle_range * 0.5), cos(vert.angle_range * 0.5));
 
-    if (vert.grad_type == SDF_GRADEINT_LINEAR_GRADEINT)
+    if (vert.grad_type == SDF_GRADEINT_LINEAR)
     {
         gradient_a = (vert.linear_gradient_begin - vert.topleft) / vec2(vw, vh);
         gradient_b = (vert.linear_gradient_end   - vert.topleft) / vec2(vw, vh);
     }
-    else if (vert.grad_type == SDF_GRADEINT_RADIAL_GRADEINT)
+    else if (vert.grad_type == SDF_GRADEINT_RADIAL)
     {
         gradient_a = (vert.radial_gradient_pos   - vert.topleft) / vec2(vw, vh);
         gradient_b = vec2(vw, vh) / vert.radial_gradient_radius;
     }
-    else if (vert.grad_type == SDF_GRADEINT_CONIC_GRADEINT)
+    else if (vert.grad_type == SDF_GRADEINT_CONIC)
     {
         gradient_a = vec2(cos(vert.conic_gradient_rotate), sin(vert.conic_gradient_rotate));
         gradient_b = vec2(vert.conic_gradient_angle_range);
     }
-    else if (vert.grad_type == SDF_GRADEINT_BOX_GRADEINT)
+    else if (vert.grad_type == SDF_GRADEINT_BOX)
     {
         gradient_a = vec2(vert.box_gradient_radius / vh);
         gradient_b = vec2(vert.box_gradient_translate) / vec2(-vw, vh);
@@ -154,18 +151,21 @@ void main() {
 @fs fs
 in vec2 uv;
 in flat vec2 uv_xy_scale;
+
 in flat uint sdf_type;
 in flat uint grad_type;
 in flat uint colour1;
 in flat uint colour2;
+
 in flat vec4 border_radius;
+
 in flat float feather;
 in flat float stroke_width;
-in flat float start_angle;
-in flat float end_angle;
+in flat vec2 cossin_angle_rotate; // pie, arc
+in flat vec2 sincos_angle_range;
 
-in vec2 gradient_a;
-in vec2 gradient_b;
+in flat vec2 gradient_a;
+in flat vec2 gradient_b;
 
 out vec4 frag_color;
 
@@ -182,10 +182,10 @@ out vec4 frag_color;
 #define SDF_SHAPE_ARC_BUTT_STROKE  10
 
 #define SDF_GRADEINT_SOLID           0
-#define SDF_GRADEINT_LINEAR_GRADEINT 1
-#define SDF_GRADEINT_RADIAL_GRADEINT 2
-#define SDF_GRADEINT_CONIC_GRADEINT  3
-#define SDF_GRADEINT_BOX_GRADEINT    4
+#define SDF_GRADEINT_LINEAR 1
+#define SDF_GRADEINT_RADIAL 2
+#define SDF_GRADEINT_CONIC  3
+#define SDF_GRADEINT_BOX    4
 
 // The MIT License
 // Copyright © 2017 Inigo Quilez
@@ -235,7 +235,7 @@ float sdArc( in vec2 p, in vec2 sc, in float ra, float rb )
 float sdRing( in vec2 p, in vec2 n, in float r, float th )
 {
     p.x = abs(p.x);
-    p = mat2x2(n.x,n.y,-n.y,n.x)*p;
+    p = mat2x2(-n.x,-n.y,n.y,-n.x)*p;
     return max( abs(length(p)-r)-th*0.5,
                 length(vec2(p.x,max(0.0,abs(r-p.y)-th*0.5)))*sign(p.x) );
 }
@@ -294,35 +294,34 @@ void main()
     }
     else if (sdf_type == SDF_SHAPE_PIE_FILL)
     {
-        // TODO handle rotaion
-        float amt = (end_angle - start_angle);
-        vec2 c = vec2(sin(amt), cos(amt));
-        float d = sdPie(uv, c, 1.0);
+        vec2 uv_rotated = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
+                               uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
+        float d = sdPie(uv_rotated, sincos_angle_range, 1.0);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         shape = outer;
     }
     else if (sdf_type == SDF_SHAPE_PIE_STROKE)
     {
-        float amt = (end_angle - start_angle);
-        vec2 c = vec2(sin(amt), cos(amt));
-        float d = sdPie(uv, c, 1.0);
+        vec2 uv_rotated = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
+                               uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
+        float d = sdPie(uv_rotated, sincos_angle_range, 1.0);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         float inner = smoothstep(feather, 0, d + feather * 0.5 + stroke_width);
         shape = outer - inner;
     }
     else if (sdf_type == SDF_SHAPE_ARC_ROUND_STROKE)
     {
-        float amt = (end_angle - start_angle);
-        vec2 c = vec2(sin(amt), cos(amt));
-        float d = sdArc(uv, c, 1.0 - stroke_width * 0.5, stroke_width * 0.5);
+        vec2 uv_rotated = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
+                               uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
+        float d = sdArc(uv_rotated, sincos_angle_range, 1.0 - stroke_width * 0.5, stroke_width * 0.5);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         shape = outer;
     }
     else if (sdf_type == SDF_SHAPE_ARC_BUTT_STROKE)
     {
-        float amt = (end_angle - start_angle);
-        vec2 c = vec2(cos(amt), sin(amt));
-        float d = sdRing(uv, c, 1.0 - stroke_width * 0.5, stroke_width);
+        vec2 uv_rotated = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
+                               uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
+        float d = sdRing(uv_rotated, sincos_angle_range, 1.0 - stroke_width * 0.5, stroke_width);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         shape = outer;
     }
@@ -332,7 +331,7 @@ void main()
     {
         col = unpackUnorm4x8(colour1).abgr; // swizzle
     }
-    else if (grad_type == SDF_GRADEINT_LINEAR_GRADEINT)
+    else if (grad_type == SDF_GRADEINT_LINEAR)
     {
         vec2 uv_norm = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
 
@@ -341,7 +340,7 @@ void main()
         t = dot(v, w) / dot(v, v);
         t = clamp(t, 0, 1);
     }
-    else if (grad_type == SDF_GRADEINT_RADIAL_GRADEINT)
+    else if (grad_type == SDF_GRADEINT_RADIAL)
     {
         // translate & scale
         vec2 uv_norm       = vec2(uv.x * 0.5 + 0.5,  uv.y * -0.5 + 0.5);
@@ -349,11 +348,12 @@ void main()
 
         t = clamp(length(ellipse_space), 0.0, 1.0);
     }
-    else if (grad_type == SDF_GRADEINT_CONIC_GRADEINT)
+    else if (grad_type == SDF_GRADEINT_CONIC)
     {
         // Change start/end position of the gradient
-        vec2 uv_rotated = vec2(uv.x * gradient_a.x - uv.y * gradient_a.y,
-                               uv.x * gradient_a.y + uv.y * gradient_a.x);
+        vec2 p = uv * uv_xy_scale;
+        vec2 uv_rotated = vec2(p.x * gradient_a.x - p.y * gradient_a.y,
+                               p.x * gradient_a.y + p.y * gradient_a.x);
         float angle = atan(uv_rotated.x, uv_rotated.y);
 
         // Crops the gradient range
@@ -361,7 +361,7 @@ void main()
         t = angle / (PI * 2) + 0.5;
         t = smoothstep(0, range, t);
     }
-    else if (grad_type == SDF_GRADEINT_BOX_GRADEINT)
+    else if (grad_type == SDF_GRADEINT_BOX)
     {
         float blur_radius = gradient_a.x;
         vec2  xy_offset   = gradient_b;

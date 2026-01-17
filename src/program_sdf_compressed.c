@@ -90,6 +90,10 @@ static struct
 
 // Playing with code from here:
 // https://iquilezles.org/articles/distfunctions2d/
+
+// Good artical on setting the right feather size
+// https://bohdon.com/docs/smooth-sdf-shape-edges/
+
 enum
 {
     SDF_SHAPE_NONE,
@@ -343,15 +347,17 @@ void draw_triangle_stroke(float x, float y, float w, float h, float stroke_width
 
 void draw_pie_fill(float cx, float cy, float radius_px, float start_radians, float end_radians, uint32_t colour)
 {
-    float feather = 2.0f / radius_px;
+    float feather      = 2.0f / radius_px;
+    float angle_range  = end_radians - start_radians;
+    float angle_rotate = (end_radians + start_radians);
     add_obj(&(SDFShape){
-        .topleft     = {cx - radius_px, cy - radius_px},
-        .bottomright = {cx + radius_px, cy + radius_px},
-        .colour1     = colour,
-        .sdf_type    = SDF_SHAPE_PIE_FILL,
-        .feather     = feather,
-        .start_angle = start_radians,
-        .end_angle   = end_radians,
+        .topleft      = {cx - radius_px, cy - radius_px},
+        .bottomright  = {cx + radius_px, cy + radius_px},
+        .colour1      = colour,
+        .sdf_type     = SDF_SHAPE_PIE_FILL,
+        .feather      = feather,
+        .angle_rotate = angle_rotate,
+        .angle_range  = angle_range,
     });
 }
 
@@ -364,7 +370,9 @@ void draw_pie_stroke(
     float    stroke_width,
     uint32_t colour)
 {
-    float feather = 2.0f / radius_px;
+    float feather      = 2.0f / radius_px;
+    float angle_range  = end_radians - start_radians;
+    float angle_rotate = (end_radians + start_radians);
     add_obj(&(SDFShape){
         .topleft      = {cx - radius_px, cy - radius_px},
         .bottomright  = {cx + radius_px, cy + radius_px},
@@ -372,8 +380,9 @@ void draw_pie_stroke(
         .sdf_type     = SDF_SHAPE_PIE_STROKE,
         .stroke_width = stroke_width,
         .feather      = feather,
-        .start_angle  = start_radians,
-        .end_angle    = end_radians,
+        .angle_rotate = angle_rotate,
+        .angle_range  = angle_range,
+
     });
 }
 
@@ -387,7 +396,9 @@ void draw_arc_stroke(
     bool     butt,
     uint32_t colour)
 {
-    float feather = 2.0f / radius_px;
+    float feather      = 2.0f / radius_px;
+    float angle_range  = end_radians - start_radians;
+    float angle_rotate = (end_radians + start_radians);
     add_obj(&(SDFShape){
         .topleft      = {cx - radius_px, cy - radius_px},
         .bottomright  = {cx + radius_px, cy + radius_px},
@@ -395,8 +406,8 @@ void draw_arc_stroke(
         .sdf_type     = butt ? SDF_SHAPE_ARC_BUTT_STROKE : SDF_SHAPE_ARC_ROUND_STROKE,
         .stroke_width = stroke_width,
         .feather      = feather,
-        .start_angle  = start_radians,
-        .end_angle    = end_radians,
+        .angle_rotate = angle_rotate,
+        .angle_range  = angle_range,
     });
 }
 
@@ -462,13 +473,11 @@ void program_tick()
     draw_rounded_rectangle_stroke(110, 170, 100, 140, 16, 2, 0x00ff00ff);
     draw_triangle_fill(420, 10, 70, 70, 0xff0000ff);
     draw_triangle_stroke(420, 90, 70, 70, 10, 0xffff00ff);
-    // TODO: handle rotation of these shapes
-    {
-        draw_pie_fill(535, 45, 35, XM_PIf * 0, XM_PIf * 0.25, 0xff9321ff);
-        draw_pie_stroke(535, 125, 35, XM_PIf * 0, XM_PIf * 0.75, 10, 0xff00ffff);
-        draw_arc_stroke(45, 205, 35, XM_PIf * 0, XM_PIf * 0.75f, 12, 0, 0x45beffff);
-        draw_arc_stroke(45, 275, 35, XM_PIf * 0, XM_PIf * 0.75f, 12, 1, 0xc1ff45ff);
-    }
+
+    draw_pie_fill(535, 45, 35, XM_TAUf * -0.125, XM_TAUf * 0.125, 0xff9321ff);
+    draw_pie_stroke(535, 125, 35, XM_TAUf * -0.375, XM_TAUf * 0.375, 10, 0xff00ffff);
+    draw_arc_stroke(45, 205, 35, XM_TAUf * -0.375, XM_TAUf * 0.375, 12, 0, 0x45beffff);
+    draw_arc_stroke(45, 275, 35, XM_TAUf * -0.375, XM_TAUf * 0.375, 12, 1, 0xc1ff45ff);
 
     draw_rounded_rectangle_fill_linear(10, 320, 80, 130, 0, 10, 320, 0xff0000ff, 90, 450, 0x00ff00ff);
     draw_rounded_rectangle_fill_radial(110, 320, 80, 130, 0, 170, 420, 0xffff00ff, 40, 30, 0x0000ffff);
