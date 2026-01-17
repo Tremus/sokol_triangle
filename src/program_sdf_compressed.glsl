@@ -6,19 +6,21 @@ struct myvertex
     vec2 topleft;
     vec2 bottomright;
 
-    uint sdf_type;
+    uint sdf_type;   // could probably be compressed to one byte
     uint grad_type;
-    uint colour1;
-    uint colour2;
 
-    uint border_radius_unorm4x8;
-    // vec4 border_radius; // rounded rectangles
-
+    // stroking is usually in the range of 0.8-8px. We could set an arbitrary maximum of 16px
+    // stroke widths such as 1.2, 2.5px etc are common
     float stroke_width;
     float feather;
 
-    float angle_rotate; // Arcs, pies, 
-    float angle_range;
+    // packed with either:
+    // - border radius (unorm4x8)
+    // - arc/pie rotate and range (unorm2x16)
+    uint borderradius_arcpie;
+
+    uint colour1;
+    uint colour2;
 
     vec2 gradient_a;
     vec2 gradient_b;
@@ -46,12 +48,11 @@ out flat uint colour2;
 
 out flat vec4 border_radius;
 
-out flat float feather;
-out flat float stroke_width;
-
 out flat vec2 cossin_angle_rotate; // pie, arc
 out flat vec2 sincos_angle_range;  // pie, arc
 
+out flat float feather;
+out flat float stroke_width;
 // linear_gradient_begin
 // radial_gradient_pos
 // conic_gradient_rotate
@@ -105,15 +106,16 @@ void main() {
     colour1 = vert.colour1;
     colour2 = vert.colour2;
     sdf_type = vert.sdf_type;
-    grad_type = vert.grad_type;
+    grad_type = vert.grad_type; 
 
-    border_radius = (unpackUnorm4x8(vert.border_radius_unorm4x8) * 255) / vec4(vh * 0.5);
+    border_radius = (unpackUnorm4x8(vert.borderradius_arcpie) * 255) / vec4(vh * 0.5);
 
     feather = vert.feather;
     stroke_width = 2 * vert.stroke_width / vw * uv_xy_scale.x;
 
-    cossin_angle_rotate = vec2(cos(vert.angle_rotate), sin(vert.angle_rotate));
-    sincos_angle_range = vec2(sin(vert.angle_range), cos(vert.angle_range));
+    vec2 arcpie = 2 * PI * unpackUnorm2x16(vert.borderradius_arcpie);
+    cossin_angle_rotate = vec2(cos(arcpie.x), sin(arcpie.x));
+    sincos_angle_range = vec2(sin(arcpie.y), cos(arcpie.y));
 
     if (vert.grad_type == SDF_GRADEINT_LINEAR)
     {
@@ -148,11 +150,11 @@ in flat uint colour1;
 in flat uint colour2;
 
 in flat vec4 border_radius;
+in flat vec2 cossin_angle_rotate; // pie, arc
+in flat vec2 sincos_angle_range;
 
 in flat float feather;
 in flat float stroke_width;
-in flat vec2 cossin_angle_rotate; // pie, arc
-in flat vec2 sincos_angle_range;
 
 in flat vec2 gradient_a;
 in flat vec2 gradient_b;
