@@ -1,0 +1,499 @@
+#include "common.h"
+
+#include <xhl/debug.h>
+#include <xhl/maths.h>
+#include <xhl/vector.h>
+
+#include "program_sdf_compressed.glsl.h"
+
+/*
+NanoVG NOTES
+Some rough calculations on data usage by nanovg
+Note that NVG uses indices for looking up verts. Indices have an additional cost, but we aren't tracking that here
+
+Verts are 16 bytes
+Vert uniform buffer is 16 bytes
+Frags are 16 bytes
+Frag uniform buffer is 176 bytes
+
+Text:
+6 verts per glyph
+16(v) * 6(nv) = 96 bytes per glyph
+96 * num_glyphs + 176(fub) = 272 bytes if num_glyphs is 1. Smallest draw, single letter
+96 * num_glyphs + 176(fub) = 752 bytes if num_glyphs is 6. Typical label
+96 * num_glyphs + 176(fub) = 2096 bytes if num_glyphs is 20. Short sentance
+
+Rounded Rectangle (Fill):
+Typically 62 verts
+16(v) * 62(nv) + 176(fub) = 1168 bytes
+
+Rounded Rectangle (stroke):
+Typically 42 verts
+16(v) * 42(nv) + 176(fub) = 848 bytes
+
+Circle
+Radius 12px: 96 verts
+Radius 3px: 50 verts
+The larger the radius, the more verts are requires. Fortunately its not that much more
+Small circles use an incredible amount of tris
+16(v) * 50(nv) + 176(fub) = 976 bytes
+16(v) * 96(nv) + 176(fub) = 1712 bytes
+
+ARC:
+Typically used for rotary parameters. For a standard 7:30 to 5:30 (wall clock angle) stroked arc, nanovg will tesselate
+54 verts.
+16(v) * 54(nv) + 176(fub) = 1,040 bytes
+
+Lines (stroked)
+The larger and more complex the line, the more vertices used.
+Large complex lines: 1700 - 3400 vertices
+16(v) * 1700(nv) + 176(fub) = 27,376 bytes
+16(v) * 3400(nv) + 176(fub) = 54,576 bytes
+
+Whole GUI:
+The more stuff you have on screen, the more vertices you use.
+In a couple of private projects I'm working on with a few parameters and big display of with animated lines, expect at
+leas 200-400kb of uploaded data every frame
+
+Comparisons with techniques from this shader:
+Lets say each nanovg 'shape' (rounded rect, arc, circle) uses 1000 bytes on average
+At the time of writing, the items in my SBO are 48 bytes, but that could grow to 64-80 bytes each
+This is 92-95.2% less data per shape, and should hopefully see a 12.5-20x performance improvement
+
+Text doesn't really improve all that much, and probably isn't a bottleneck
+
+Lines are currently unsolved. They have always been the biggest bottleneck
+
+Icons:
+In production apps, most complex filled/stroked polygons are static icons. They're small, often and have simple colours.
+They could easily fit in a sprite sheet type thing / megatexture. Very plain coloured icon could fit in a megatexture
+using a single colour cannel. Emojis will need an RGBA megatexture
+*/
+
+// application state
+static struct
+{
+    sg_pipeline pip;
+    sg_bindings bind;
+
+    sg_buffer sbo;
+    sg_view   sbv;
+
+    int window_width;
+    int window_height;
+
+    float compress_ratio_x;
+    float compress_ratio_y;
+} state;
+
+// TODO do scissoring
+
+// Playing with code from here:
+// https://iquilezles.org/articles/distfunctions2d/
+enum
+{
+    SDF_SHAPE_NONE,
+    SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
+    SDF_SHAPE_ROUNDED_RECTANGLE_STROKE,
+    SDF_SHAPE_CIRCLE_FILL,
+    SDF_SHAPE_CIRCLE_STROKE,
+    SDF_SHAPE_TRIANGLE_FILL,
+    SDF_SHAPE_TRIANGLE_STROKE,
+    SDF_SHAPE_PIE_FILL,
+    SDF_SHAPE_PIE_STROKE,
+    SDF_SHAPE_ARC_ROUND_STROKE,
+    SDF_SHAPE_ARC_BUTT_STROKE,
+};
+
+enum
+{
+    SDF_GRADEINT_NONE,
+    SDF_GRADEINT_LINEAR,
+    SDF_GRADEINT_RADIAL,
+    SDF_GRADEINT_CONIC,
+    SDF_GRADEINT_BOX,
+};
+
+// Compressed squares
+
+// NOTE
+// sdf_type, grad_type, stroke_width, feather could probably all be packed into one 4x8unorm int
+typedef struct myvertex_t SDFShape;
+
+static const size_t struct_size = sizeof(SDFShape);
+static size_t       OBJECTS_LEN = 0;
+static SDFShape     OBJECTS[1000];
+
+void add_obj(const SDFShape* obj)
+{
+    if (OBJECTS_LEN < ARRLEN(OBJECTS))
+    {
+        OBJECTS[OBJECTS_LEN] = *obj;
+        OBJECTS_LEN++;
+    }
+}
+
+uint32_t compress_border_radius(float tl, float tr, float br, float bl)
+{
+    xvecu compressed = {
+        .r = tl,
+        .g = tr,
+        .b = br,
+        .a = bl,
+    };
+    return compressed.u32;
+}
+
+void draw_circle_fill(float cx, float cy, float radius_px, uint32_t colour)
+{
+    float feather = 2.0f / radius_px;
+    add_obj(&(SDFShape){
+        .topleft     = {cx - radius_px, cy - radius_px},
+        .bottomright = {cx + radius_px, cy + radius_px},
+        .colour1     = colour,
+        .sdf_type    = SDF_SHAPE_CIRCLE_FILL,
+        .feather     = feather,
+    });
+}
+
+void draw_circle_stroke(float cx, float cy, float radius_px, float stroke_width, uint32_t colour)
+{
+    float feather = 2.0f / radius_px;
+    add_obj(&(SDFShape){
+        .topleft      = {cx - radius_px, cy - radius_px},
+        .bottomright  = {cx + radius_px, cy + radius_px},
+        .colour1      = colour,
+        .sdf_type     = SDF_SHAPE_CIRCLE_STROKE,
+        .stroke_width = stroke_width,
+        .feather      = feather,
+    });
+}
+
+void draw_rounded_rectangle_fill(float x, float y, float w, float h, float border_radius, uint32_t colour)
+{
+    float feather = 4.0f / xm_minf(w, h);
+    add_obj(&(SDFShape){
+        .topleft                = {x, y},
+        .bottomright            = {x + w, y + h},
+        .colour1                = colour,
+        .sdf_type               = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
+        .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
+        .feather                = feather,
+    });
+}
+
+void draw_rounded_rectangle_fill_linear(
+    float    x,
+    float    y,
+    float    w,
+    float    h,
+    float    border_radius,
+    float    x_stop_1,
+    float    y_stop_1,
+    uint32_t col_stop_1,
+    float    x_stop_2,
+    float    y_stop_2,
+    uint32_t col_stop_2)
+{
+    float feather = 4.0f / xm_minf(w, h);
+    add_obj(&(SDFShape){
+        .topleft                = {x, y},
+        .bottomright            = {x + w, y + h},
+        .colour1                = col_stop_1,
+        .colour2                = col_stop_2,
+        .sdf_type               = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
+        .grad_type              = SDF_GRADEINT_LINEAR,
+        .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
+        .feather                = feather,
+        .linear_gradient_begin  = {x_stop_1, y_stop_1},
+        .linear_gradient_end    = {x_stop_2, y_stop_2},
+    });
+}
+
+void draw_rounded_rectangle_fill_radial(
+    float    x,
+    float    y,
+    float    w,
+    float    h,
+    float    border_radius,
+    float    cx_stop_1,
+    float    cy_stop_1,
+    uint32_t col_stop_1,
+    float    x_radius_stop_2,
+    float    y_radius_stop_2,
+    uint32_t col_stop_2)
+{
+    float feather = 4.0f / xm_minf(w, h);
+    add_obj(&(SDFShape){
+        .topleft                = {x, y},
+        .bottomright            = {x + w, y + h},
+        .colour1                = col_stop_1,
+        .colour2                = col_stop_2,
+        .sdf_type               = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
+        .grad_type              = SDF_GRADEINT_RADIAL,
+        .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
+        .feather                = feather,
+        .radial_gradient_pos    = {cx_stop_1, cy_stop_1},
+        .radial_gradient_radius = {x_radius_stop_2, y_radius_stop_2},
+    });
+}
+
+void draw_rounded_rectangle_fill_conic(
+    float    x,
+    float    y,
+    float    w,
+    float    h,
+    float    border_radius,
+    float    radians_stop_1,
+    uint32_t col_stop_1,
+    float    radians_stop_2,
+    uint32_t col_stop_2)
+{
+    float feather = 4.0f / xm_minf(w, h);
+
+    float range = radians_stop_2 - radians_stop_1;
+
+    add_obj(&(SDFShape){
+        .topleft                = {x, y},
+        .bottomright            = {x + w, y + h},
+        .colour1                = col_stop_1,
+        .colour2                = col_stop_2,
+        .sdf_type               = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
+        .grad_type              = SDF_GRADEINT_CONIC,
+        .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
+        .feather                = feather,
+
+        .conic_gradient_rotate      = XM_PIf + radians_stop_1,
+        .conic_gradient_angle_range = range / XM_TAUf,
+    });
+}
+
+void draw_rounded_rectangle_fill_box(
+    float    x,
+    float    y,
+    float    w,
+    float    h,
+    float    border_radius,
+    float    x_translate,
+    float    y_translate,
+    float    blur_radius,
+    uint32_t col_stop_outer,
+    uint32_t col_stop_inner)
+{
+    float feather = 4.0f / xm_minf(w, h);
+    add_obj(&(SDFShape){
+        .topleft                = {x, y},
+        .bottomright            = {x + w, y + h},
+        .colour1                = col_stop_outer,
+        .colour2                = col_stop_inner,
+        .sdf_type               = SDF_SHAPE_ROUNDED_RECTANGLE_FILL,
+        .grad_type              = SDF_GRADEINT_BOX,
+        .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
+        .feather                = feather,
+        .box_gradient_translate = {x_translate, y_translate},
+        .box_gradient_radius    = blur_radius,
+    });
+}
+
+void draw_rounded_rectangle_stroke(
+    float    x,
+    float    y,
+    float    w,
+    float    h,
+    float    border_radius,
+    float    stroke_width,
+    uint32_t colour)
+{
+    float feather = 4.0f / xm_minf(w, h);
+    add_obj(&(SDFShape){
+        .topleft                = {x, y},
+        .bottomright            = {x + w, y + h},
+        .colour1                = colour,
+        .sdf_type               = SDF_SHAPE_ROUNDED_RECTANGLE_STROKE,
+        .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
+        .stroke_width           = stroke_width,
+        .feather                = feather,
+    });
+}
+
+void draw_triangle_fill(float x, float y, float w, float h, uint32_t colour)
+{
+    float feather = 4.0f / xm_minf(w, h);
+    add_obj(&(SDFShape){
+        .topleft     = {x, y},
+        .bottomright = {x + w, y + h},
+        .colour1     = colour,
+        .sdf_type    = SDF_SHAPE_TRIANGLE_FILL,
+        .feather     = feather,
+    });
+}
+
+void draw_triangle_stroke(float x, float y, float w, float h, float stroke_width, uint32_t colour)
+{
+    float feather = 4.0f / xm_minf(w, h);
+    add_obj(&(SDFShape){
+        .topleft      = {x, y},
+        .bottomright  = {x + w, y + h},
+        .colour1      = colour,
+        .sdf_type     = SDF_SHAPE_TRIANGLE_STROKE,
+        .stroke_width = stroke_width,
+        .feather      = feather,
+    });
+}
+
+void draw_pie_fill(float cx, float cy, float radius_px, float start_radians, float end_radians, uint32_t colour)
+{
+    float feather = 2.0f / radius_px;
+    add_obj(&(SDFShape){
+        .topleft     = {cx - radius_px, cy - radius_px},
+        .bottomright = {cx + radius_px, cy + radius_px},
+        .colour1     = colour,
+        .sdf_type    = SDF_SHAPE_PIE_FILL,
+        .feather     = feather,
+        .start_angle = start_radians,
+        .end_angle   = end_radians,
+    });
+}
+
+void draw_pie_stroke(
+    float    cx,
+    float    cy,
+    float    radius_px,
+    float    start_radians,
+    float    end_radians,
+    float    stroke_width,
+    uint32_t colour)
+{
+    float feather = 2.0f / radius_px;
+    add_obj(&(SDFShape){
+        .topleft      = {cx - radius_px, cy - radius_px},
+        .bottomright  = {cx + radius_px, cy + radius_px},
+        .colour1      = colour,
+        .sdf_type     = SDF_SHAPE_PIE_STROKE,
+        .stroke_width = stroke_width,
+        .feather      = feather,
+        .start_angle  = start_radians,
+        .end_angle    = end_radians,
+    });
+}
+
+void draw_arc_stroke(
+    float    cx,
+    float    cy,
+    float    radius_px,
+    float    start_radians,
+    float    end_radians,
+    float    stroke_width,
+    bool     butt,
+    uint32_t colour)
+{
+    float feather = 2.0f / radius_px;
+    add_obj(&(SDFShape){
+        .topleft      = {cx - radius_px, cy - radius_px},
+        .bottomright  = {cx + radius_px, cy + radius_px},
+        .colour1      = colour,
+        .sdf_type     = butt ? SDF_SHAPE_ARC_BUTT_STROKE : SDF_SHAPE_ARC_ROUND_STROKE,
+        .stroke_width = stroke_width,
+        .feather      = feather,
+        .start_angle  = start_radians,
+        .end_angle    = end_radians,
+    });
+}
+
+void program_setup()
+{
+    state.window_width  = APP_WIDTH;
+    state.window_height = APP_HEIGHT;
+
+    state.sbo = sg_make_buffer(&(sg_buffer_desc){
+        .usage.storage_buffer = true,
+        .usage.stream_update  = true,
+        .size                 = sizeof(OBJECTS),
+        .label                = "objects",
+    });
+    state.sbv = sg_make_view(&(sg_view_desc){
+        .storage_buffer = state.sbo,
+    });
+
+    // state.bind.storage_buffers[SBUF_ssbo] = sbuf;
+    state.bind.views[VIEW_ssbo] = state.sbv;
+
+    // Note we don't pass any index type or vertex layout
+    state.pip = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader = sg_make_shader(vertexpull_shader_desc(sg_query_backend())),
+        .colors[0] =
+            {.write_mask = SG_COLORMASK_RGBA,
+             // .pixel_format = PIXEL_FORMAT,
+             .blend =
+                 {
+                     .enabled          = true,
+                     .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                     .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                     .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                     .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                 }},
+        .label = "pipeline"});
+}
+
+void program_shutdown() {}
+
+bool program_event(const PWEvent* e)
+{
+    if (e->type == PW_EVENT_RESIZE_UPDATE)
+    {
+        state.window_width  = e->resize.width;
+        state.window_height = e->resize.height;
+    }
+    return false;
+}
+
+void program_tick()
+{
+    OBJECTS_LEN = 0;
+
+    // for (int i = 0; i < 10; i++)
+    // {
+    //     draw_circle_fill(30 + i * 30, 30, 12, 0xff0000ff);
+    // }
+    draw_circle_fill(45, 45, 35, 0xffff00ff);
+    draw_circle_stroke(45, 125, 35, 4, 0xff00ffff);
+    draw_rounded_rectangle_fill(110, 10, 100, 70, 16, 0x00ffffff);
+    draw_rounded_rectangle_stroke(110, 90, 300, 70, 16, 10, 0x00ff00ff);
+    draw_rounded_rectangle_stroke(110, 170, 100, 140, 16, 2, 0x00ff00ff);
+    draw_triangle_fill(420, 10, 70, 70, 0xff0000ff);
+    draw_triangle_stroke(420, 90, 70, 70, 10, 0xffff00ff);
+    // TODO: handle rotation of these shapes
+    {
+        draw_pie_fill(535, 45, 35, XM_PIf * 0, XM_PIf * 0.25, 0xff9321ff);
+        draw_pie_stroke(535, 125, 35, XM_PIf * 0, XM_PIf * 0.75, 10, 0xff00ffff);
+        draw_arc_stroke(45, 205, 35, XM_PIf * 0, XM_PIf * 0.75f, 12, 0, 0x45beffff);
+        draw_arc_stroke(45, 275, 35, XM_PIf * 0, XM_PIf * 0.75f, 12, 1, 0xc1ff45ff);
+    }
+
+    draw_rounded_rectangle_fill_linear(10, 320, 80, 130, 0, 10, 320, 0xff0000ff, 90, 450, 0x00ff00ff);
+    draw_rounded_rectangle_fill_radial(110, 320, 80, 130, 0, 170, 420, 0xffff00ff, 40, 30, 0x0000ffff);
+    draw_rounded_rectangle_fill_conic(210, 320, 80, 130, 0, XM_TAUf * 0.125, 0xffff00ff, XM_TAUf * 0.625, 0x0000ffff);
+
+    draw_rounded_rectangle_fill_box(310, 320, 80, 130, 8, 0, 0, 20, 0xff0000ff, 0x0000ffff);
+    draw_rounded_rectangle_fill_box(410, 320, 130, 80, 8, 0, 0, 20, 0xffff00ff, 0x0000ffff);
+
+    if (OBJECTS_LEN)
+    {
+        sg_range range = {.ptr = OBJECTS, sizeof(OBJECTS[0]) * OBJECTS_LEN};
+        sg_update_buffer(state.sbo, &range);
+        sg_begin_pass(&(sg_pass){
+            .action =
+                (sg_pass_action){
+                    .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
+            .swapchain = get_swapchain(0)});
+        sg_apply_pipeline(state.pip);
+        sg_apply_bindings(&state.bind);
+
+        vs_params_t uniforms = {.size = {state.window_width, state.window_height}};
+
+        sg_apply_uniforms(UB_vs_params, &SG_RANGE(uniforms));
+
+        sg_draw(0, OBJECTS_LEN * 6, 1);
+        sg_end_pass();
+    }
+}
