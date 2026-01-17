@@ -20,17 +20,8 @@ struct myvertex
     float angle_rotate; // Arcs, pies, 
     float angle_range;
 
-    vec2 linear_gradient_begin;
-    vec2 linear_gradient_end;
-
-    vec2 radial_gradient_pos;
-    vec2 radial_gradient_radius;
-
-    float conic_gradient_rotate;
-    float conic_gradient_angle_range;
-
-    float box_gradient_radius;
-    vec2  box_gradient_translate;
+    vec2 gradient_a;
+    vec2 gradient_b;
 
     // uint  texid;
 };
@@ -126,23 +117,23 @@ void main() {
 
     if (vert.grad_type == SDF_GRADEINT_LINEAR)
     {
-        gradient_a = (vert.linear_gradient_begin - vert.topleft) / vec2(vw, vh);
-        gradient_b = (vert.linear_gradient_end   - vert.topleft) / vec2(vw, vh);
+        gradient_a = (vert.gradient_a - vert.topleft) / vec2(vw, vh);  // stop 1 xy
+        gradient_b = (vert.gradient_b   - vert.topleft) / vec2(vw, vh); // stop 2 xy
     }
     else if (vert.grad_type == SDF_GRADEINT_RADIAL)
     {
-        gradient_a = (vert.radial_gradient_pos   - vert.topleft) / vec2(vw, vh);
-        gradient_b = vec2(vw, vh) / vert.radial_gradient_radius;
+        gradient_a = (vert.gradient_a   - vert.topleft) / vec2(vw, vh); // stop 2 cx,cy
+        gradient_b = vec2(vw, vh) / vert.gradient_b;                    // stop 1 radius
     }
     else if (vert.grad_type == SDF_GRADEINT_CONIC)
     {
-        gradient_a = vec2(cos(vert.conic_gradient_rotate), sin(vert.conic_gradient_rotate));
-        gradient_b = vec2(vert.conic_gradient_angle_range);
+        gradient_a = vec2(cos(vert.gradient_a.x), sin(vert.gradient_a.x)); // rotation, radians
+        gradient_b = vert.gradient_b;                                      // range, radians
     }
     else if (vert.grad_type == SDF_GRADEINT_BOX)
     {
-        gradient_a = vec2(vert.box_gradient_radius / vh);
-        gradient_b = vec2(vert.box_gradient_translate) / vec2(-vw, vh);
+        gradient_a = vec2(vert.gradient_a) / vec2(-vw, vh); // translate x/y
+        gradient_b = vec2(vert.gradient_b     / vh);        // blur radius
     }
 }
 @end
@@ -358,8 +349,8 @@ void main()
     }
     else if (grad_type == SDF_GRADEINT_BOX)
     {
-        float blur_radius = gradient_a.x;
-        vec2  xy_offset   = gradient_b;
+        vec2  xy_offset   = gradient_a;
+        float blur_radius = gradient_b.x;
 
         vec2 p = (uv + xy_offset) * uv_xy_scale;
         vec2 half_wh  = uv_xy_scale - blur_radius * 2;

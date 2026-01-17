@@ -206,8 +206,8 @@ void draw_rounded_rectangle_fill_linear(
         .grad_type              = SDF_GRADEINT_LINEAR,
         .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
         .feather                = feather,
-        .linear_gradient_begin  = {x_stop_1, y_stop_1},
-        .linear_gradient_end    = {x_stop_2, y_stop_2},
+        .gradient_a             = {x_stop_1, y_stop_1},
+        .gradient_b             = {x_stop_2, y_stop_2},
     });
 }
 
@@ -234,8 +234,8 @@ void draw_rounded_rectangle_fill_radial(
         .grad_type              = SDF_GRADEINT_RADIAL,
         .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
         .feather                = feather,
-        .radial_gradient_pos    = {cx_stop_1, cy_stop_1},
-        .radial_gradient_radius = {x_radius_stop_2, y_radius_stop_2},
+        .gradient_a             = {cx_stop_1, cy_stop_1},
+        .gradient_b             = {x_radius_stop_2, y_radius_stop_2},
     });
 }
 
@@ -253,6 +253,8 @@ void draw_rounded_rectangle_fill_conic(
     float feather = 4.0f / xm_minf(w, h);
 
     float range = radians_stop_2 - radians_stop_1;
+    float a     = XM_PIf + radians_stop_1;
+    float b     = range / XM_TAUf;
 
     add_obj(&(SDFShape){
         .topleft                = {x, y},
@@ -264,8 +266,8 @@ void draw_rounded_rectangle_fill_conic(
         .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
         .feather                = feather,
 
-        .conic_gradient_rotate      = XM_PIf + radians_stop_1,
-        .conic_gradient_angle_range = range / XM_TAUf,
+        .gradient_a = {a, a},
+        .gradient_b = {b, b},
     });
 }
 
@@ -291,8 +293,8 @@ void draw_rounded_rectangle_fill_box(
         .grad_type              = SDF_GRADEINT_BOX,
         .border_radius_unorm4x8 = compress_border_radius(border_radius, border_radius, border_radius, border_radius),
         .feather                = feather,
-        .box_gradient_translate = {x_translate, y_translate},
-        .box_gradient_radius    = blur_radius,
+        .gradient_a             = {x_translate, y_translate},
+        .gradient_b             = {blur_radius, blur_radius},
     });
 }
 
