@@ -20,37 +20,41 @@ Frag uniform buffer is 176 bytes
 
 Text:
 6 verts per glyph
-16(v) * 6(nv) = 96 bytes per glyph
+16(vsz) * 6(nv) = 96 bytes per glyph
 96 * num_glyphs + 176(fub) = 272 bytes if num_glyphs is 1. Smallest draw, single letter
 96 * num_glyphs + 176(fub) = 752 bytes if num_glyphs is 6. Typical label
 96 * num_glyphs + 176(fub) = 2096 bytes if num_glyphs is 20. Short sentance
 
 Rounded Rectangle (Fill):
 Typically 62 verts
-16(v) * 62(nv) + 176(fub) = 1168 bytes
+16(vsz) * 62(nv) + 176(fub) = 1168 bytes
 
 Rounded Rectangle (stroke):
 Typically 42 verts
-16(v) * 42(nv) + 176(fub) = 848 bytes
+16(vsz) * 42(nv) + 176(fub) = 848 bytes
 
 Circle
 Radius 12px: 96 verts
 Radius 3px: 50 verts
 The larger the radius, the more verts are requires. Fortunately its not that much more
 Small circles use an incredible amount of tris
-16(v) * 50(nv) + 176(fub) = 976 bytes
-16(v) * 96(nv) + 176(fub) = 1712 bytes
+16(vsz) * 50(nv) + 176(fub) = 976 bytes
+16(vsz) * 96(nv) + 176(fub) = 1712 bytes
 
 ARC:
 Typically used for rotary parameters. For a standard 7:30 to 5:30 (wall clock angle) stroked arc, nanovg will tesselate
 54 verts.
-16(v) * 54(nv) + 176(fub) = 1,040 bytes
+16(vsz) * 54(nv) + 176(fub) = 1,040 bytes
 
 Lines (stroked)
 The larger and more complex the line, the more vertices used.
 Large complex lines: 1700 - 3400 vertices
-16(v) * 1700(nv) + 176(fub) = 27,376 bytes
-16(v) * 3400(nv) + 176(fub) = 54,576 bytes
+16(vsz) * 1700(nv) + 176(fub) = 27,376 bytes
+16(vsz) * 3400(nv) + 176(fub) = 54,576 bytes
+
+vsz = vert size in bytes
+nv = num verts
+fub = fragment shader uniform buffer
 
 Whole GUI:
 The more stuff you have on screen, the more vertices you use.
@@ -611,7 +615,7 @@ void program_tick()
     draw_rounded_rectangle_fill_box(310, 320, 80, 130, 8, 0, 0, 20, 0xff0000ff, 0x0000ffff);
     draw_rounded_rectangle_fill_box(410, 320, 130, 80, 8, 0, 0, 20, 0xffff00ff, 0x0000ffff);
 
-    stress_test();
+    // stress_test();
 
     if (OBJECTS_LEN)
     {
