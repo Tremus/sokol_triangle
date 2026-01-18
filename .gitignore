@@ -3,5 +3,6 @@ build
 .DS_Store
 .ideas
 .clangd
+.vs
 src/program_*.h
 src/*.glsl.h
