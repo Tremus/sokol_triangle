@@ -504,10 +504,6 @@ void program_tick()
 {
     OBJECTS_LEN = 0;
 
-    // for (int i = 0; i < 10; i++)
-    // {
-    //     draw_circle_fill(30 + i * 30, 30, 12, 0xff0000ff);
-    // }
     draw_circle_fill(45, 45, 35, 0xffff00ff);
     draw_circle_stroke(45, 125, 35, 4, 0xff00ffff);
     draw_rounded_rectangle_fill(110, 10, 100, 70, 16, 0x00ffffff);
@@ -527,6 +523,15 @@ void program_tick()
 
     draw_rounded_rectangle_fill_box(310, 320, 80, 130, 8, 0, 0, 20, 0xff0000ff, 0x0000ffff);
     draw_rounded_rectangle_fill_box(410, 320, 130, 80, 8, 0, 0, 20, 0xffff00ff, 0x0000ffff);
+
+    // for (int k = 0; k < 14; k++)
+    // {
+    //     float y = 30 + k * 30;
+    //     for (int i = 0; i < 24; i++)
+    //     {
+    //         draw_circle_fill(30 + i * 30, y, 12, 0xff0000ff);
+    //     }
+    // }
 
     if (OBJECTS_LEN)
     {

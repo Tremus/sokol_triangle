@@ -50,10 +50,10 @@ out flat float stroke_width;
 out flat uint colour1;
 out flat uint colour2;
 
-out flat vec4 border_radius;
-
-out flat vec2 cossin_angle_rotate; // pie, arc
-out flat vec2 sincos_angle_range;  // pie, arc
+// either:
+// - border_radius
+// - vec4(cos(rotate), sin(rotate), sin(range), cos(range))
+out flat vec4 borderradius_arcpie;
 
 // linear_gradient_begin
 // radial_gradient_pos
@@ -130,7 +130,7 @@ void main() {
     if (sdf_type == SDF_SHAPE_RECTANGLE_FILL ||
         sdf_type == SDF_SHAPE_RECTANGLE_STROKE)
     {
-        border_radius = (unpackUnorm4x8(vert.borderradius_arcpie) * 255) / vec4(vh * 0.5);        
+        borderradius_arcpie = (unpackUnorm4x8(vert.borderradius_arcpie) * 255) / vec4(vh * 0.5);        
     }
 
     if (sdf_type == SDF_SHAPE_TRIANGLE_FILL    ||
@@ -140,8 +140,8 @@ void main() {
         sdf_type == SDF_SHAPE_ARC_ROUND_STROKE ||
         sdf_type == SDF_SHAPE_ARC_BUTT_STROKE)
     {
-        cossin_angle_rotate = vec2(cos(arcpie.x), sin(arcpie.x));
-        sincos_angle_range = vec2(sin(arcpie.y), cos(arcpie.y));
+        borderradius_arcpie.xy = vec2(cos(arcpie.x), sin(arcpie.x));
+        borderradius_arcpie.zw = vec2(sin(arcpie.y), cos(arcpie.y));
     }
 
     if (grad_type == SDF_GRADEINT_LINEAR)
@@ -168,6 +168,8 @@ void main() {
 @end
 
 @fs fs
+precision mediump float;
+
 in vec2 uv;
 in flat vec2 uv_xy_scale;
 
@@ -179,9 +181,7 @@ in flat float stroke_width;
 in flat uint colour1;
 in flat uint colour2;
 
-in flat vec4 border_radius;
-in flat vec2 cossin_angle_rotate; // pie, arc
-in flat vec2 sincos_angle_range;
+in flat vec4 borderradius_arcpie;
 
 in flat vec2 gradient_a;
 in flat vec2 gradient_b;
@@ -266,13 +266,13 @@ void main()
     if (sdf_type == SDF_SHAPE_RECTANGLE_FILL)
     {
         vec2 b = uv_xy_scale;
-        float d = sdRoundBox(uv * uv_xy_scale, b, border_radius);
+        float d = sdRoundBox(uv * uv_xy_scale, b, borderradius_arcpie);
         shape = smoothstep(feather, 0, d + feather * 0.5);
     }
     else if (sdf_type == SDF_SHAPE_RECTANGLE_STROKE)
     {
         vec2 b = uv_xy_scale;
-        float d = sdRoundBox(uv * uv_xy_scale, b, border_radius);
+        float d = sdRoundBox(uv * uv_xy_scale, b, borderradius_arcpie);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         float inner = smoothstep(feather, 0, d + stroke_width + feather * 0.5);
         shape = outer - inner;
@@ -292,16 +292,16 @@ void main()
     }
     else if (sdf_type == SDF_SHAPE_TRIANGLE_FILL)
     {
-        vec2 p = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
-                      uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
+        vec2 p = vec2(uv.x * borderradius_arcpie.x - uv.y * borderradius_arcpie.y,
+                      uv.x * borderradius_arcpie.y + uv.y * borderradius_arcpie.x);
         float d = sdEquilateralTriangle(p, 0.86);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         shape = outer;
     }
     else if (sdf_type == SDF_SHAPE_TRIANGLE_STROKE)
     {
-        vec2 p = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
-                      uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
+        vec2 p = vec2(uv.x * borderradius_arcpie.x - uv.y * borderradius_arcpie.y,
+                      uv.x * borderradius_arcpie.y + uv.y * borderradius_arcpie.x);
         float d = sdEquilateralTriangle(p, 0.86);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         float inner = smoothstep(feather, 0, d + feather * 0.5 + stroke_width);
@@ -309,34 +309,34 @@ void main()
     }
     else if (sdf_type == SDF_SHAPE_PIE_FILL)
     {
-        vec2 uv_rotated = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
-                               uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
-        float d = sdPie(uv_rotated, sincos_angle_range, 1.0);
+        vec2 uv_rotated = vec2(uv.x * borderradius_arcpie.x - uv.y * borderradius_arcpie.y,
+                               uv.x * borderradius_arcpie.y + uv.y * borderradius_arcpie.x);
+        float d = sdPie(uv_rotated, borderradius_arcpie.zw, 1.0);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         shape = outer;
     }
     else if (sdf_type == SDF_SHAPE_PIE_STROKE)
     {
-        vec2 uv_rotated = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
-                               uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
-        float d = sdPie(uv_rotated, sincos_angle_range, 1.0);
+        vec2 uv_rotated = vec2(uv.x * borderradius_arcpie.x - uv.y * borderradius_arcpie.y,
+                               uv.x * borderradius_arcpie.y + uv.y * borderradius_arcpie.x);
+        float d = sdPie(uv_rotated, borderradius_arcpie.zw, 1.0);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         float inner = smoothstep(feather, 0, d + feather * 0.5 + stroke_width);
         shape = outer - inner;
     }
     else if (sdf_type == SDF_SHAPE_ARC_ROUND_STROKE)
     {
-        vec2 uv_rotated = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
-                               uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
-        float d = sdArc(uv_rotated, sincos_angle_range, 1.0 - stroke_width * 0.5, stroke_width * 0.5);
+        vec2 uv_rotated = vec2(uv.x * borderradius_arcpie.x - uv.y * borderradius_arcpie.y,
+                               uv.x * borderradius_arcpie.y + uv.y * borderradius_arcpie.x);
+        float d = sdArc(uv_rotated, borderradius_arcpie.zw, 1.0 - stroke_width * 0.5, stroke_width * 0.5);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         shape = outer;
     }
     else if (sdf_type == SDF_SHAPE_ARC_BUTT_STROKE)
     {
-        vec2 uv_rotated = vec2(uv.x * cossin_angle_rotate.x - uv.y * cossin_angle_rotate.y,
-                               uv.x * cossin_angle_rotate.y + uv.y * cossin_angle_rotate.x);
-        float d = sdRing(uv_rotated, sincos_angle_range, 1.0 - stroke_width * 0.5, stroke_width);
+        vec2 uv_rotated = vec2(uv.x * borderradius_arcpie.x - uv.y * borderradius_arcpie.y,
+                               uv.x * borderradius_arcpie.y + uv.y * borderradius_arcpie.x);
+        float d = sdRing(uv_rotated, borderradius_arcpie.zw, 1.0 - stroke_width * 0.5, stroke_width);
         float outer = smoothstep(feather, 0, d + feather * 0.5);
         shape = outer;
     }
@@ -383,7 +383,7 @@ void main()
 
         vec2 p = (uv + xy_offset) * uv_xy_scale;
         vec2 half_wh  = uv_xy_scale - blur_radius * 2;
-        vec4 br = border_radius - blur_radius;
+        vec4 br = borderradius_arcpie - blur_radius;
 
         float d = sdRoundBox(p, half_wh, br);
         t = 1 - d / (blur_radius * 2);
