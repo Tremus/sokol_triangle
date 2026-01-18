@@ -1,5 +1,6 @@
 #include "common.h"
 
+#include <stdio.h>
 #include <xhl/debug.h>
 #include <xhl/maths.h>
 #include <xhl/time.h>
@@ -507,10 +508,21 @@ bool program_event(const PWEvent* e)
 
 void stress_test()
 {
-    static float sec          = 0;
-    const float  frame_delta  = state.frame_delta_sec;
-    sec                      += frame_delta;
-    sec                      -= (int)sec;
+    double sec  = xtime_convert_ns_to_sec(state.last_frame_time);
+    sec        -= (int)sec;
+
+    draw_rounded_rectangle_fill_linear(
+        0,
+        0,
+        state.window_width,
+        state.window_height,
+        16,
+        state.window_width,
+        0,
+        0x00ffff7f,
+        0,
+        state.window_height,
+        0xff00ff7f);
 
     {
         const unsigned w = APP_WIDTH / 64;
@@ -547,6 +559,15 @@ void stress_test()
         }
     }
 
+    for (int k = 0; k < 14; k++)
+    {
+        float y = 30 + k * 30;
+        for (int i = 0; i < 20; i++)
+        {
+            draw_circle_fill(30 + i * 30, y, 12, 0xff000079);
+        }
+    }
+
     for (unsigned k = 0; k < 24; k++)
     {
         float y = 10 + k * 20;
@@ -556,16 +577,7 @@ void stress_test()
             float amt = sec * 2;
             if (amt > 1.0f)
                 amt = 2.0f - amt;
-            draw_arc_stroke(x, y, 8, XM_TAUf * -0.375, XM_TAUf * amt * 0.5f, 1, false, 0x13e369a4);
-        }
-    }
-
-    for (int k = 0; k < 14; k++)
-    {
-        float y = 30 + k * 30;
-        for (int i = 0; i < 20; i++)
-        {
-            draw_circle_fill(30 + i * 30, y, 12, 0xff000079);
+            draw_arc_stroke(x, y, 8, XM_TAUf * -0.375, XM_TAUf * amt * 0.5f, 1, false, 0x13e369ff);
         }
     }
 }
@@ -620,5 +632,15 @@ void program_tick()
         sg_draw(0, OBJECTS_LEN * 6, 1);
         sg_end_pass();
     }
-    // println("Draw %d objects, %d verts, %d bytes", OBJECTS_LEN, OBJECTS_LEN * 6, OBJECTS_LEN * sizeof(OBJECTS[0]));
+
+    uint64_t end_time      = xtime_now_ns();
+    uint64_t draw_diff     = end_time - state.last_frame_time;
+    double   frame_time_ms = xtime_convert_ns_to_ms(draw_diff);
+    fprintf(
+        stderr,
+        "Draw %zu objects, %zu verts, %zu bytes, frame time: %.3f\n",
+        OBJECTS_LEN,
+        OBJECTS_LEN * 6,
+        OBJECTS_LEN * sizeof(OBJECTS[0]),
+        frame_time_ms);
 }
