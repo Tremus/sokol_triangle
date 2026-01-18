@@ -2,6 +2,7 @@
 
 #include <xhl/debug.h>
 #include <xhl/maths.h>
+#include <xhl/time.h>
 #include <xhl/vector.h>
 
 #include "program_sdf_compressed.glsl.h"
@@ -79,9 +80,11 @@ static struct
     sg_buffer sbo;
     sg_view   sbv;
 
-    int window_width;
-    int window_height;
-} state;
+    int      window_width;
+    int      window_height;
+    uint64_t last_frame_time;
+    double   frame_delta_sec;
+} state = {0};
 
 // TODO do scissoring
 
@@ -123,7 +126,7 @@ typedef struct myvertex_t SDFShape;
 
 static const size_t struct_size = sizeof(SDFShape);
 static size_t       OBJECTS_LEN = 0;
-static SDFShape     OBJECTS[1000];
+static SDFShape     OBJECTS[10000];
 
 void add_obj(const SDFShape* obj)
 {
@@ -455,6 +458,8 @@ void draw_arc_stroke(
 
 void program_setup()
 {
+    xtime_init();
+
     state.window_width  = APP_WIDTH;
     state.window_height = APP_HEIGHT;
 
@@ -500,9 +505,79 @@ bool program_event(const PWEvent* e)
     return false;
 }
 
+void stress_test()
+{
+    static float sec          = 0;
+    const float  frame_delta  = state.frame_delta_sec;
+    sec                      += frame_delta;
+    sec                      -= (int)sec;
+
+    {
+        const unsigned w = APP_WIDTH / 64;
+        const unsigned h = APP_HEIGHT / 64;
+
+        float amt = sec * 2;
+        if (amt > 1.0f)
+            amt = 2.0f - amt;
+
+        float x_delta = amt * w;
+        for (unsigned k = 0; k < 64; k++)
+        {
+            float y = k * h;
+            for (unsigned i = 0; i < 64; i++)
+            {
+                float x = i * w;
+
+                float r = x + w;
+                float b = y + h;
+
+                draw_rounded_rectangle_fill_linear(
+                    x,
+                    y,
+                    w,
+                    h,
+                    2,
+                    x + x_delta,
+                    y,
+                    0x00ffff7f,
+                    r - x_delta,
+                    b,
+                    0xff00ff7f);
+            }
+        }
+    }
+
+    for (unsigned k = 0; k < 24; k++)
+    {
+        float y = 10 + k * 20;
+        for (unsigned i = 0; i < 32; i++)
+        {
+            float x   = 10 + i * 20;
+            float amt = sec * 2;
+            if (amt > 1.0f)
+                amt = 2.0f - amt;
+            draw_arc_stroke(x, y, 8, XM_TAUf * -0.375, XM_TAUf * amt * 0.5f, 1, false, 0x13e369a4);
+        }
+    }
+
+    for (int k = 0; k < 14; k++)
+    {
+        float y = 30 + k * 30;
+        for (int i = 0; i < 20; i++)
+        {
+            draw_circle_fill(30 + i * 30, y, 12, 0xff000079);
+        }
+    }
+}
+
 void program_tick()
 {
     OBJECTS_LEN = 0;
+
+    uint64_t now_ns         = xtime_now_ns();
+    uint64_t frame_delta_ns = now_ns - state.last_frame_time;
+    state.last_frame_time   = now_ns;
+    state.frame_delta_sec   = xtime_convert_ns_to_sec(frame_delta_ns);
 
     draw_circle_fill(45, 45, 35, 0xffff00ff);
     draw_circle_stroke(45, 125, 35, 4, 0xff00ffff);
@@ -524,14 +599,7 @@ void program_tick()
     draw_rounded_rectangle_fill_box(310, 320, 80, 130, 8, 0, 0, 20, 0xff0000ff, 0x0000ffff);
     draw_rounded_rectangle_fill_box(410, 320, 130, 80, 8, 0, 0, 20, 0xffff00ff, 0x0000ffff);
 
-    // for (int k = 0; k < 14; k++)
-    // {
-    //     float y = 30 + k * 30;
-    //     for (int i = 0; i < 24; i++)
-    //     {
-    //         draw_circle_fill(30 + i * 30, y, 12, 0xff0000ff);
-    //     }
-    // }
+    stress_test();
 
     if (OBJECTS_LEN)
     {
@@ -552,4 +620,5 @@ void program_tick()
         sg_draw(0, OBJECTS_LEN * 6, 1);
         sg_end_pass();
     }
+    // println("Draw %d objects, %d verts, %d bytes", OBJECTS_LEN, OBJECTS_LEN * 6, OBJECTS_LEN * sizeof(OBJECTS[0]));
 }

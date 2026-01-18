@@ -114,8 +114,8 @@ sg_swapchain get_swapchain(sg_pixel_format pixel_format)
         .metal.depth_stencil_texture = pw_get_metal_depth_stencil_texture(g_pw),
 #endif
 #if _WIN32
-        .d3d11.render_view = pw_get_dx11_render_target_view(g_pw),
-    // .d3d11.depth_stencil_view = pw_get_dx11_depth_stencil_view(g_pw),
+        .d3d11.render_view        = pw_get_dx11_render_target_view(g_pw),
+        .d3d11.depth_stencil_view = pw_get_dx11_depth_stencil_view(g_pw),
 #endif
     };
 }
