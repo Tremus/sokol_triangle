@@ -10,11 +10,17 @@ static struct
     int window_width;
     int window_height;
 
-    sg_buffer      buf;
-    sg_buffer      tiles;
-    sg_pipeline    pip;
-    sg_bindings    bind;
-    sg_pass_action pass_action;
+    sg_buffer sbo_line_data;
+    sg_view   sbv_line_data;
+
+    struct
+    {
+        sg_buffer   sbo; // vertex pulling
+        sg_view     sbv; // vertex pulling
+        sg_pipeline pip;
+    } tiles;
+
+    sg_pipeline pip_overdraw;
 } state = {0};
 
 bool         init_buffer = false;
@@ -30,27 +36,49 @@ void program_setup()
     state.window_width  = APP_WIDTH;
     state.window_height = APP_HEIGHT;
 
-    state.pip = sg_make_pipeline(&(
-        sg_pipeline_desc){.shader = sg_make_shader(line_stroke_shader_desc(sg_query_backend())), .label = "pipeline"});
-
-    state.pass_action =
-        (sg_pass_action){.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
-
-    state.buf   = sg_make_buffer(&(sg_buffer_desc){
-          .usage.storage_buffer = true,
-          .usage.stream_update  = true,
-          .size                 = sizeof(AUDIO_BUFFER),
-          .label                = "sine-buffer",
+    state.sbo_line_data = sg_make_buffer(&(sg_buffer_desc){
+        .usage.storage_buffer = true,
+        .usage.stream_update  = true,
+        .size                 = sizeof(AUDIO_BUFFER),
+        .label                = "sine-buffer",
     });
-    state.tiles = sg_make_buffer(&(sg_buffer_desc){
+    state.sbv_line_data = sg_make_view(&(sg_view_desc){.storage_buffer = state.sbo_line_data});
+
+    state.tiles.pip = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader = sg_make_shader(line_stroke_tiled_shader_desc(sg_query_backend())),
+        .colors[0] =
+            {.write_mask = SG_COLORMASK_RGBA,
+             .blend =
+                 {
+                     .enabled          = true,
+                     .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                     .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                     .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                     .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                 }},
+        .label = "tiles-pipeline"});
+
+    state.tiles.sbo = sg_make_buffer(&(sg_buffer_desc){
         .usage.storage_buffer = true,
         .usage.stream_update  = true,
         .size                 = sizeof(TILES),
         .label                = "tiles-buffer",
     });
+    state.tiles.sbv = sg_make_view(&(sg_view_desc){.storage_buffer = state.tiles.sbo});
 
-    state.bind.views[VIEW_ssbo]           = sg_make_view(&(sg_view_desc){.storage_buffer = state.tiles});
-    state.bind.views[VIEW_storage_buffer] = sg_make_view(&(sg_view_desc){.storage_buffer = state.buf});
+    state.pip_overdraw = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader = sg_make_shader(line_stroke_overdraw_shader_desc(sg_query_backend())),
+        .colors[0] =
+            {.write_mask = SG_COLORMASK_RGBA,
+             .blend =
+                 {
+                     .enabled          = true,
+                     .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                     .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                     .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                     .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                 }},
+        .label = "overdraw-pipeline"});
 }
 void program_shutdown() {}
 
@@ -69,7 +97,9 @@ void program_tick()
 {
     TILES_LEN = 0;
 
-    sg_begin_pass(&(sg_pass){.action = state.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
+    sg_begin_pass(&(sg_pass){
+        .action    = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
+        .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
 
 #ifdef __APPLE__
     // Note: this code was written with the assumption the app will only ever run on a macbook retina screen
@@ -102,76 +132,105 @@ void program_tick()
             // AUDIO_BUFFER[i] = (((i >> 4) & 3) >> 1) ? -1 : 1; // square
         }
     }
-    // Create tiles
+    const bool draw_tile     = true;
+    const bool draw_overdraw = true;
+
+    if (N)
     {
-        const int MAX_TILE_LEN = 16;
-        for (int tile_begin_idx = 0; tile_begin_idx < N; tile_begin_idx += MAX_TILE_LEN)
+        sg_update_buffer(state.sbo_line_data, &(sg_range){.ptr = AUDIO_BUFFER, N * sizeof(AUDIO_BUFFER[0])});
+    }
+
+    if (draw_overdraw)
+    {
+        sg_apply_pipeline(state.pip_overdraw);
+        sg_apply_bindings(&(sg_bindings){
+            .views[VIEW_sbo_line_stroke_overdraw] = state.sbv_line_data,
+        });
+
+        const fs_uniforms_line_stroke_overdraw_t uniforms = {
+            .u_view_size[0]  = state.window_width * backingScaleFactor,
+            .u_view_size[1]  = state.window_height * backingScaleFactor,
+            .u_stroke_width  = 1.2f,
+            .u_buffer_length = N,
+        };
+        sg_apply_uniforms(UB_fs_uniforms_line_stroke_overdraw, &SG_RANGE(uniforms));
+
+        sg_draw(0, 6, 1);
+    }
+
+    if (draw_tile)
+    {
+        // Create tiles
         {
-            int   tile_end_idx = xm_mini(N, tile_begin_idx + MAX_TILE_LEN);
-            float max_v        = AUDIO_BUFFER[tile_begin_idx];
-            float min_v        = AUDIO_BUFFER[tile_begin_idx];
-            for (int i = tile_begin_idx + 1; i < tile_end_idx; i++)
+            const int MAX_TILE_LEN = 16;
+            for (int tile_begin_idx = 0; tile_begin_idx < N; tile_begin_idx += MAX_TILE_LEN)
             {
-                float v = AUDIO_BUFFER[i];
-                if (v > max_v)
-                    max_v = v;
-                if (v < min_v)
-                    min_v = v;
-            }
-            if (tile_begin_idx - 1 > 0)
-            {
-                float v = AUDIO_BUFFER[tile_begin_idx - 1];
-                if (v > max_v)
-                    max_v = v;
-                if (v < min_v)
-                    min_v = v;
-            }
-            if (tile_end_idx + 1 < N)
-            {
-                float v = AUDIO_BUFFER[tile_end_idx + 1];
-                if (v > max_v)
-                    max_v = v;
-                if (v < min_v)
-                    min_v = v;
-            }
+                int   tile_end_idx = xm_mini(N, tile_begin_idx + MAX_TILE_LEN);
+                float max_v        = AUDIO_BUFFER[tile_begin_idx];
+                float min_v        = AUDIO_BUFFER[tile_begin_idx];
+                for (int i = tile_begin_idx + 1; i < tile_end_idx; i++)
+                {
+                    float v = AUDIO_BUFFER[i];
+                    if (v > max_v)
+                        max_v = v;
+                    if (v < min_v)
+                        min_v = v;
+                }
+                if (tile_begin_idx - 1 > 0)
+                {
+                    float v = AUDIO_BUFFER[tile_begin_idx - 1];
+                    if (v > max_v)
+                        max_v = v;
+                    if (v < min_v)
+                        min_v = v;
+                }
+                if (tile_end_idx + 1 < N)
+                {
+                    float v = AUDIO_BUFFER[tile_end_idx + 1];
+                    if (v > max_v)
+                        max_v = v;
+                    if (v < min_v)
+                        min_v = v;
+                }
 
-            // make line
-            if (TILES_LEN < ARRLEN(TILES))
-            {
-                // linetile_t* tile = &TILES[TILES_LEN];
-                float x = tile_begin_idx;
-                float r = tile_end_idx;
-                float y = state.window_height - min_v * state.window_height;
-                float b = state.window_height - max_v * state.window_height;
+                // make line
+                if (TILES_LEN < ARRLEN(TILES))
+                {
+                    // linetile_t* tile = &TILES[TILES_LEN];
+                    float x = tile_begin_idx;
+                    float r = tile_end_idx;
+                    float y = state.window_height - min_v * state.window_height;
+                    float b = state.window_height - max_v * state.window_height;
 
-                TILES[TILES_LEN] = (linetile_t){
-                    .topleft          = {x, y},
-                    .bottomright      = {r, b},
-                    .view_size        = {state.window_width, state.window_height},
-                    .buffer_begin_idx = 0,
-                    .buffer_end_idx   = N,
-                    .tile_begin_idx   = tile_begin_idx,
-                    .tile_end_idx     = tile_end_idx,
-                    .stroke_width     = 2,
-                };
-                TILES_LEN++;
+                    TILES[TILES_LEN] = (linetile_t){
+                        .topleft          = {x, y},
+                        .bottomright      = {r, b},
+                        .view_size        = {state.window_width, state.window_height},
+                        .buffer_begin_idx = 0,
+                        .buffer_end_idx   = N,
+                        .tile_begin_idx   = tile_begin_idx,
+                        .tile_end_idx     = tile_end_idx,
+                        .stroke_width     = 2,
+                        .colour           = 0xff00ffff,
+                    };
+                    TILES_LEN++;
+                }
             }
+        }
+
+        if (TILES_LEN)
+        {
+            sg_update_buffer(state.tiles.sbo, &(sg_range){.ptr = TILES, TILES_LEN * sizeof(TILES[0])});
+
+            sg_apply_pipeline(state.tiles.pip);
+            sg_apply_bindings(&(sg_bindings){
+                .views[VIEW_sbo_tiles]             = state.tiles.sbv,
+                .views[VIEW_sbo_line_stroke_tiled] = state.sbv_line_data,
+            });
+
+            sg_draw(0, 6 * TILES_LEN, 1);
         }
     }
 
-    if (TILES_LEN)
-    {
-        if (N)
-        {
-            sg_update_buffer(state.buf, &(sg_range){.ptr = AUDIO_BUFFER, N * sizeof(AUDIO_BUFFER[0])});
-        }
-
-        sg_update_buffer(state.tiles, &(sg_range){.ptr = TILES, TILES_LEN * sizeof(TILES[0])});
-
-        sg_apply_pipeline(state.pip);
-        sg_apply_bindings(&state.bind);
-
-        sg_draw(0, 6 * TILES_LEN, 1);
-        sg_end_pass();
-    }
+    sg_end_pass();
 }
