@@ -2,6 +2,7 @@
 
 #include "program_sdf_line_tiled.glsl.h"
 
+#include <xhl/debug.h>
 #include <xhl/maths.h>
 #include <xhl/time.h>
 
@@ -44,19 +45,19 @@ void program_setup()
     });
     state.sbv_line_data = sg_make_view(&(sg_view_desc){.storage_buffer = state.sbo_line_data});
 
-    state.tiles.pip = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader = sg_make_shader(line_stroke_tiled_shader_desc(sg_query_backend())),
-        .colors[0] =
-            {.write_mask = SG_COLORMASK_RGBA,
-             .blend =
-                 {
-                     .enabled          = true,
-                     .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                     .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                     .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                     .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                 }},
-        .label = "tiles-pipeline"});
+    state.tiles.pip = sg_make_pipeline(
+        &(sg_pipeline_desc){.shader = sg_make_shader(line_stroke_tiled_shader_desc(sg_query_backend())),
+                            .colors[0] =
+                                {.write_mask = SG_COLORMASK_RGBA,
+                                 .blend =
+                                     {
+                                         .enabled          = true,
+                                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                                     }},
+                            .label = "tiles-pipeline"});
 
     state.tiles.sbo = sg_make_buffer(&(sg_buffer_desc){
         .usage.storage_buffer = true,
@@ -66,19 +67,19 @@ void program_setup()
     });
     state.tiles.sbv = sg_make_view(&(sg_view_desc){.storage_buffer = state.tiles.sbo});
 
-    state.pip_overdraw = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader = sg_make_shader(line_stroke_overdraw_shader_desc(sg_query_backend())),
-        .colors[0] =
-            {.write_mask = SG_COLORMASK_RGBA,
-             .blend =
-                 {
-                     .enabled          = true,
-                     .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                     .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                     .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                     .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                 }},
-        .label = "overdraw-pipeline"});
+    state.pip_overdraw = sg_make_pipeline(
+        &(sg_pipeline_desc){.shader = sg_make_shader(line_stroke_overdraw_shader_desc(sg_query_backend())),
+                            .colors[0] =
+                                {.write_mask = SG_COLORMASK_RGBA,
+                                 .blend =
+                                     {
+                                         .enabled          = true,
+                                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                                     }},
+                            .label = "overdraw-pipeline"});
 }
 void program_shutdown() {}
 
@@ -107,8 +108,8 @@ void program_tick()
     // Unfortunately this will cause our lovely 2px line to look like a 1px line. This is because we will now need to
     // read from twice the amount of pixels from the left and right
     // This means the shader will likely need to be rewritten to support macOS.
-    // const int backingScaleFactor = 2;
-    const int backingScaleFactor = 1;
+    const int backingScaleFactor = 2;
+    // const int backingScaleFactor = 1;
 #else
     const int backingScaleFactor = 1;
 #endif
@@ -132,12 +133,13 @@ void program_tick()
             // AUDIO_BUFFER[i] = (((i >> 4) & 3) >> 1) ? -1 : 1; // square
         }
     }
-    const bool  draw_tile     = true;
-    const bool  draw_overdraw = false;
-    const float stroke_width  = 1.2f;
+    const bool draw_tile     = 1;
+    const bool draw_overdraw = 0;
+    // const float stroke_width  = 1.2f;
+    const float stroke_width = 2.0f;
     // const uint32_t stroke_colour = 0xffffffff;
     const uint32_t stroke_colour = 0x7fffffff;
-    const int      MAX_TILE_LEN  = 8;
+    const int      MAX_TILE_LEN  = 8 * backingScaleFactor;
 
     if (N)
     {
@@ -187,8 +189,10 @@ void program_tick()
                 if (TILES_LEN < ARRLEN(TILES))
                 {
                     // linetile_t* tile = &TILES[TILES_LEN];
-                    float x = tile_begin_idx;
-                    float r = tile_end_idx;
+                    xassert((tile_begin_idx % backingScaleFactor) == 0);
+                    xassert((tile_end_idx % backingScaleFactor) == 0);
+                    float x = tile_begin_idx / backingScaleFactor;
+                    float r = tile_end_idx / backingScaleFactor;
                     float y = state.window_height - min_v * state.window_height;
                     float b = state.window_height - max_v * state.window_height;
 
