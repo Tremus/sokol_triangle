@@ -25,6 +25,7 @@ CALL sokol-shdc.exe --input src\program_sdf_line_segment.glsl       --output src
 CALL sokol-shdc.exe --input src\program_line_stroke_sdf.glsl        --output src\program_line_stroke_sdf.glsl.h        --slang hlsl5
 CALL sokol-shdc.exe --input src\program_sdf_compressed.glsl         --output src\program_sdf_compressed.glsl.h         --slang hlsl5
 CALL sokol-shdc.exe --input src\program_sdf_line_tiled.glsl         --output src\program_sdf_line_tiled.glsl.h         --slang hlsl5
+CALL sokol-shdc.exe --input src\program_3d_wavetable_stroked.glsl   --output src\program_3d_wavetable_stroked.glsl.h   --slang hlsl5
 
 shader-hotreloader.exe -i src
 
