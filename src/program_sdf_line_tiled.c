@@ -126,14 +126,18 @@ void program_tick()
         for (unsigned i = 0; i < N; i++)
         {
             float v = sinf(phase + i * inc); // sin
-            // v  = v * 0.5f + 0.5f;
+            v       = v * -0.5f + 0.5f;      // normalise to [0-1], where 0 is bottom of screen
             // v *= 0.8f;
             AUDIO_BUFFER[i] = v;
             // AUDIO_BUFFER[i] = (((i >> 4) & 3) >> 1) ? -1 : 1; // square
         }
     }
-    const bool draw_tile     = true;
-    const bool draw_overdraw = true;
+    const bool  draw_tile     = true;
+    const bool  draw_overdraw = false;
+    const float stroke_width  = 1.2f;
+    // const uint32_t stroke_colour = 0xffffffff;
+    const uint32_t stroke_colour = 0x7fffffff;
+    const int      MAX_TILE_LEN  = 8;
 
     if (N)
     {
@@ -150,7 +154,7 @@ void program_tick()
         const fs_uniforms_line_stroke_overdraw_t uniforms = {
             .u_view_size[0]  = state.window_width * backingScaleFactor,
             .u_view_size[1]  = state.window_height * backingScaleFactor,
-            .u_stroke_width  = 1.2f,
+            .u_stroke_width  = stroke_width,
             .u_buffer_length = N,
         };
         sg_apply_uniforms(UB_fs_uniforms_line_stroke_overdraw, &SG_RANGE(uniforms));
@@ -162,31 +166,17 @@ void program_tick()
     {
         // Create tiles
         {
-            const int MAX_TILE_LEN = 16;
             for (int tile_begin_idx = 0; tile_begin_idx < N; tile_begin_idx += MAX_TILE_LEN)
             {
-                int   tile_end_idx = xm_mini(N, tile_begin_idx + MAX_TILE_LEN);
-                float max_v        = AUDIO_BUFFER[tile_begin_idx];
-                float min_v        = AUDIO_BUFFER[tile_begin_idx];
-                for (int i = tile_begin_idx + 1; i < tile_end_idx; i++)
+                int tile_end_idx = xm_mini(tile_begin_idx + MAX_TILE_LEN, N);
+
+                int   i_begin = xm_maxi(tile_begin_idx - 1, 0);
+                int   i_end   = xm_mini(tile_end_idx + 1, N);
+                float max_v   = AUDIO_BUFFER[i_begin];
+                float min_v   = AUDIO_BUFFER[i_begin];
+                for (int i = i_begin + 1; i < i_end; i++)
                 {
                     float v = AUDIO_BUFFER[i];
-                    if (v > max_v)
-                        max_v = v;
-                    if (v < min_v)
-                        min_v = v;
-                }
-                if (tile_begin_idx - 1 > 0)
-                {
-                    float v = AUDIO_BUFFER[tile_begin_idx - 1];
-                    if (v > max_v)
-                        max_v = v;
-                    if (v < min_v)
-                        min_v = v;
-                }
-                if (tile_end_idx + 1 < N)
-                {
-                    float v = AUDIO_BUFFER[tile_end_idx + 1];
                     if (v > max_v)
                         max_v = v;
                     if (v < min_v)
@@ -210,8 +200,8 @@ void program_tick()
                         .buffer_end_idx   = N,
                         .tile_begin_idx   = tile_begin_idx,
                         .tile_end_idx     = tile_end_idx,
-                        .stroke_width     = 2,
-                        .colour           = 0xff00ffff,
+                        .stroke_width     = stroke_width,
+                        .colour           = stroke_colour,
                     };
                     TILES_LEN++;
                 }
@@ -220,7 +210,8 @@ void program_tick()
 
         if (TILES_LEN)
         {
-            sg_update_buffer(state.tiles.sbo, &(sg_range){.ptr = TILES, TILES_LEN * sizeof(TILES[0])});
+            size_t num_bytes = TILES_LEN * sizeof(TILES[0]);
+            sg_update_buffer(state.tiles.sbo, &(sg_range){.ptr = TILES, .size = num_bytes});
 
             sg_apply_pipeline(state.tiles.pip);
             sg_apply_bindings(&(sg_bindings){
@@ -233,4 +224,8 @@ void program_tick()
     }
 
     sg_end_pass();
+
+    size_t size_line  = N * sizeof(AUDIO_BUFFER[0]);
+    size_t size_tiles = TILES_LEN * sizeof(TILES[0]);
+    println("Line: %zu bytes, Tiles: %zu bytes, Total: %zu bytes", size_line, size_tiles, (size_line + size_tiles));
 }
