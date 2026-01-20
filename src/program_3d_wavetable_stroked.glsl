@@ -115,8 +115,8 @@ void main() {
     float vh = vert.bottomright.y - vert.topleft.y;
 
     gl_Position = vec4(pos, 1, 1);
-    // p = vec2(is_right  ? 1 : -1, is_bottom ? -1 : 1);
-    p = pos;
+    p = vec2(is_right  ? 1 : -1, is_bottom ? -1 : 1);
+    // p = pos;
     tile_idx = is_right ? vert.tile_end_idx : vert.tile_begin_idx;
     colour = vert.colour;
 

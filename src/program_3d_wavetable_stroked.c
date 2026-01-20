@@ -5,6 +5,7 @@
 #include <string.h>
 #include <xhl/debug.h>
 #include <xhl/maths.h>
+#include <xhl/vector.h>
 
 // application state
 static struct
@@ -26,6 +27,11 @@ static struct
     float slider_top;
     float slider_right;
     float slider_bottom;
+
+    float wt_left;
+    float wt_top;
+    float wt_right;
+    float wt_bottom;
 } state = {0};
 
 enum
@@ -41,14 +47,32 @@ static Wavetable WAVETABLES[256] = {0};
 size_t           TILES_LEN       = 0;
 linetile_t       TILES[512]      = {0};
 
-void set_slider_boundaries()
+unsigned packUnorm4x8(float r, float g, float b, float a)
+{
+    xvecu compressed = {
+        .r = xm_clampf(a, 0, 1) * 255,
+        .g = xm_clampf(b, 0, 1) * 255,
+        .b = xm_clampf(g, 0, 1) * 255,
+        .a = xm_clampf(r, 0, 1) * 255,
+    };
+    return compressed.u32;
+}
+
+void set_boundaries()
 {
     // TODO: set boundaries
 
+    float x_padding = xm_maxf(state.width * 0.15, 20);
+
     state.slider_bottom = state.height - 40;
     state.slider_top    = state.height - 80;
-    state.slider_left   = 100;
-    state.slider_right  = state.width - 100;
+    state.slider_left   = x_padding;
+    state.slider_right  = state.width - x_padding;
+
+    state.wt_left   = state.slider_left;
+    state.wt_right  = state.slider_right;
+    state.wt_top    = 40;
+    state.wt_bottom = state.slider_top - 80;
 }
 
 void program_setup()
@@ -74,12 +98,15 @@ void program_setup()
 
     state.sbo_line_data = sg_make_buffer(&(sg_buffer_desc){
         .usage.storage_buffer = true,
+        .usage.dynamic_update = true,
         // .usage.stream_update  = true,
-        .size  = sizeof(WAVETABLES),
-        .data  = SG_RANGE(WAVETABLES),
+        .size = sizeof(WAVETABLES),
+        // .data  = SG_RANGE(WAVETABLES),
         .label = "sine-buffer",
     });
     state.sbv_line_data = sg_make_view(&(sg_view_desc){.storage_buffer = state.sbo_line_data});
+
+    sg_update_buffer(state.sbo_line_data, &SG_RANGE(WAVETABLES));
 
     state.pip_tiles = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = sg_make_shader(line_stroke_tiled_shader_desc(sg_query_backend())),
@@ -121,7 +148,7 @@ void program_setup()
 
     state.param_value = 0.5f;
 
-    set_slider_boundaries();
+    set_boundaries();
 }
 void program_shutdown() {}
 
@@ -132,7 +159,7 @@ bool program_event(const PWEvent* event)
         state.width  = event->resize.width;
         state.height = event->resize.height;
 
-        set_slider_boundaries();
+        set_boundaries();
     }
     if (event->type == PW_EVENT_MOUSE_LEFT_UP)
         state.mouse_down_slider = false;
@@ -156,6 +183,8 @@ bool program_event(const PWEvent* event)
 
 void program_tick()
 {
+    TILES_LEN = 0;
+
     sg_pass_action pass_action = {
         .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
     sg_begin_pass(&(sg_pass){.action = pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
@@ -175,17 +204,32 @@ void program_tick()
     // Draw wavetables
     {
         // int num_wavetables = 8;
-        int            num_wavetables = 1;
-        int            MAX_TILE_LEN   = WT_LEN;
-        const float    stroke_width   = 1.2f;
-        const uint32_t stroke_colour  = 0xff0000ff;
+        int         num_wavetables = 32;
+        int         MAX_TILE_LEN   = WT_LEN;
+        const float stroke_width   = 1.2f;
+        // const uint32_t stroke_colour  = 0xff0000ff;
+        const uint32_t stroke_colour = packUnorm4x8(1, 0, 1, 0.5);
 
         // TODO: calculate these values based on the number of wavetables
         // The series of wavetables will probably want a fixed spread vertically and horizontally
-        float x_begin        = 0;
-        float y_begin        = 0;
-        float x_displacement = 0;
-        float y_displacement = 0;
+        float wt_frame_width  = state.wt_right - state.wt_left;
+        float wt_frame_height = state.wt_bottom - state.wt_top;
+
+        float x_max_offset = wt_frame_width * 0.1f;
+        float y_max_offset = wt_frame_height * 0.2f;
+        if (num_wavetables == 1)
+        {
+            x_max_offset = 0;
+            y_max_offset = 0;
+        }
+
+        float x_begin    = state.wt_left;
+        float y_begin    = state.wt_top + y_max_offset;
+        wt_frame_width  -= x_max_offset;
+        wt_frame_height -= y_max_offset;
+
+        float x_offset_inc = x_max_offset / num_wavetables;
+        float y_offset_inc = y_max_offset / num_wavetables;
 
         for (int wt_idx = 0; wt_idx < num_wavetables; wt_idx++)
         {
@@ -219,10 +263,10 @@ void program_tick()
                     xassert((tile_begin_idx % backingScaleFactor) == 0);
                     xassert((tile_end_idx % backingScaleFactor) == 0);
 
-                    float x = 0;
-                    float r = state.width;
-                    float y = state.height - min_v * state.height;
-                    float b = state.height - max_v * state.height;
+                    float x = x_begin + wt_idx * x_offset_inc;
+                    float r = x + wt_frame_width;
+                    float y = y_begin - wt_idx * y_offset_inc;
+                    float b = y + wt_frame_height;
 
                     TILES[TILES_LEN] = (linetile_t){
                         .topleft          = {x, y},
