@@ -47,6 +47,54 @@ static Wavetable WAVETABLES[256] = {0};
 size_t           TILES_LEN       = 0;
 linetile_t       TILES[512]      = {0};
 
+/*-------------------------------------------------------------------------*/
+/*  AI slop RBJ lowpass filter                                             */
+/*-------------------------------------------------------------------------*/
+typedef struct
+{
+    float a0, a1, a2; /* numerator coefficients (b0,b1,b2) */
+    float b1, b2;     /* denominator coefficients (a1,a2) – note the sign convention */
+    float z1, z2;     /* delay elements (state variables) */
+} rbj_lp_t;
+
+/*-------------------------------------------------------------------------*/
+/*  Set cutoff frequency (Hz) and Q factor.                               */
+/*  The filter coefficients are recomputed from scratch each time this      */
+/*  function is called.                                                    */
+/*-------------------------------------------------------------------------*/
+static inline void rbj_lp_set_params(rbj_lp_t* f, float f0, float q, float sr)
+{
+    const float omega     = 2.0f * (float)M_PI * f0 / sr; /* rad/sample */
+    const float sin_omega = sinf(omega);
+    const float cos_omega = cosf(omega);
+
+    const float alpha = sin_omega / (2.0f * q);
+
+    /* Normalised RBJ coefficients for a low‑pass filter */
+    const float b0 = (1.0f - cos_omega) * 0.5f;
+    const float b1 = 1.0f - cos_omega;
+    const float b2 = (1.0f - cos_omega) * 0.5f;
+
+    const float a0 = 1.0f + alpha;
+    const float a1 = -2.0f * cos_omega;
+    const float a2 = 1.0f - alpha;
+
+    /* Scale to make a0 == 1 */
+    f->a0 = b0 / a0;
+    f->a1 = b1 / a0;
+    f->a2 = b2 / a0;
+    f->b1 = a1 / a0; /* note the sign convention for direct‑form II transposed */
+    f->b2 = a2 / a0;
+}
+static inline float rbj_lp_process(rbj_lp_t* f, float x)
+{
+    /* Direct‑form II transposed */
+    const float y = f->a0 * x + f->z1;
+    f->z1         = f->a1 * x - f->b1 * y + f->z2;
+    f->z2         = f->a2 * x - f->b2 * y;
+    return y;
+}
+
 unsigned packUnorm4x8(float r, float g, float b, float a)
 {
     xvecu compressed = {
@@ -92,7 +140,16 @@ void program_setup()
         for (int i = 1; i < ARRLEN(WAVETABLES); i++)
         {
             Wavetable* wt2 = &WAVETABLES[i];
-            memcpy(wt2, wt, sizeof(*wt2));
+
+            float    sample_rate = 48000;
+            rbj_lp_t rbj         = {0};
+            float    cutoff_midi = 100 - i * 0.25f;
+            float    cutoff_hz   = xm_midi_to_Hz(cutoff_midi);
+            rbj_lp_set_params(&rbj, cutoff_hz, XM_SQRT2f, sample_rate);
+            for (int j = 0; j < ARRLEN(wt2->data); j++)
+            {
+                wt2->data[j] = rbj_lp_process(&rbj, wt->data[j]);
+            }
         }
     }
 
@@ -203,10 +260,10 @@ void program_tick()
 
     // Draw wavetables
     {
-        // int num_wavetables = 8;
-        int         num_wavetables = 32;
-        int         MAX_TILE_LEN   = WT_LEN;
-        const float stroke_width   = 1.2f;
+        int num_wavetables = 8;
+        // int         num_wavetables = ARRLEN(WAVETABLES);
+        int         MAX_TILE_LEN = WT_LEN;
+        const float stroke_width = 1.2f;
         // const uint32_t stroke_colour  = 0xff0000ff;
         const uint32_t stroke_colour = packUnorm4x8(1, 0, 1, 0.5);
 
@@ -272,10 +329,10 @@ void program_tick()
                         .topleft          = {x, y},
                         .bottomright      = {r, b},
                         .view_size        = {state.width, state.height},
-                        .buffer_begin_idx = 0,
-                        .buffer_end_idx   = WT_LEN,
-                        .tile_begin_idx   = tile_begin_idx,
-                        .tile_end_idx     = tile_end_idx,
+                        .buffer_begin_idx = pt_idx + 0,
+                        .buffer_end_idx   = pt_idx + WT_LEN,
+                        .tile_begin_idx   = pt_idx + tile_begin_idx,
+                        .tile_end_idx     = pt_idx + tile_end_idx,
                         .stroke_width     = stroke_width,
                         .colour           = stroke_colour,
                     };
