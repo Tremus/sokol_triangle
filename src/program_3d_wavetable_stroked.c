@@ -45,7 +45,7 @@ typedef struct Wavetable
 
 static Wavetable WAVETABLES[256] = {0};
 size_t           TILES_LEN       = 0;
-linetile_t       TILES[512]      = {0};
+linetile_t       TILES[WT_LEN]   = {0};
 
 /*-------------------------------------------------------------------------*/
 /*  AI slop RBJ lowpass filter                                             */
@@ -260,12 +260,15 @@ void program_tick()
 
     // Draw wavetables
     {
-        int num_wavetables = 8;
+        int num_wavetables = 1;
+        // int num_wavetables = 8;
         // int         num_wavetables = ARRLEN(WAVETABLES);
-        int         MAX_TILE_LEN = WT_LEN;
-        const float stroke_width = 1.2f;
-        // const uint32_t stroke_colour  = 0xff0000ff;
-        const uint32_t stroke_colour = packUnorm4x8(1, 0, 1, 0.5);
+        int MAX_TILE_LEN = WT_LEN;
+        // const float stroke_width = 1.2f;
+        const float    stroke_width  = 3.0f;
+        const uint32_t stroke_colour = 0xffffffff;
+        // const uint32_t stroke_colour = packUnorm4x8(1, 0, 1, 0.2);
+        // const uint32_t stroke_colour = packUnorm4x8(1, 0, 1, 1);
 
         // TODO: calculate these values based on the number of wavetables
         // The series of wavetables will probably want a fixed spread vertically and horizontally
@@ -290,9 +293,10 @@ void program_tick()
 
         for (int wt_idx = 0; wt_idx < num_wavetables; wt_idx++)
         {
-            int pt_idx = wt_idx * WT_LEN;
+            int wt_pos = (int)(state.param_value * ARRLEN(WAVETABLES));
+            wt_pos     = xm_clampi(wt_idx + wt_pos, 0, ARRLEN(WAVETABLES) - 1);
 
-            Wavetable* wt = &WAVETABLES[wt_idx];
+            Wavetable* wt = &WAVETABLES[wt_pos];
 
             for (int tile_begin_idx = 0; tile_begin_idx < WT_LEN; tile_begin_idx += MAX_TILE_LEN)
             {
@@ -325,16 +329,16 @@ void program_tick()
                     float y = y_begin - wt_idx * y_offset_inc;
                     float b = y + wt_frame_height;
 
+                    int pt_idx = wt_pos * WT_LEN;
+
                     TILES[TILES_LEN] = (linetile_t){
-                        .topleft          = {x, y},
-                        .bottomright      = {r, b},
-                        .view_size        = {state.width, state.height},
-                        .buffer_begin_idx = pt_idx + 0,
-                        .buffer_end_idx   = pt_idx + WT_LEN,
-                        .tile_begin_idx   = pt_idx + tile_begin_idx,
-                        .tile_end_idx     = pt_idx + tile_end_idx,
-                        .stroke_width     = stroke_width,
-                        .colour           = stroke_colour,
+                        .topleft        = {x, y},
+                        .bottomright    = {r, b},
+                        .view_size      = {state.width, state.height},
+                        .tile_begin_idx = pt_idx + tile_begin_idx,
+                        .tile_end_idx   = pt_idx + tile_end_idx,
+                        .stroke_width   = stroke_width,
+                        .colour         = stroke_colour,
                     };
                     TILES_LEN++;
                 }
@@ -352,7 +356,7 @@ void program_tick()
                 .views[VIEW_sbo_line_stroke_tiled] = state.sbv_line_data,
             });
 
-            sg_draw(0, 6 * TILES_LEN, 1);
+            sg_draw(0, 6 * TILES_LEN * WT_LEN, 1);
         }
     }
 
