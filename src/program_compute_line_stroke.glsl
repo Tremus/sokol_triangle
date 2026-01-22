@@ -56,44 +56,54 @@ void main()
 {
     ivec2 imgSize = imageSize(cs_output);
     ivec2 pixCoord = ivec2(gl_GlobalInvocationID.xy);
-
     vec2 view_size = vec2(imgSize);
-    vec2 p         = vec2(pixCoord);
-    float px_inc   = 2.0 / view_size.x;
-    float stroke_width = u_stroke_width / view_size.y * 2;
-
-    p = (p + p) / view_size - vec2(1);
-    p.y = -p.y;
 
     int idx      = min(pixCoord.x, u_buffer_length - 1);
     int idx_prev = max(pixCoord.x - 1, 0);
     int idx_next = min(pixCoord.x + 1, u_buffer_length - 1);
 
-    float y_scale = 0.8;
+    float y_scale     = -0.8;
     float sine_y      = sine_buffer[idx].y      * y_scale;
     float sine_y_prev = sine_buffer[idx_prev].y * y_scale;
     float sine_y_next = sine_buffer[idx_next].y * y_scale;
 
-    vec2 a = vec2(p.x - px_inc, sine_y_prev);
-    vec2 b = vec2(p.x         , sine_y);
-    vec2 c = vec2(p.x + px_inc, sine_y_next);
+    float y_top = max(max(sine_y, sine_y_prev), sine_y_next) ;
+    float y_bot = min(min(sine_y, sine_y_prev), sine_y_next);
+    // Normalise
+    y_top = y_top * 0.5 + 0.5;
+    y_bot = y_bot * 0.5 + 0.5;
+    y_top = ceil(y_top * view_size.y + u_stroke_width * 0.5);
+    y_bot = floor(y_bot * view_size.y - u_stroke_width * 0.5);
 
-    float d1 = sdSegment(p, a, b);
-    float d2 = sdSegment(p, b, c);
-    float d = min(d1, d2);
+    int y_start = int(y_bot);
+    int y_end   = int(y_top);
 
-    float shape_vertical   = smoothstep(stroke_width, 0, abs(d));
-    float shape_horizontal = smoothstep(stroke_width, 0, abs(sine_y - p.y));
-    float shape            = max(shape_vertical, shape_horizontal);
+    float px_inc       = 2.0 / view_size.x;
+    float stroke_width = u_stroke_width / view_size.y * 2;
+    for (int i = y_start; i < y_end + 1; i++)
+    {
+        vec2 p = vec2(pixCoord.x, i);
 
-    vec3 col_bg   = vec3(0);
-    vec3 col_line = vec3(1.0);
-    vec3 col = mix(col_bg, col_line, shape);
+        p = (p + p) / view_size - vec2(1);
 
-    imageStore(cs_output, pixCoord, vec4(col, 1.0));
+        vec2 a = vec2(p.x - px_inc, sine_y_prev);
+        vec2 b = vec2(p.x         , sine_y);
+        vec2 c = vec2(p.x + px_inc, sine_y_next);
 
-    // float col = p.y < sine_y ? 1 : 0;
-    // imageStore(cs_output, pixCoord, vec4(vec3(col), 1.0));
+        float d1 = sdSegment(p, a, b);
+        float d2 = sdSegment(p, b, c);
+        float d = min(d1, d2);
+
+        float shape_vertical   = smoothstep(stroke_width, 0, abs(d));
+        float shape_horizontal = smoothstep(stroke_width, 0, abs(sine_y - p.y));
+        float shape            = max(shape_vertical, shape_horizontal);
+
+        vec3 col_bg   = vec3(0);
+        vec3 col_line = vec3(1.0);
+        vec3 col = mix(col_bg, col_line, shape);
+
+        imageStore(cs_output, ivec2(pixCoord.x, i), vec4(col, 1.0));
+    }
 }
 @end
 

@@ -19,6 +19,7 @@ static struct
         sg_pipeline pip;
         sg_image    img;
         sg_view     storage_view;
+        sg_view     tex_view;
         sg_view     col_view;
     } compute;
 
@@ -88,16 +89,19 @@ void program_tick()
     {
         state.resized = false;
         sg_destroy_view(state.compute.col_view);
+        sg_destroy_view(state.compute.tex_view);
         sg_destroy_view(state.compute.storage_view);
         sg_destroy_image(state.compute.img);
         state.compute.col_view.id     = 0;
+        state.compute.tex_view.id     = 0;
         state.compute.storage_view.id = 0;
         state.compute.img.id          = 0;
 
         state.compute.img          = sg_make_image(&(sg_image_desc){
                      .usage =
                 {
-                             .storage_image = true,
+                             .storage_image    = true,
+                             .color_attachment = true,
                 },
 
                      .width        = state.width,
@@ -107,11 +111,15 @@ void program_tick()
         });
         state.compute.storage_view = sg_make_view(&(sg_view_desc){
             .storage_image = state.compute.img,
-            .label         = "CS image view",
+            .label         = "Storage view",
         });
         state.compute.col_view     = sg_make_view(&(sg_view_desc){
+                .color_attachment = {.image = state.compute.img},
+                .label            = "Col Attachment view",
+        });
+        state.compute.tex_view     = sg_make_view(&(sg_view_desc){
                 .texture = {.image = state.compute.img},
-                .label   = "CS image view",
+                .label   = "Tex view",
         });
     }
     // Animated sine wave
@@ -130,10 +138,14 @@ void program_tick()
     }
     sg_update_buffer(state.line_buf, &(sg_range){.ptr = AUDIO_BUFFER, sizeof(AUDIO_BUFFER[0]) * N});
 
+    // Clear
     sg_begin_pass(&(sg_pass){
-        .compute = true,
-        .action  = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
-        .label   = "compute-pass"});
+        .action = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
+        .attachments.colors[0] = state.compute.col_view,
+        .label                 = "compute-pass"});
+    sg_end_pass();
+
+    sg_begin_pass(&(sg_pass){.compute = true, .label = "compute-pass"});
     sg_apply_pipeline(state.compute.pip);
     sg_apply_bindings(&(sg_bindings){
         .views[VIEW_cs_output]         = state.compute.storage_view,
@@ -144,14 +156,17 @@ void program_tick()
         .u_stroke_width  = 2.0f,
     };
     sg_apply_uniforms(UB_cs_uniforms, &SG_RANGE(uniforms));
-    sg_dispatch(state.width / 64, state.height, 1);
+    sg_dispatch(state.width / 64, 1, 1);
     sg_end_pass();
 
     // swapchain render pass to display the result
-    sg_begin_pass(&(sg_pass){.swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8), .label = "display-pass"});
+    sg_begin_pass(&(sg_pass){
+        .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8),
+        .action    = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
+        .label     = "display-pass"});
     sg_apply_pipeline(state.display.pip);
     sg_apply_bindings(&(sg_bindings){
-        .views[VIEW_disp_tex]   = state.compute.col_view,
+        .views[VIEW_disp_tex]   = state.compute.tex_view,
         .samplers[SMP_disp_smp] = state.smp,
     });
     sg_draw(0, 3, 1);
