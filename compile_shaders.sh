@@ -28,5 +28,6 @@ sokol-shdc --input src/program_sdf_compressed.glsl         --output src/program_
 sokol-shdc --input src/program_sdf_line_tiled.glsl         --output src/program_sdf_line_tiled.glsl.h         --slang metal_macos
 sokol-shdc --input src/program_3d_wavetable_stroked.glsl   --output src/program_3d_wavetable_stroked.glsl.h   --slang metal_macos
 sokol-shdc --input src/program_compute_triangle.glsl       --output src/program_compute_triangle.glsl.h       --slang metal_macos
+sokol-shdc --input src/program_compute_line_stroke.glsl    --output src/program_compute_line_stroke.glsl.h    --slang metal_macos
 
 shader-hotreloader -i src
