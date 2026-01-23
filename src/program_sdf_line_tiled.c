@@ -124,7 +124,7 @@ void program_tick()
 
         const size_t buflen     = ARRLEN(AUDIO_BUFFER);
         const float  phase      = (now_sec - (int)now_sec) * XM_TAUf;
-        const int    num_cycles = 32; // NOTE: steep lines look aliased. Current technique not accurate enough
+        const int    num_cycles = 8;
         const float  inc        = XM_TAUf / (float)buflen * num_cycles;
         for (unsigned i = 0; i < N; i++)
         {
@@ -135,13 +135,15 @@ void program_tick()
             // AUDIO_BUFFER[i] = (((i >> 4) & 3) >> 1) ? -1 : 1; // square
         }
     }
-    const bool draw_tile     = 1;
-    const bool draw_overdraw = 0;
-    // const float stroke_width  = 1.2f;
-    const float stroke_width = 2.0f;
+    // NOTE: tiling can introduce tears at tile seams
+    const bool  draw_tile     = 1;
+    const bool  draw_overdraw = 0;
+    const float stroke_width  = 1.0f;
+    // const float stroke_width = 2.0f;
     // const uint32_t stroke_colour = 0xffffffff;
     const uint32_t stroke_colour = 0x7fffffff;
-    const int      MAX_TILE_LEN  = 16 * backingScaleFactor;
+    // const int      MAX_TILE_LEN  = 16 * backingScaleFactor;
+    const int MAX_TILE_LEN = 32 * backingScaleFactor;
 
     if (N)
     {
@@ -233,5 +235,5 @@ void program_tick()
 
     size_t size_line  = N * sizeof(AUDIO_BUFFER[0]);
     size_t size_tiles = TILES_LEN * sizeof(TILES[0]);
-    println("Line: %zu bytes, Tiles: %zu bytes, Total: %zu bytes", size_line, size_tiles, (size_line + size_tiles));
+    // println("Line: %zu bytes, Tiles: %zu bytes, Total: %zu bytes", size_line, size_tiles, (size_line + size_tiles));
 }

@@ -27,26 +27,39 @@ out flat int buffer_begin_idx;
 out flat int buffer_end_idx;
 
 out flat float px_inc;
-out flat float stroke_width;
-
+out flat vec2 stroke_width;
 
 void main() {
     uint v_idx = gl_VertexIndex / 6u;
     uint i_idx = gl_VertexIndex - v_idx * 6;
 
     linetile vert = vtx[v_idx];
-    
+
+    // Is odd
+    bool is_right = (gl_VertexIndex & 1) == 1;
+    bool is_bottom = i_idx >= 2 && i_idx <= 4;
+
+    tile_idx = is_right ? vert.tile_end_idx : vert.tile_begin_idx;
+
+    buffer_begin_idx = vert.buffer_begin_idx;
+    buffer_end_idx   = vert.buffer_end_idx;
+    colour = vert.colour;
+
+    px_inc = 2.0 / vert.view_size.x;
+    stroke_width = 2 * vert.stroke_width / vert.view_size;
+
+    vert.topleft.y += vert.stroke_width * 2;
+    vert.bottomright.y -= vert.stroke_width * 2;
+
+    float vw = vert.bottomright.x - vert.topleft.x;
+    float vh = vert.bottomright.y - vert.topleft.y;
+
     //  0.5f,  0.5f,
     // -0.5f, -0.5f,
     //  0.5f, -0.5f,
     // -0.5f,  0.5f,
     // 0, 1, 2,
     // 1, 2, 3,
-
-    // Is odd
-    bool is_right = (gl_VertexIndex & 1) == 1;
-    bool is_bottom = i_idx >= 2 && i_idx <= 4;
-
     vec2 pos = vec2(
         is_right  ? vert.bottomright.x : vert.topleft.x,
         is_bottom ? vert.bottomright.y : vert.topleft.y
@@ -55,21 +68,8 @@ void main() {
     pos = (pos + pos) / vert.view_size - vec2(1);
     pos.y = -pos.y;
 
-    float vw = vert.bottomright.x - vert.topleft.x;
-    float vh = vert.bottomright.y - vert.topleft.y;
-
-    gl_Position = vec4(pos, 1, 1);
-    // p = vec2(is_right  ? 1 : -1, is_bottom ? -1 : 1);
     p = pos;
-    tile_idx = is_right ? vert.tile_end_idx : vert.tile_begin_idx;
-    colour = vert.colour;
-
-    px_inc = 2.0 / vert.view_size.x;
-
-    stroke_width = vert.stroke_width / vert.view_size.x * 2;
-
-    buffer_begin_idx = vert.buffer_begin_idx;
-    buffer_end_idx   = vert.buffer_end_idx;
+    gl_Position = vec4(pos, 1, 1);
 }
 @end
 
@@ -83,8 +83,7 @@ in flat int buffer_begin_idx;
 in flat int buffer_end_idx;
 
 in flat float px_inc;
-in flat float stroke_width;
-
+in flat vec2 stroke_width;
 
 out vec4 frag_colour;
 
@@ -123,25 +122,26 @@ void main()
 
     // build points
     vec2 a = vec2(p.x - px_inc, sine_y_prev);
-    vec2 b = vec2(p.x         , sine_y);
+    vec2 b = vec2(p.x           , sine_y);
     vec2 c = vec2(p.x + px_inc, sine_y_next);
 
     float d1 = sdSegment(p, a, b);
     float d2 = sdSegment(p, b, c);
     float d = min(d1, d2);
 
-    float shape_vertical   = smoothstep(stroke_width, 0, abs(d));
-    float shape_horizontal = smoothstep(stroke_width, 0, abs(sine_y - p.y));
+    float shape_vertical   = smoothstep(stroke_width.x, 0, abs(d));
+    float shape_horizontal = smoothstep(stroke_width.y, 0, abs(sine_y - p.y));
     float shape            = max(shape_vertical, shape_horizontal);
+    shape = sqrt(shape); // gamma
 
     vec4 col_line = unpackUnorm4x8(colour).abgr;
 
-    // col_line.a *= shape;
-    // frag_colour = col_line;
+    col_line.a *= shape;
+    frag_colour = col_line;
 
     // Show tiles
-    vec4 col_bg = vec4(0.5, 0, 0.5, 1);
-    frag_colour = mix(col_bg, col_line, shape);
+    // vec4 col_bg = vec4(0.5, 0, 0.5, 1);
+    // frag_colour = mix(col_bg, col_line, shape);
 }
 @end
 
@@ -186,8 +186,8 @@ float sdSegment(in vec2 p, in vec2 a, in vec2 b)
 
 void main()
 {
-    float stroke_width = 2 * u_stroke_width / u_view_size.y;
-    float px_inc = 2.0 / u_view_size.x;
+    vec2 px_inc = vec2(2.0) / u_view_size;
+    vec2 stroke_width = px_inc * u_stroke_width;
 
     // Read buffer data
 
@@ -206,17 +206,18 @@ void main()
     sine_y_next = sine_y_next * 2 - 1;
 
     // build points
-    vec2 a = vec2(p.x - px_inc, sine_y_prev);
-    vec2 b = vec2(p.x         , sine_y);
-    vec2 c = vec2(p.x + px_inc, sine_y_next);
+    vec2 a = vec2(p.x - px_inc.x, sine_y_prev);
+    vec2 b = vec2(p.x           , sine_y);
+    vec2 c = vec2(p.x + px_inc.x, sine_y_next);
 
     float d1 = sdSegment(p, a, b);
     float d2 = sdSegment(p, b, c);
     float d = min(d1, d2);
 
-    float shape_vertical   = smoothstep(stroke_width, 0, abs(d));
-    float shape_horizontal = smoothstep(stroke_width, 0, abs(sine_y - p.y));
+    float shape_vertical   = smoothstep(stroke_width.x, 0, abs(d));
+    float shape_horizontal = smoothstep(stroke_width.y, 0, abs(sine_y - p.y));
     float shape            = max(shape_vertical, shape_horizontal);
+    shape = sqrt(shape); // gamma
 
     frag_colour = vec4(1, 1, 1, shape);
     // vec3 col_bg   = vec3(0);
