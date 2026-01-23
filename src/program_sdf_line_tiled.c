@@ -45,19 +45,19 @@ void program_setup()
     });
     state.sbv_line_data = sg_make_view(&(sg_view_desc){.storage_buffer = state.sbo_line_data});
 
-    state.tiles.pip = sg_make_pipeline(
-        &(sg_pipeline_desc){.shader = sg_make_shader(line_stroke_tiled_shader_desc(sg_query_backend())),
-                            .colors[0] =
-                                {.write_mask = SG_COLORMASK_RGBA,
-                                 .blend =
-                                     {
-                                         .enabled          = true,
-                                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                                     }},
-                            .label = "tiles-pipeline"});
+    state.tiles.pip = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader = sg_make_shader(line_stroke_tiled_shader_desc(sg_query_backend())),
+        .colors[0] =
+            {.write_mask = SG_COLORMASK_RGBA,
+             .blend =
+                 {
+                     .enabled          = true,
+                     .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                     .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                     .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                     .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                 }},
+        .label = "tiles-pipeline"});
 
     state.tiles.sbo = sg_make_buffer(&(sg_buffer_desc){
         .usage.storage_buffer = true,
@@ -67,19 +67,19 @@ void program_setup()
     });
     state.tiles.sbv = sg_make_view(&(sg_view_desc){.storage_buffer = state.tiles.sbo});
 
-    state.pip_overdraw = sg_make_pipeline(
-        &(sg_pipeline_desc){.shader = sg_make_shader(line_stroke_overdraw_shader_desc(sg_query_backend())),
-                            .colors[0] =
-                                {.write_mask = SG_COLORMASK_RGBA,
-                                 .blend =
-                                     {
-                                         .enabled          = true,
-                                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                                     }},
-                            .label = "overdraw-pipeline"});
+    state.pip_overdraw = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader = sg_make_shader(line_stroke_overdraw_shader_desc(sg_query_backend())),
+        .colors[0] =
+            {.write_mask = SG_COLORMASK_RGBA,
+             .blend =
+                 {
+                     .enabled          = true,
+                     .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                     .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                     .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                     .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                 }},
+        .label = "overdraw-pipeline"});
 }
 void program_shutdown() {}
 
@@ -113,7 +113,7 @@ void program_tick()
 #else
     const int backingScaleFactor = 1;
 #endif
-    const size_t N = state.window_width * backingScaleFactor;
+    const size_t N = xm_minull(state.window_width * backingScaleFactor, ARRLEN(AUDIO_BUFFER));
 
     // Build line
     {
@@ -122,14 +122,16 @@ void program_tick()
         double now_sec  = xtime_convert_ns_to_sec(xtime_now_ns());
         now_sec        *= 0.125 * 0.25; // 0.25hz
 
-        const float phase = (now_sec - (int)now_sec) * XM_TAUf;
-        const float inc   = XM_TAUf / (float)N * 8;
+        const size_t buflen     = ARRLEN(AUDIO_BUFFER);
+        const float  phase      = (now_sec - (int)now_sec) * XM_TAUf;
+        const int    num_cycles = 32; // NOTE: steep lines look aliased. Current technique not accurate enough
+        const float  inc        = XM_TAUf / (float)buflen * num_cycles;
         for (unsigned i = 0; i < N; i++)
         {
-            float v = sinf(phase + i * inc); // sin
-            v       = v * -0.5f + 0.5f;      // normalise to [0-1], where 0 is bottom of screen
-            // v *= 0.8f;
-            AUDIO_BUFFER[i] = v;
+            float v          = sinf(phase + i * inc); // sin
+            v               *= 0.8f;
+            v                = v * -0.5f + 0.5f; // normalise to [0-1], where 0 is bottom of screen
+            AUDIO_BUFFER[i]  = v;
             // AUDIO_BUFFER[i] = (((i >> 4) & 3) >> 1) ? -1 : 1; // square
         }
     }
@@ -139,7 +141,7 @@ void program_tick()
     const float stroke_width = 2.0f;
     // const uint32_t stroke_colour = 0xffffffff;
     const uint32_t stroke_colour = 0x7fffffff;
-    const int      MAX_TILE_LEN  = 8 * backingScaleFactor;
+    const int      MAX_TILE_LEN  = 16 * backingScaleFactor;
 
     if (N)
     {

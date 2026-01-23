@@ -124,10 +124,10 @@ set(PLUGIN_SOURCES
 # list(APPEND PLUGIN_SOURCES src/program_sdf_line_segment.c)
 # list(APPEND PLUGIN_SOURCES src/program_line_stroke_sdf.c)
 # list(APPEND PLUGIN_SOURCES src/program_sdf_compressed.c)
-# list(APPEND PLUGIN_SOURCES src/program_sdf_line_tiled.c)
+list(APPEND PLUGIN_SOURCES src/program_sdf_line_tiled.c)
 # list(APPEND PLUGIN_SOURCES src/program_3d_wavetable_stroked.c)
 # list(APPEND PLUGIN_SOURCES src/program_compute_triangle.c)
-list(APPEND PLUGIN_SOURCES src/program_compute_line_stroke.c)
+# list(APPEND PLUGIN_SOURCES src/program_compute_line_stroke.c)
 
 if (WIN32)
     list(APPEND PLUGIN_DEFINITIONS UNICODE _UNICODE _USE_MATH_DEFINES PW_DX11)

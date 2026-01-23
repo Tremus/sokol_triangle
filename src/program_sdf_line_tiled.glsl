@@ -66,7 +66,7 @@ void main() {
 
     px_inc = 2.0 / vert.view_size.x;
 
-    stroke_width = vert.stroke_width / vert.view_size.y * 2;
+    stroke_width = vert.stroke_width / vert.view_size.x * 2;
 
     buffer_begin_idx = vert.buffer_begin_idx;
     buffer_end_idx   = vert.buffer_end_idx;
@@ -134,13 +134,13 @@ void main()
     float shape_horizontal = smoothstep(stroke_width, 0, abs(sine_y - p.y));
     float shape            = max(shape_vertical, shape_horizontal);
 
-    // vec4 col_line = unpackUnorm4x8(colour).abgr;
+    vec4 col_line = unpackUnorm4x8(colour).abgr;
+
     // col_line.a *= shape;
     // frag_colour = col_line;
 
     // Show tiles
     vec4 col_bg = vec4(0.5, 0, 0.5, 1);
-    vec4 col_line = unpackUnorm4x8(colour).abgr;
     frag_colour = mix(col_bg, col_line, shape);
 }
 @end
@@ -186,7 +186,7 @@ float sdSegment(in vec2 p, in vec2 a, in vec2 b)
 
 void main()
 {
-    float stroke_width = u_stroke_width / u_view_size.y * 2;
+    float stroke_width = 2 * u_stroke_width / u_view_size.y;
     float px_inc = 2.0 / u_view_size.x;
 
     // Read buffer data
@@ -205,7 +205,6 @@ void main()
     sine_y_prev = sine_y_prev * 2 - 1;
     sine_y_next = sine_y_next * 2 - 1;
 
-
     // build points
     vec2 a = vec2(p.x - px_inc, sine_y_prev);
     vec2 b = vec2(p.x         , sine_y);
@@ -220,6 +219,10 @@ void main()
     float shape            = max(shape_vertical, shape_horizontal);
 
     frag_colour = vec4(1, 1, 1, shape);
+    // vec3 col_bg   = vec3(0);
+    // vec3 col_line = vec3(1.0);
+    // vec3 col = mix(col_bg, col_line, shape);
+    // frag_colour = vec4(col, 1.0);
 }
 @end
 
