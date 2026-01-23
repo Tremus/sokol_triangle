@@ -45,11 +45,12 @@ void main() {
     buffer_end_idx   = vert.buffer_end_idx;
     colour = vert.colour;
 
-    px_inc = 2.0 / vert.view_size.x;
+    px_inc       = 2.0 / vert.view_size.x;
     stroke_width = 2 * vert.stroke_width / vert.view_size;
 
-    vert.topleft.y += vert.stroke_width * 2;
-    vert.bottomright.y -= vert.stroke_width * 2;
+    // Fixes tearing at seams of tiles 
+    vert.topleft.y     += vert.stroke_width;
+    vert.bottomright.y -= vert.stroke_width;
 
     float vw = vert.bottomright.x - vert.topleft.x;
     float vh = vert.bottomright.y - vert.topleft.y;

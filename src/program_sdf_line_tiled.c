@@ -135,11 +135,11 @@ void program_tick()
             // AUDIO_BUFFER[i] = (((i >> 4) & 3) >> 1) ? -1 : 1; // square
         }
     }
-    // NOTE: tiling can introduce tears at tile seams
-    const bool  draw_tile     = 1;
-    const bool  draw_overdraw = 0;
-    const float stroke_width  = 1.0f;
-    // const float stroke_width = 2.0f;
+    // TODO: improve quality of 2px lines. Resizing window will change the stroke width of line
+    const bool draw_tile     = 1;
+    const bool draw_overdraw = 0;
+    // const float stroke_width  = 1.0f;
+    const float stroke_width = 2.0f;
     // const uint32_t stroke_colour = 0xffffffff;
     const uint32_t stroke_colour = 0x7fffffff;
     // const int      MAX_TILE_LEN  = 16 * backingScaleFactor;
