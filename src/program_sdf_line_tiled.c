@@ -2,6 +2,7 @@
 
 #include "program_sdf_line_tiled.glsl.h"
 
+#include <stdio.h>
 #include <xhl/debug.h>
 #include <xhl/maths.h>
 #include <xhl/time.h>
@@ -118,9 +119,9 @@ void program_tick()
     // Build line
     {
         // Animated sine wave
-        // double now_sec = 0;
-        double now_sec  = xtime_convert_ns_to_sec(xtime_now_ns());
-        now_sec        *= 0.125 * 0.25; // 0.25hz
+        double now_sec = 0;
+        // double now_sec  = xtime_convert_ns_to_sec(xtime_now_ns());
+        // now_sec        *= 0.125 * 0.25; // 0.25hz
 
         const size_t buflen     = ARRLEN(AUDIO_BUFFER);
         const float  phase      = (now_sec - (int)now_sec) * XM_TAUf;
@@ -136,8 +137,8 @@ void program_tick()
         }
     }
     // TODO: improve quality of 2px lines. Resizing window will change the stroke width of line
-    const bool draw_tile     = 1;
-    const bool draw_overdraw = 0;
+    const bool draw_tile     = 0;
+    const bool draw_overdraw = 1;
     // const float stroke_width  = 1.0f;
     const float stroke_width = 2.0f;
     // const uint32_t stroke_colour = 0xffffffff;
@@ -235,5 +236,13 @@ void program_tick()
 
     size_t size_line  = N * sizeof(AUDIO_BUFFER[0]);
     size_t size_tiles = TILES_LEN * sizeof(TILES[0]);
-    // println("Line: %zu bytes, Tiles: %zu bytes, Total: %zu bytes", size_line, size_tiles, (size_line + size_tiles));
+    // Line: 2560 bytes, Tiles: 960 bytes, window width: 640, tile width 32, Total: 3520 bytes
+    fprintf(
+        stderr,
+        "Line: %zu bytes, Tiles: %zu bytes, window width: %d, tile width %d, Total: %zu bytes\n",
+        size_line,
+        size_tiles,
+        state.window_width,
+        MAX_TILE_LEN,
+        (size_line + size_tiles));
 }

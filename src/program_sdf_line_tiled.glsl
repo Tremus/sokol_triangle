@@ -137,12 +137,12 @@ void main()
 
     vec4 col_line = unpackUnorm4x8(colour).abgr;
 
-    col_line.a *= shape;
-    frag_colour = col_line;
+    // col_line.a *= shape;
+    // frag_colour = col_line;
 
     // Show tiles
-    // vec4 col_bg = vec4(0.5, 0, 0.5, 1);
-    // frag_colour = mix(col_bg, col_line, shape);
+    vec4 col_bg = vec4(0.5, 0, 0.5, 1);
+    frag_colour = mix(col_bg, col_line, shape);
 }
 @end
 
