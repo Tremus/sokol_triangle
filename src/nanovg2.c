@@ -453,12 +453,6 @@ void nvgReset(NVGcontext* ctx)
 
     state->scissor.extent[0] = -1.0f;
     state->scissor.extent[1] = -1.0f;
-
-    state->fontSize = 16.0f;
-    // state->letterSpacing = 0.0f;
-    state->lineHeight = 1.0f;
-
-    state->fontId = 0;
 }
 
 NVGcolour nvgRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
@@ -2461,13 +2455,8 @@ static bool sgnvg__pipelineTypeIsInUse(NVGcontext* ctx, enum SGNVGpipelineType t
     case SGNVG_PIP_BASE:
     case SGNVG_PIP_FILL_STENCIL:
     case SGNVG_PIP_FILL_DRAW:
-        return true;
     case SGNVG_PIP_FILL_ANTIALIAS:
-        return !!(ctx->flags & NVG_ANTIALIAS);
-    case SGNVG_PIP_STROKE_STENCIL_DRAW:
-    case SGNVG_PIP_STROKE_STENCIL_ANTIALIAS:
-    case SGNVG_PIP_STROKE_STENCIL_CLEAR:
-        return !!(ctx->flags & NVG_STENCIL_STROKES);
+        return true;
 
     case SGNVG_PIP_NUM_: // to avoid warnings
         break;           /* fall through to assert */
@@ -2605,76 +2594,6 @@ static sg_pipeline sgnvg__getPipelineFromCache(NVGcontext* ctx, enum SGNVGpipeli
                     .ref        = 0,
                 },
                 SG_COLORMASK_RGBA,
-                SG_CULLMODE_BACK);
-            break;
-
-        case SGNVG_PIP_STROKE_STENCIL_DRAW:
-            sgnvg__initPipeline(
-                ctx,
-                pipeline,
-                &(sg_stencil_state){
-                    .enabled = true,
-                    .front =
-                        {.compare       = SG_COMPAREFUNC_EQUAL,
-                         .fail_op       = SG_STENCILOP_KEEP,
-                         .depth_fail_op = SG_STENCILOP_KEEP,
-                         .pass_op       = SG_STENCILOP_INCR_CLAMP},
-                    .back =
-                        {.compare       = SG_COMPAREFUNC_EQUAL,
-                         .fail_op       = SG_STENCILOP_KEEP,
-                         .depth_fail_op = SG_STENCILOP_KEEP,
-                         .pass_op       = SG_STENCILOP_INCR_CLAMP},
-                    .read_mask  = 0xFF,
-                    .write_mask = 0xFF,
-                    .ref        = 0,
-                },
-                SG_COLORMASK_RGBA,
-                SG_CULLMODE_BACK);
-            break;
-        case SGNVG_PIP_STROKE_STENCIL_ANTIALIAS:
-            sgnvg__initPipeline(
-                ctx,
-                pipeline,
-                &(sg_stencil_state){
-                    .enabled = true,
-                    .front =
-                        {.compare       = SG_COMPAREFUNC_EQUAL,
-                         .fail_op       = SG_STENCILOP_KEEP,
-                         .depth_fail_op = SG_STENCILOP_KEEP,
-                         .pass_op       = SG_STENCILOP_KEEP},
-                    .back =
-                        {.compare       = SG_COMPAREFUNC_EQUAL,
-                         .fail_op       = SG_STENCILOP_KEEP,
-                         .depth_fail_op = SG_STENCILOP_KEEP,
-                         .pass_op       = SG_STENCILOP_KEEP},
-                    .read_mask  = 0xFF,
-                    .write_mask = 0xFF,
-                    .ref        = 0,
-                },
-                SG_COLORMASK_RGBA,
-                SG_CULLMODE_BACK);
-            break;
-        case SGNVG_PIP_STROKE_STENCIL_CLEAR:
-            sgnvg__initPipeline(
-                ctx,
-                pipeline,
-                &(sg_stencil_state){
-                    .enabled = true,
-                    .front =
-                        {.compare       = SG_COMPAREFUNC_ALWAYS,
-                         .fail_op       = SG_STENCILOP_ZERO,
-                         .depth_fail_op = SG_STENCILOP_ZERO,
-                         .pass_op       = SG_STENCILOP_ZERO},
-                    .back =
-                        {.compare       = SG_COMPAREFUNC_ALWAYS,
-                         .fail_op       = SG_STENCILOP_ZERO,
-                         .depth_fail_op = SG_STENCILOP_ZERO,
-                         .pass_op       = SG_STENCILOP_ZERO},
-                    .read_mask  = 0xFF,
-                    .write_mask = 0xFF,
-                    .ref        = 0,
-                },
-                SG_COLORMASK_NONE,
                 SG_CULLMODE_BACK);
             break;
 
@@ -2820,30 +2739,10 @@ static void sgnvg__stroke(NVGcontext* ctx, SGNVGcall* call)
     SGNVGpath* paths  = call->paths;
     int        npaths = call->num_paths, i;
 
-    if (ctx->flags & NVG_STENCIL_STROKES)
-    {
-        sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, SGNVG_PIP_STROKE_STENCIL_DRAW);
-
-        for (i = 0; i < npaths; i++)
-            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
-
-        // Draw anti-aliased pixels.
-        sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_STROKE_STENCIL_ANTIALIAS);
-        for (i = 0; i < npaths; i++)
-            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
-
-        // Clear stencil buffer.
-        sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_STROKE_STENCIL_CLEAR);
-        for (i = 0; i < npaths; i++)
-            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
-    }
-    else
-    {
-        sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_BASE);
-        // Draw Strokes
-        for (i = 0; i < npaths; i++)
-            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
-    }
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_BASE);
+    // Draw Strokes
+    for (i = 0; i < npaths; i++)
+        sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
 }
 
 static void sgnvg__triangles(NVGcontext* ctx, SGNVGcall* call)
@@ -2987,12 +2886,6 @@ int snvg_consume_commands(NVGcontext* ctx, SGNVGcommand* cmd)
         case SGNVG_CMD_DRAW_NVG:
             sgnvg__renderNVGCalls(ctx, cmd->payload.drawNVG);
             break;
-        case SGNVG_CMD_CUSTOM:
-        {
-            SGNVGcommandCustom* custom = cmd->payload.custom;
-            custom->func(custom->uptr);
-            break;
-        }
         }
 
         cmd = cmd->next;
@@ -3405,28 +3298,12 @@ void nvgStroke(NVGcontext* ctx, float stroke_width)
         }
     }
 
-    if (ctx->flags & NVG_STENCIL_STROKES)
-    {
-        // Fill shader
-        frags = linked_arena_alloc_clear(ctx->frame_arena, 2 * sizeof(*frags));
-
-        if (frags == NULL)
-            return;
-
-        call->uniforms = frags;
-
-        sgnvg__convertPaint(ctx, call->uniforms, &paint, scissor, strokeWidth, fringe, -1.0f);
-        sgnvg__convertPaint(ctx, call->uniforms + 1, &paint, scissor, strokeWidth, fringe, 1.0f - 0.5f / 255.0f);
-    }
-    else
-    {
-        // Fill shader
-        frags = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*frags));
-        if (frags == NULL)
-            return;
-        call->uniforms = frags;
-        sgnvg__convertPaint(ctx, call->uniforms, &paint, scissor, strokeWidth, fringe, -1.0f);
-    }
+    // Fill shader
+    frags = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*frags));
+    if (frags == NULL)
+        return;
+    call->uniforms = frags;
+    sgnvg__convertPaint(ctx, call->uniforms, &paint, scissor, strokeWidth, fringe, -1.0f);
 
     sgnvg__addCall(ctx, call);
 
@@ -3475,17 +3352,6 @@ void snvg_command_draw_nvg(NVGcontext* ctx, const char* label)
     ctx->current_nvg_draw = draws;
 }
 
-void snvg_command_custom(NVGcontext* ctx, void* uptr, SGNVGcustomFunc func, const char* label)
-{
-    SGNVGcommand*       cmd    = sgnvg__allocCommand(ctx, SGNVG_CMD_CUSTOM, label);
-    SGNVGcommandCustom* custom = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*custom));
-
-    cmd->payload.custom = custom;
-
-    custom->uptr = uptr;
-    custom->func = func;
-}
-
 NVGcontext* nvgCreateContext(int flags)
 {
     NVGcontext*  ctx            = NULL;
@@ -3514,22 +3380,6 @@ NVGcontext* nvgCreateContext(int flags)
             ctx->pipelineCache.pipelines[i][t] = sg_alloc_pipeline();
         }
     }
-
-    // Default samplers
-    ctx->sampler_linear  = sg_make_sampler(&(sg_sampler_desc){
-         .min_filter    = SG_FILTER_LINEAR,
-         .mag_filter    = SG_FILTER_LINEAR,
-         .mipmap_filter = SG_FILTER_LINEAR,
-         .wrap_u        = SG_WRAP_CLAMP_TO_EDGE,
-         .wrap_v        = SG_WRAP_CLAMP_TO_EDGE,
-    });
-    ctx->sampler_nearest = sg_make_sampler(&(sg_sampler_desc){
-        .min_filter    = SG_FILTER_NEAREST,
-        .mag_filter    = SG_FILTER_NEAREST,
-        .mipmap_filter = SG_FILTER_NEAREST,
-        .wrap_u        = SG_WRAP_CLAMP_TO_EDGE,
-        .wrap_v        = SG_WRAP_CLAMP_TO_EDGE,
-    });
 
     ctx->blend = (sg_blend_state){
         .enabled          = true,

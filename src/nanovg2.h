@@ -185,12 +185,6 @@ typedef struct NVGstate
     int        lineCap;
     float      xform[6];
     NVGscissor scissor;
-    float      fontSize;
-    // float                      letterSpacing;
-    float lineHeight;
-    // float                      fontBlur;
-    int textAlign;
-    int fontId;
 } NVGstate;
 
 typedef struct NVGpoint
@@ -222,9 +216,6 @@ enum NVGcreateFlags
 {
     // Flag indicating if geometry based anti-aliasing is used (may not be needed when using MSAA).
     NVG_ANTIALIAS = 1 << 0,
-    // Flag indicating if strokes should be drawn using stencil buffer. The rendering will be a little
-    // slower, but path overlaps (i.e. self-intersecting or sharp turns) will be drawn just once.
-    NVG_STENCIL_STROKES = 1 << 1,
     // Flag indicating that additional debug checks are done.
     NVG_DEBUG = 1 << 2,
 };
@@ -351,11 +342,6 @@ enum SGNVGpipelineType
     SGNVG_PIP_FILL_ANTIALIAS, // only used if sg->flags & NVG_ANTIALIAS
     SGNVG_PIP_FILL_DRAW,
 
-    // used by sgnvg__stroke
-    SGNVG_PIP_STROKE_STENCIL_DRAW,      // only used if sg->flags & NVG_STENCIL_STROKES
-    SGNVG_PIP_STROKE_STENCIL_ANTIALIAS, // only used if sg->flags & NVG_STENCIL_STROKES
-    SGNVG_PIP_STROKE_STENCIL_CLEAR,     // only used if sg->flags & NVG_STENCIL_STROKES
-
     SGNVG_PIP_NUM_
 };
 
@@ -398,43 +384,11 @@ typedef struct SGNVGcommandNVG
     struct SGNVGcall* calls;
 } SGNVGcommandNVG;
 
-typedef struct SGNVGcommandText
-{
-    int text_buffer_start;
-    int text_buffer_end;
-    // TODO: support more colours
-    NVGcolour colour_fill;
-    sg_view   atlas_view;
-} SGNVGcommandText;
-
-typedef struct SGNVGcommandImageFX
-{
-    // These are probably redundant and could be implied by the above params being > 0
-    bool apply_lightness_filter;
-    bool apply_bloom;
-
-    float lightness_threshold;
-    float radius_px;
-    float bloom_amount;
-
-    SGNVGframebuffer* src;
-    SGNVGimageFX*     fx;
-} SGNVGcommandImageFX;
-
-typedef void (*SGNVGcustomFunc)(void* uptr);
-
-typedef struct SGNVGcommandCustom
-{
-    void*           uptr;
-    SGNVGcustomFunc func;
-} SGNVGcommandCustom;
-
 enum SGNVGcommandType
 {
     SGNVG_CMD_BEGIN_PASS,
     SGNVG_CMD_END_PASS,
     SGNVG_CMD_DRAW_NVG,
-    SGNVG_CMD_CUSTOM,
 };
 
 typedef struct SGNVGcommand
@@ -447,57 +401,10 @@ typedef struct SGNVGcommand
 
         SGNVGcommandBeginPass* beginPass;
         SGNVGcommandNVG*       drawNVG;
-        SGNVGcommandText*      text;
-        SGNVGcommandImageFX*   fx;
-        SGNVGcommandCustom*    custom;
     } payload;
 
     struct SGNVGcommand* next;
 } SGNVGcommand;
-
-typedef struct NVGfontSlot
-{
-    void*  kbtr_font_ptr;
-    void*  data;
-    size_t data_size;
-    int    owned;
-} NVGfontSlot;
-
-// Used to identify a unique glyph.
-// TODO: support multiple fonts
-typedef union NVGatlasRectHeader
-{
-    struct
-    {
-        uint32_t glyph_index;
-        // TODO: this could probably be packed into an integer. To support sizes like 12.25, multiply & divide by 4
-        // This could make room for font ids in the header
-        float font_size;
-    };
-    uint64_t data;
-} NVGatlasRectHeader;
-
-typedef struct NVGatlasRect
-{
-    union NVGatlasRectHeader header;
-
-    uint8_t x, y, w, h;
-
-    int16_t advance_x;
-    int16_t advance_y;
-
-    int8_t bearing_x;
-    int8_t bearing_y;
-
-    sg_view img_view;
-} NVGatlasRect;
-
-typedef struct NVGatlas
-{
-    sg_view img_view;
-    bool    dirty;
-    bool    full;
-} NVGatlas;
 
 typedef struct NVGcontext
 {
@@ -544,9 +451,6 @@ typedef struct NVGcontext
     int             nindexes;
     int             cindexes_gpu;
 
-    sg_sampler sampler_linear;
-    sg_sampler sampler_nearest;
-
     // Feel free to allocate anything you want with this at any time in a frame after nvgBeginFrame() is called
     // Note all allocations are dropped when nvgBeginFrame() is called
     // It is also unadvised to release anything you allocate with this.
@@ -562,55 +466,6 @@ typedef struct NVGcontext
     int            pipelineCacheIndex;
     sg_blend_state blend;
 } NVGcontext;
-
-typedef struct NVGglyphPosition2
-{
-    NVGatlasRect rect;
-    int          x, y;
-} NVGglyphPosition2;
-
-typedef struct NVGtextLayoutRow
-{
-    // Indexes into glyphs array in struct NVGtextLayout below
-    short begin_idx, end_idx;
-    short ymin, ymax;
-    short xmin, xmax;
-    int   cursor_y_px;
-} NVGtextLayoutRow;
-
-// Glyphs are shaped and aligned from left > right along the baseline of row one
-// Alignment and translation on a screen should be applied at draw time
-// This design is to help reduce the amount of work kbts has do to, and avoid doing multiple runs across the text
-// Hopefully there is enough data here to make this possible.
-// Handling multiple languages is an aftertought here and this design may prove to be bad.
-typedef struct NVGtextLayout
-{
-    // WARNING: this values are scaled accorting to ctx->backingScaleFactor
-    // You are free to use them, however you may need to remember to divide by backingScaleFactor to your work in your
-    // own pixel space
-    short ascender, descender;
-    short line_height;
-    short xmax; // The right edge of the longest (in pixels) row
-
-    int total_height;
-    int total_height_tight;
-
-    int num_rows, cap_rows;
-    int num_glyphs, cap_glyphs;
-    int offset_rows;
-    int offset_glyphs;
-} NVGtextLayout;
-
-static NVGtextLayoutRow* nvgLayoutGetRows(const NVGtextLayout* l)
-{
-    return (NVGtextLayoutRow*)((char*)l + l->offset_rows);
-}
-static void nvgLayoutSetRows(NVGtextLayout* l, NVGtextLayoutRow* r) { l->offset_rows = ((char*)r - (char*)l); }
-static NVGglyphPosition2* nvgLayoutGetGlyphs(const NVGtextLayout* l)
-{
-    return (NVGglyphPosition2*)((char*)l + l->offset_glyphs);
-}
-static void nvgLayoutSetGlyphs(NVGtextLayout* l, NVGglyphPosition2* g) { l->offset_glyphs = ((char*)g - (char*)l); }
 
 NVGcontext* nvgCreateContext(int flags);
 void        nvgDestroyContext(NVGcontext* ctx);
@@ -965,7 +820,6 @@ void snvg_command_fx(
     SGNVGframebuffer* src,
     SGNVGimageFX*     fx,
     const char*       label);
-void snvg_command_custom(NVGcontext* ctx, void* uptr, SGNVGcustomFunc func, const char* label);
 
 typedef struct SNVGcallState
 {
