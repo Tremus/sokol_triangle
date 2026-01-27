@@ -90,8 +90,6 @@ precision highp float;
     #endif
 #endif
 
-layout(binding=2) uniform texture2D tex;
-layout(binding=3) uniform sampler smp;
 layout(location = 0) in vec2 ftcoord;
 layout(location = 1) in vec2 fpos;
 layout(location = 0) out vec4 outColor;
@@ -153,26 +151,8 @@ void main(void) {
         color.rgb += noise;
         color *= scissor;
         result = color;
-    } else if (type == 1) {// Image
-        // Calculate color fron texture
-        vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
-        vec4 color = texture(sampler2D(tex, smp), pt);
-        if (texType == 1) color = vec4(color.xyz*color.w,color.w);
-        if (texType == 2) color = vec4(color.x);
-        // stencil support
-        if (texType == 3 && color.a == 1.0) discard;
-        // Apply color tint and alpha.
-        color *= innerCol;
-        // Combine alpha
-        color *= strokeAlpha * scissor;
-        result = color;
     } else if (type == 2) {// Stencil fill
         result = vec4(1,1,1,1);
-    } else if (type == 3) {// Textured tris
-        vec4 color = texture(sampler2D(tex, smp), ftcoord);
-        if (texType == 1) color = vec4(color.xyz*color.w,color.w);
-        if (texType == 2) color = vec4(color.x);
-        result = color * scissor * innerCol;
     }
     outColor = result;
 }

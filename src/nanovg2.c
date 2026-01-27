@@ -446,7 +446,6 @@ void nvgReset(NVGcontext* ctx)
 
     nvgSetColour(ctx, nvgRGBA(0, 0, 0, 255));
     state->compositeOperation = nvg__compositeOperationState(NVG_SOURCE_OVER);
-    state->shapeAntiAlias     = 1;
     state->miterLimit         = 10.0f;
     state->lineCap            = NVG_BUTT;
     state->lineJoin           = NVG_MITER;
@@ -719,75 +718,6 @@ void nvgSetColour(NVGcontext* ctx, NVGcolour colour)
     p->outerColour = colour;
 }
 
-#ifndef NVG_NO_STB
-int nvgCreateImage(NVGcontext* ctx, const char* filename, int imageFlags)
-{
-    int            w, h, n, image;
-    unsigned char* img;
-    stbi_set_unpremultiply_on_load(1);
-    stbi_convert_iphone_png_to_rgb(1);
-    img = stbi_load(filename, &w, &h, &n, 4);
-    NVG_ASSERT(img);
-    if (img == NULL)
-    {
-        return 0;
-    }
-    image = nvgCreateImageRGBA(ctx, w, h, imageFlags, img);
-    stbi_image_free(img);
-    return image;
-}
-
-int nvgCreateImageMem(NVGcontext* ctx, int imageFlags, unsigned char* data, int ndata)
-{
-    int            w, h, n, image;
-    unsigned char* img = stbi_load_from_memory(data, ndata, &w, &h, &n, 4);
-    NVG_ASSERT(img);
-    if (img == NULL)
-    {
-        return 0;
-    }
-    image = nvgCreateImageRGBA(ctx, w, h, imageFlags, img);
-    stbi_image_free(img);
-    return image;
-}
-#endif
-
-int nvgCreateImageRGBA(NVGcontext* ctx, int w, int h, int imageFlags, const unsigned char* data)
-{
-    return nvgCreateTexture(ctx, NVG_TEXTURE_RGBA, w, h, imageFlags, data);
-}
-
-// void nvgUpdateImage(NVGcontext* ctx, int image, const unsigned char* data)
-// {
-//     int w, h;
-//     nvgGetImageSize(ctx, image, &w, &h);
-//     nvgUpdateTexture(ctx, image, 0, 0, w, h, data);
-// }
-
-void nvgDeleteImage(NVGcontext* ctx, int image)
-{
-    int i;
-    for (i = 0; i < ctx->ntextures; i++)
-    {
-        SGNVGtexture* tex = &ctx->textures[i];
-        if (tex->img.id == image)
-        {
-            if (tex->img.id != 0 && (tex->flags & NVG_IMAGE_NODELETE) == 0)
-            {
-                sg_destroy_view(tex->texview);
-                sg_destroy_image(tex->img);
-            }
-            if (tex->imgData)
-            {
-                NVG_FREE(tex->imgData);
-            }
-            memset(tex, 0, sizeof(*tex));
-            return;
-        }
-    }
-    NVG_ASSERT(0);
-}
-
 NVGpaint nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, NVGcolour icol, NVGcolour ocol)
 {
     NVGpaint    p;
@@ -876,36 +806,6 @@ nvgBoxGradient(NVGcontext* ctx, float x, float y, float w, float h, float r, flo
 
     p.innerColour = icol;
     p.outerColour = ocol;
-
-    return p;
-}
-
-NVGpaint nvgImagePattern(
-    NVGcontext* ctx,
-    float       cx,
-    float       cy,
-    float       w,
-    float       h,
-    float       angle,
-    sg_view     texview,
-    float       alpha,
-    sg_sampler  smp)
-{
-    NVGpaint p;
-    NVG_NOTUSED(ctx);
-    memset(&p, 0, sizeof(p));
-
-    nvgTransformRotate(p.xform, angle);
-    p.xform[4] = cx;
-    p.xform[5] = cy;
-
-    p.extent[0] = w;
-    p.extent[1] = h;
-
-    p.texview = texview;
-    p.smp     = smp;
-
-    p.innerColour = p.outerColour = nvgRGBAf(1, 1, 1, alpha);
 
     return p;
 }
@@ -2509,47 +2409,6 @@ void nvgDebugDumpPathCache(NVGcontext* ctx)
     }
 }
 
-static SGNVGtexture* sgnvg__allocTexture(NVGcontext* ctx)
-{
-    SGNVGtexture* tex = NULL;
-    int           i;
-
-    for (i = 0; i < ctx->ntextures; i++)
-    {
-        if (ctx->textures[i].img.id == 0)
-        {
-            tex = &ctx->textures[i];
-            break;
-        }
-    }
-    if (tex == NULL)
-    {
-        if (ctx->ntextures + 1 > ctx->ctextures)
-        {
-            SGNVGtexture* textures;
-            int           ctextures = nvg__maxi(ctx->ntextures + 1, 4) + ctx->ctextures / 2; // 1.5x Overallocate
-            textures                = (SGNVGtexture*)NVG_REALLOC(ctx->textures, sizeof(SGNVGtexture) * ctextures);
-            if (textures == NULL)
-                return NULL;
-            ctx->textures  = textures;
-            ctx->ctextures = ctextures;
-        }
-        tex = &ctx->textures[ctx->ntextures++];
-    }
-
-    memset(tex, 0, sizeof(*tex));
-    return tex;
-}
-
-static SGNVGtexture* sgnvg__findTexture(NVGcontext* ctx, int id)
-{
-    int i;
-    for (i = 0; i < ctx->ntextures; i++)
-        if (ctx->textures[i].img.id == id)
-            return &ctx->textures[i];
-    return NULL;
-}
-
 static uint32_t sgnvg__getCombinedBlendNumber(sg_blend_state blend)
 {
 #if __STDC_VERSION__ >= 201112L
@@ -2826,15 +2685,10 @@ static sg_pipeline sgnvg__getPipelineFromCache(NVGcontext* ctx, enum SGNVGpipeli
     return pipeline;
 }
 
-static void sgnvg__preparePipelineUniforms(
-    NVGcontext*            ctx,
-    SGNVGfragUniforms*     uniforms,
-    sg_view                texview,
-    sg_sampler             smp,
-    enum SGNVGpipelineType pipelineType)
+static void
+sgnvg__preparePipelineUniforms(NVGcontext* ctx, SGNVGfragUniforms* uniforms, enum SGNVGpipelineType pipelineType)
 {
     sg_pipeline pip = sgnvg__getPipelineFromCache(ctx, pipelineType);
-    // SGNVGtexture* tex = NULL;
 
     sg_apply_pipeline(pip);
 
@@ -2843,118 +2697,10 @@ static void sgnvg__preparePipelineUniforms(
     sg_apply_uniforms(UB_nanovg_frag, &(sg_range){uniforms, sizeof(*uniforms)});
     ctx->frame_stats.uploaded_bytes += sizeof(*uniforms);
 
-    // If no image is set, use empty texture
-    if (texview.id == 0)
-        texview = ctx->dummyTexView;
-    if (smp.id == 0)
-        smp = ctx->sampler_nearest;
-
     sg_apply_bindings(&(sg_bindings){
-        .vertex_buffers[0]        = ctx->vertBuf,
-        .index_buffer             = ctx->indexBuf,
-        .views[VIEW_nanovg_tex]   = texview,
-        .samplers[SMP_nanovg_smp] = smp,
+        .vertex_buffers[0] = ctx->vertBuf,
+        .index_buffer      = ctx->indexBuf,
     });
-}
-
-int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int imageFlags, const unsigned char* data)
-{
-    SGNVGtexture* tex = sgnvg__allocTexture(ctx);
-
-    NVG_ASSERT(tex != NULL);
-    if (tex == NULL)
-        return 0;
-
-    bool            immutable      = !!(imageFlags & NVG_IMAGE_IMMUTABLE) && data;
-    bool            dynamic_update = !!(imageFlags & NVG_IMAGE_CPU_UPDATE);
-    int             nchannels      = type == NVG_TEXTURE_RGBA ? 4 : 1;
-    sg_pixel_format format         = type == NVG_TEXTURE_RGBA ? SG_PIXELFORMAT_RGBA8 : SG_PIXELFORMAT_R8;
-
-    tex->width  = w;
-    tex->height = h;
-    tex->type   = type;
-    tex->flags  = imageFlags;
-
-    sg_image_data imageData = {0};
-    if (data)
-    {
-        imageData.mip_levels[0] = (sg_range){data, w * h * nchannels};
-    }
-    tex->img = sg_make_image(&(sg_image_desc){
-        .type                 = SG_IMAGETYPE_2D,
-        .width                = w,
-        .height               = h,
-        .num_mipmaps          = 1, // TODO mipmaps
-        .usage.immutable      = immutable,
-        .usage.dynamic_update = dynamic_update,
-        .pixel_format         = format,
-        .data                 = imageData,
-        .label                = NVG_LABEL("nanovg.image[]"),
-    });
-    NVG_ASSERT(tex->img.id != 0);
-    if (data != NULL || dynamic_update)
-    {
-        tex->imgData = NVG_MALLOC(w * h * nchannels);
-    }
-    if (data != NULL)
-    {
-        memcpy(tex->imgData, data, w * h * nchannels);
-        tex->flags |= NVG_IMAGE_DIRTY;
-    }
-    tex->texview = sg_make_view(&(sg_view_desc){.texture = tex->img});
-
-    return tex->img.id;
-}
-
-int nvgUpdateTexture(NVGcontext* ctx, int image, int x0, int y0, int w, int h, const unsigned char* data)
-{
-    SGNVGtexture* tex = sgnvg__findTexture(ctx, image);
-
-    if (tex == NULL)
-        return 0;
-
-    bool immutable = !!(tex->flags & NVG_IMAGE_IMMUTABLE);
-    NVG_ASSERT(!immutable);
-    if (immutable)
-        return 0;
-
-    if (tex->imgData)
-    {
-        // this is really weird but nanogl_gl.h is doing the same
-        // somehow we always get a whole row or so? o_O
-        x0 = 0;
-        w  = tex->width;
-
-        size_t bytePerPixel = 1;
-        if (tex->type == NVG_TEXTURE_RGBA)
-            bytePerPixel = 4;
-
-        size_t               srcLineInBytes = w * bytePerPixel;
-        size_t               dstLineInBytes = tex->width * bytePerPixel;
-        const unsigned char* src            = data + y0 * srcLineInBytes;
-        unsigned char*       dst            = tex->imgData + y0 * dstLineInBytes + x0 * bytePerPixel;
-
-        for (int y = 0; y < h; y++)
-        {
-            memcpy(dst, src, srcLineInBytes);
-            src += srcLineInBytes;
-            dst += dstLineInBytes;
-        }
-
-        tex->flags |= NVG_IMAGE_DIRTY;
-    }
-
-    return 1;
-}
-
-bool nvgGetImageSize(NVGcontext* ctx, int image, int* w, int* h)
-{
-    SGNVGtexture* tex = sgnvg__findTexture(ctx, image);
-    if (tex == NULL)
-        return 0;
-    *w = tex->width;
-    *h = tex->height;
-    return 1;
 }
 
 static void sgnvg__xformToMat3x4(float* m3, float* t)
@@ -3021,23 +2767,10 @@ static int sgnvg__convertPaint(
     frag->strokeMult = (width * 0.5f + fringe * 0.5f) / fringe;
     frag->strokeThr  = strokeThr;
 
-    if (paint->texview.id != 0)
-    {
-        sg_image        img = sg_query_view_image(paint->texview);
-        sg_pixel_format fmt = sg_query_image_pixelformat(img);
-        nvgTransformInverse(invxform, paint->xform);
-        frag->type = NSVG_SHADER_FILLIMG;
-        // If image has premultiplied, texType should be 0.
-        // Currently that's not supported
-        frag->texType = fmt == SG_PIXELFORMAT_R8 ? 2 : 1;
-    }
-    else
-    {
-        frag->type    = NSVG_SHADER_FILLGRAD;
-        frag->radius  = paint->radius;
-        frag->feather = paint->feather;
-        nvgTransformInverse(invxform, paint->xform);
-    }
+    frag->type    = NSVG_SHADER_FILLGRAD;
+    frag->radius  = paint->radius;
+    frag->feather = paint->feather;
+    nvgTransformInverse(invxform, paint->xform);
 
     sgnvg__xformToMat3x4(frag->paintMat, invxform);
 
@@ -3049,19 +2782,19 @@ static void sgnvg__fill(NVGcontext* ctx, SGNVGcall* call)
     SGNVGpath* paths = call->paths;
     int        i, npaths = call->num_paths;
 
-    sgnvg__preparePipelineUniforms(ctx, call->uniforms, (sg_view){0}, (sg_sampler){0}, SGNVG_PIP_FILL_STENCIL);
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_FILL_STENCIL);
     for (i = 0; i < npaths; i++)
         sg_draw(paths[i].fillOffset, paths[i].fillCount, 1);
 
     // if (ctx->flags & NVG_ANTIALIAS) {
-    sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, call->texview, call->smp, SGNVG_PIP_FILL_ANTIALIAS);
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, SGNVG_PIP_FILL_ANTIALIAS);
     // Draw fringes
     for (i = 0; i < npaths; i++)
         sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
     // }
 
     // Draw fill
-    sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, call->texview, call->smp, SGNVG_PIP_FILL_DRAW);
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, SGNVG_PIP_FILL_DRAW);
     sg_draw(call->triangleOffset, call->triangleCount, 1);
 }
 
@@ -3070,7 +2803,7 @@ static void sgnvg__convexFill(NVGcontext* ctx, SGNVGcall* call)
     SGNVGpath* paths = call->paths;
     int        i, npaths = call->num_paths;
 
-    sgnvg__preparePipelineUniforms(ctx, call->uniforms, call->texview, call->smp, SGNVG_PIP_BASE);
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_BASE);
     for (i = 0; i < npaths; i++)
     {
         sg_draw(paths[i].fillOffset, paths[i].fillCount, 1);
@@ -3089,39 +2822,24 @@ static void sgnvg__stroke(NVGcontext* ctx, SGNVGcall* call)
 
     if (ctx->flags & NVG_STENCIL_STROKES)
     {
-        sgnvg__preparePipelineUniforms(
-            ctx,
-            call->uniforms + 1,
-            call->texview,
-            call->smp,
-            SGNVG_PIP_STROKE_STENCIL_DRAW);
+        sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, SGNVG_PIP_STROKE_STENCIL_DRAW);
 
         for (i = 0; i < npaths; i++)
             sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
 
         // Draw anti-aliased pixels.
-        sgnvg__preparePipelineUniforms(
-            ctx,
-            call->uniforms,
-            call->texview,
-            call->smp,
-            SGNVG_PIP_STROKE_STENCIL_ANTIALIAS);
+        sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_STROKE_STENCIL_ANTIALIAS);
         for (i = 0; i < npaths; i++)
             sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
 
         // Clear stencil buffer.
-        sgnvg__preparePipelineUniforms(
-            ctx,
-            call->uniforms,
-            (sg_view){0},
-            (sg_sampler){0},
-            SGNVG_PIP_STROKE_STENCIL_CLEAR);
+        sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_STROKE_STENCIL_CLEAR);
         for (i = 0; i < npaths; i++)
             sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
     }
     else
     {
-        sgnvg__preparePipelineUniforms(ctx, call->uniforms, call->texview, call->smp, SGNVG_PIP_BASE);
+        sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_BASE);
         // Draw Strokes
         for (i = 0; i < npaths; i++)
             sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
@@ -3130,7 +2848,7 @@ static void sgnvg__stroke(NVGcontext* ctx, SGNVGcall* call)
 
 static void sgnvg__triangles(NVGcontext* ctx, SGNVGcall* call)
 {
-    sgnvg__preparePipelineUniforms(ctx, call->uniforms, call->texview, call->smp, SGNVG_PIP_BASE);
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms, SGNVG_PIP_BASE);
     sg_draw(call->triangleOffset, call->triangleCount, 1);
 }
 
@@ -3285,25 +3003,6 @@ int snvg_consume_commands(NVGcontext* ctx, SGNVGcommand* cmd)
 
 void nvgEndFrame(NVGcontext* ctx)
 {
-    for (int i = 0; i < ctx->ntextures; i++)
-    {
-        if (ctx->textures[i].img.id != 0)
-        {
-            SGNVGtexture* tex = &ctx->textures[i];
-
-            if (tex->flags & NVG_IMAGE_DIRTY)
-            {
-                NVG_ASSERT(tex->imgData != NULL);
-                tex->flags      ^= NVG_IMAGE_DIRTY;
-                int    channels  = tex->type == NVG_TEXTURE_RGBA ? 4 : 1;
-                size_t nbytes    = tex->width * tex->height * channels;
-
-                ctx->frame_stats.uploaded_bytes += nbytes;
-                sg_update_image(tex->img, &(sg_image_data){.mip_levels[0] = {tex->imgData, nbytes}});
-            }
-        }
-    }
-
     if (ctx->cverts_gpu < ctx->nverts) // resize GPU vertex buffer
     {
         if (ctx->cverts_gpu) // delete old buffer if necessary
@@ -3501,14 +3200,11 @@ void nvgFill(NVGcontext* ctx)
         return;
 
     const NVGpath* path;
-    NVGpaint       paint             = state->paint;
-    float          expandFringeWidth = 0;
+    NVGpaint       paint = state->paint;
     int            i;
 
     nvg__flattenPaths(ctx);
-    if (ctx->edgeAntiAlias && state->shapeAntiAlias)
-        expandFringeWidth = ctx->fringeWidth;
-    nvg__expandFill(ctx, expandFringeWidth, NVG_MITER, 2.4f);
+    nvg__expandFill(ctx, ctx->fringeWidth, NVG_MITER, 2.4f);
 
     NVGcompositeOperationState compositeOperation = state->compositeOperation;
     NVGscissor*                scissor            = &state->scissor;
@@ -3538,8 +3234,6 @@ void nvgFill(NVGcontext* ctx)
     if (call->paths == NULL)
         return;
     call->num_paths = npaths;
-    call->texview   = paint.texview;
-    call->smp       = paint.smp;
     call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
 
     if (npaths == 1 && paths[0].convex)
@@ -3639,10 +3333,9 @@ void nvgStroke(NVGcontext* ctx, float stroke_width)
     if (ctx->ncommands == 0)
         return;
 
-    float    scale             = nvg__getAverageScale(state->xform);
-    float    strokeWidth       = nvg__clampf(stroke_width * scale, 0.0f, 200.0f);
-    NVGpaint paint             = state->paint;
-    float    expandFringeWidth = 0;
+    float    scale       = nvg__getAverageScale(state->xform);
+    float    strokeWidth = nvg__clampf(stroke_width * scale, 0.0f, 200.0f);
+    NVGpaint paint       = state->paint;
     int      i;
 
     if (strokeWidth < ctx->fringeWidth)
@@ -3656,10 +3349,7 @@ void nvgStroke(NVGcontext* ctx, float stroke_width)
     }
 
     nvg__flattenPaths(ctx);
-
-    if (ctx->edgeAntiAlias && state->shapeAntiAlias)
-        expandFringeWidth = ctx->fringeWidth;
-    nvg__expandStroke(ctx, strokeWidth * 0.5f, expandFringeWidth, state->lineCap, state->lineJoin, state->miterLimit);
+    nvg__expandStroke(ctx, strokeWidth * 0.5f, ctx->fringeWidth, state->lineCap, state->lineJoin, state->miterLimit);
 
     NVGcompositeOperationState compositeOperation = state->compositeOperation;
     NVGscissor*                scissor            = &state->scissor;
@@ -3686,8 +3376,6 @@ void nvgStroke(NVGcontext* ctx, float stroke_width)
     if (call->paths == NULL)
         return;
     call->num_paths = npaths;
-    call->texview   = paint.texview;
-    call->smp       = paint.smp;
     call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
 
     // Allocate vertices for all the paths.
@@ -3810,8 +3498,7 @@ NVGcontext* nvgCreateContext(int flags)
     ctx->frame_arena = linked_arena_create(1024 * 64);
     NVG_ASSERT_GOTO(ctx->frame_arena != NULL, error);
 
-    ctx->edgeAntiAlias = flags & NVG_ANTIALIAS ? 1 : 0;
-    ctx->flags         = flags;
+    ctx->flags = flags;
 
     // if(ctx->flags & NVG_ANTIALIAS)
     ctx->shader = sg_make_shader(nanovg_sg_shader_desc(sg_query_backend()));
@@ -3856,11 +3543,6 @@ NVGcontext* nvgCreateContext(int flags)
 
     ctx->vertBuf  = sg_alloc_buffer();
     ctx->indexBuf = sg_alloc_buffer();
-
-    // Some platforms does not allow to have samples to unset textures.
-    // Create empty one which is bound when there's no texture specified.
-    ctx->dummyTex     = nvgCreateTexture(ctx, NVG_TEXTURE_ALPHA, 1, 1, NVG_IMAGE_CPU_UPDATE, NULL);
-    ctx->dummyTexView = sg_make_view(&(sg_view_desc){.texture.image.id = ctx->dummyTex});
 
     nvgReset(ctx);
     nvg__setBackingScaleFactor(ctx, 1);
@@ -3922,19 +3604,6 @@ void nvgDestroyContext(NVGcontext* ctx)
         sg_uninit_buffer(ctx->indexBuf);
     sg_dealloc_buffer(ctx->indexBuf);
 
-    nvgDeleteImage(ctx, ctx->dummyTex);
-    for (int i = 0; i < ctx->ntextures; i++)
-    {
-        bool img_exists    = ctx->textures[i].img.id != 0;
-        bool should_delete = (ctx->textures[i].flags & NVG_IMAGE_NODELETE) == 0;
-        if (img_exists && should_delete)
-        {
-            sg_destroy_view(ctx->textures[i].texview);
-            sg_destroy_image(ctx->textures[i].img);
-        }
-    }
-
-    NVG_FREE(ctx->textures);
     NVG_FREE(ctx->verts);
     NVG_FREE(ctx->indexes);
 

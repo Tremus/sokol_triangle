@@ -61,14 +61,12 @@ typedef struct NVGcolour
 
 typedef struct NVGpaint
 {
-    float      xform[6];
-    float      extent[2];
-    float      radius;
-    float      feather;
-    NVGcolour  innerColour;
-    NVGcolour  outerColour;
-    sg_view    texview;
-    sg_sampler smp;
+    float     xform[6];
+    float     extent[2];
+    float     radius;
+    float     feather;
+    NVGcolour innerColour;
+    NVGcolour outerColour;
 } NVGpaint;
 
 enum NVGwinding
@@ -130,41 +128,9 @@ typedef struct NVGcompositeOperationState
     int dstAlpha;
 } NVGcompositeOperationState;
 
-/*
-typedef struct NVGglyphPosition
-{
-    // const char* str;        // Position of the glyph in the input string.
-    // float       x;          // The x-coordinate of the logical glyph position.
-    int16_t minx, maxx; // The bounds of the glyph shape.
-} NVGglyphPosition;
-
-typedef struct NVGtextRow
-{
-    const char* start; // Pointer to the input text where the row starts.
-    const char* end;   // Pointer to the input text where the row ends (one past the last character).
-    const char* next;  // Pointer to the beginning of the next row.
-    float       width; // Logical width of the row.
-    float minx, maxx;  // Actual bounds of the row. Logical with and bounds can differ because of kerning and some parts
-                       // over extending.
-} NVGtextRow;
- */
-
-enum NVGimageFlags
-{
-    NVG_IMAGE_DIRTY      = 1 << 0, // Force update image on GPU
-    NVG_IMAGE_CPU_UPDATE = 1 << 1, // Will you be regularly updating this with data from the CPU?
-    NVG_IMAGE_IMMUTABLE  = 1 << 2, // Forbids updating the image
-    NVG_IMAGE_NODELETE   = 1 << 4, // Do not delete Sokol image.
-};
-
 //
 // Internal Render API
 //
-enum NVGtexture
-{
-    NVG_TEXTURE_ALPHA = 0x01,
-    NVG_TEXTURE_RGBA  = 0x02,
-};
 
 typedef struct NVGscissor
 {
@@ -405,8 +371,6 @@ typedef struct SGNVGpipelineCache
 typedef struct SGNVGcall
 {
     enum SGNVGcallType type;
-    sg_view            texview;
-    sg_sampler         smp;
     int                triangleOffset;
     int                triangleCount;
 
@@ -545,7 +509,6 @@ typedef struct NVGcontext
     int          ncommands;
     float        commandx, commandy;
     NVGstate     state;
-    int          edgeAntiAlias;
     NVGpathCache cache;
     float        tessTol;
     float        distTol;
@@ -565,22 +528,11 @@ typedef struct NVGcontext
     // SGNVGcontext....
 
     sg_shader          shader;
-    SGNVGtexture*      textures;
     SGNVGvertUniforms  view;
     int                flags;
-    int                ntextures;
-    int                ctextures;
     sg_buffer          vertBuf;
     sg_buffer          indexBuf;
     SGNVGpipelineCache pipelineCache;
-
-    // Image post processing FX (blur & bloom)
-    sg_pipeline pip_texread;
-    sg_pipeline pip_lightness_filter;
-    sg_pipeline pip_downsample;
-    sg_pipeline pip_upsample;
-    sg_pipeline pip_upsample_mix;
-    sg_pipeline pip_bloom;
 
     // Per frame buffers
     SGNVGattribute* verts;
@@ -609,9 +561,6 @@ typedef struct NVGcontext
     // state
     int            pipelineCacheIndex;
     sg_blend_state blend;
-
-    int     dummyTex;
-    sg_view dummyTexView;
 } NVGcontext;
 
 typedef struct NVGglyphPosition2
@@ -837,9 +786,6 @@ float nvgRadToDeg(float rad);
 // using nvgLinearGradient(), nvgBoxGradient(), nvgRadialGradient() and nvgImagePattern().
 //
 
-// Sets whether to draw antialias for nvgStroke() and nvgFill(). It's enabled by default.
-static inline void nvgSetShapeAntiAlias(NVGcontext* ctx, int enabled) { ctx->state.shapeAntiAlias = enabled; }
-
 // Sets current paint style to a solid colour.
 void nvgSetColour(NVGcontext* ctx, NVGcolour colour);
 
@@ -861,97 +807,6 @@ static inline void nvgSetLineCap(NVGcontext* ctx, int cap) { ctx->state.lineCap 
 // Sets how sharp path corners are drawn.
 // Can be one of NVG_MITER (default), NVG_ROUND, NVG_BEVEL.
 static inline void nvgSetLineJoin(NVGcontext* ctx, int join) { ctx->state.lineJoin = join; }
-
-//
-// Images
-//
-// NanoVG allows you to load jpg, png, psd, tga, pic and gif files to be used for rendering.
-// In addition you can upload your own image. The image loading is provided by stb_image.
-// The parameter imageFlags is combination of flags defined in NVGimageFlags.
-
-// Creates image by loading it from the disk from specified file name.
-// Returns handle to the image.
-int nvgCreateImage(NVGcontext* ctx, const char* filename, int imageFlags);
-
-// Creates image by loading it from the specified chunk of memory.
-// Returns handle to the image.
-int nvgCreateImageMem(NVGcontext* ctx, int imageFlags, unsigned char* data, int ndata);
-
-// Creates image from specified image data.
-// Returns handle to the image.
-int nvgCreateImageRGBA(NVGcontext* ctx, int w, int h, int imageFlags, const unsigned char* data);
-
-// Updates image data specified by image handle.
-// void nvgUpdateImage(NVGcontext* ctx, int image, const unsigned char* data);
-
-// Gets the dimensions of a created image. Returns true on success
-// bool nvgGetImageSize(NVGcontext* ctx, int image, int* w, int* h);
-
-// Deletes created image.
-void nvgDeleteImage(NVGcontext* ctx, int image);
-
-// Returns handle to the image.
-int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int imageFlags, const unsigned char* data);
-
-// int nvgUpdateTexture(NVGcontext* ctx, int image, int x, int y, int w, int h, const unsigned char* data);
-
-//
-// Paints
-//
-// NanoVG supports four types of paints: linear gradient, box gradient, radial gradient and image pattern.
-// These can be used as paints for strokes and fills.
-
-// Creates and returns a linear gradient. Parameters (sx,sy)-(ex,ey) specify the start and end coordinates
-// of the linear gradient, icol specifies the start colour and ocol the end colour.
-// The gradient is transformed by the current transform when it is passed to nvgSetPaint().
-NVGpaint nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, NVGcolour icol, NVGcolour ocol);
-
-// Creates and returns a box gradient. Box gradient is a feathered rounded rectangle, it is useful for rendering
-// drop shadows or highlights for boxes. Parameters (x,y) define the top-left corner of the rectangle,
-// (w,h) define the size of the rectangle, r defines the corner radius, and f feather. Feather defines how blurry
-// the border of the rectangle is. Parameter icol specifies the inner colour and ocol the outer colour of the gradient.
-// The gradient is transformed by the current transform when it is passed to nvgSetPaint().
-NVGpaint
-nvgBoxGradient(NVGcontext* ctx, float x, float y, float w, float h, float r, float f, NVGcolour icol, NVGcolour ocol);
-
-// Creates and returns a radial gradient. Parameters (cx,cy) specify the centre, inr and outr specify
-// the inner and outer radius of the gradient, icol specifies the start colour and ocol the end colour.
-// The gradient is transformed by the current transform when it is passed to nvgSetPaint().
-NVGpaint nvgRadialGradient(NVGcontext* ctx, float cx, float cy, float inr, float outr, NVGcolour icol, NVGcolour ocol);
-
-// Creates and returns an image pattern. The gradient is transformed by the current transform when it is passed to
-// nvgSetPaint().
-NVGpaint nvgImagePattern(
-    NVGcontext* ctx,
-    float       x,
-    float       y,
-    float       w,
-    float       h,
-    float       angle, // angle rotation around the top-left corner
-    sg_view     texview,
-    float       alpha,
-    sg_sampler  smp);
-
-//
-// Scissoring
-//
-// Scissoring allows you to clip the rendering into a rectangle. This is useful for various
-// user interface cases like rendering a text edit or a timeline.
-
-// Sets the current scissor rectangle.
-// The scissor rectangle is transformed by the current transform.
-void nvgSetScissor(NVGcontext* ctx, float x, float y, float w, float h);
-
-// Intersects current scissor rectangle with the specified rectangle.
-// The scissor rectangle is transformed by the current transform.
-// Note: in case the rotation of previous scissor rect differs from
-// the current one, the intersection will be done between the specified
-// rectangle and the previous scissor rectangle transformed in the current
-// transform space. The resulting shape is always rectangle.
-void nvgIntersectScissor(NVGcontext* ctx, float x, float y, float w, float h);
-
-// Reset and disables scissoring.
-void nvgResetScissor(NVGcontext* ctx);
 
 //
 // Paths
