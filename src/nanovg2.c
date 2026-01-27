@@ -2705,12 +2705,10 @@ static void sgnvg__fill(NVGcontext* ctx, SGNVGcall* call)
     for (i = 0; i < npaths; i++)
         sg_draw(paths[i].fillOffset, paths[i].fillCount, 1);
 
-    // if (ctx->flags & NVG_ANTIALIAS) {
     sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, SGNVG_PIP_FILL_ANTIALIAS);
     // Draw fringes
     for (i = 0; i < npaths; i++)
         sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
-    // }
 
     // Draw fill
     sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, SGNVG_PIP_FILL_DRAW);
@@ -2860,40 +2858,6 @@ void nvgBeginFrame(NVGcontext* ctx, int backingScaleFactor)
     nvg__setBackingScaleFactor(ctx, backingScaleFactor);
 }
 
-int snvg_consume_commands(NVGcontext* ctx, SGNVGcommand* cmd)
-{
-    int ncommands = 0;
-    while (cmd != NULL)
-    {
-        switch (cmd->type)
-        {
-        case SGNVG_CMD_BEGIN_PASS:
-        {
-            SGNVGcommandBeginPass* p = cmd->payload.beginPass;
-
-            sg_begin_pass(&p->pass);
-
-            ctx->view.viewSize[0] = p->x;
-            ctx->view.viewSize[1] = p->y;
-            ctx->view.viewSize[2] = p->width;
-            ctx->view.viewSize[3] = p->height;
-
-            break;
-        }
-        case SGNVG_CMD_END_PASS:
-            sg_end_pass();
-            break;
-        case SGNVG_CMD_DRAW_NVG:
-            sgnvg__renderNVGCalls(ctx, cmd->payload.drawNVG);
-            break;
-        }
-
-        cmd = cmd->next;
-        ncommands++;
-    }
-    return ncommands;
-}
-
 void nvgEndFrame(NVGcontext* ctx)
 {
     if (ctx->cverts_gpu < ctx->nverts) // resize GPU vertex buffer
@@ -2936,7 +2900,36 @@ void nvgEndFrame(NVGcontext* ctx)
     if (nbytes)
         sg_update_buffer(ctx->indexBuf, &(sg_range){ctx->indexes, nbytes});
 
-    int ncommands = snvg_consume_commands(ctx, ctx->first_command);
+    SGNVGcommand* cmd       = ctx->first_command;
+    int           ncommands = 0;
+    while (cmd != NULL)
+    {
+        switch (cmd->type)
+        {
+        case SGNVG_CMD_BEGIN_PASS:
+        {
+            SGNVGcommandBeginPass* p = cmd->payload.beginPass;
+
+            sg_begin_pass(&p->pass);
+
+            ctx->view.viewSize[0] = p->x;
+            ctx->view.viewSize[1] = p->y;
+            ctx->view.viewSize[2] = p->width;
+            ctx->view.viewSize[3] = p->height;
+
+            break;
+        }
+        case SGNVG_CMD_END_PASS:
+            sg_end_pass();
+            break;
+        case SGNVG_CMD_DRAW_NVG:
+            sgnvg__renderNVGCalls(ctx, cmd->payload.drawNVG);
+            break;
+        }
+
+        cmd = cmd->next;
+        ncommands++;
+    }
 
     xassert(ctx->arena_top != NULL);
     linked_arena_release(ctx->arena, ctx->arena_top);

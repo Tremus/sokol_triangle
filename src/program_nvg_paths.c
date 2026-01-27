@@ -1,22 +1,36 @@
 #define XHL_ALLOC_IMPL
+#define NANOSVG_IMPLEMENTATION
 
 #include "common.h"
 
 #include <math.h>
 #include <string.h>
 #include <xhl/alloc.h>
+#include <xhl/files.h>
 
 #define NVG_MALLOC(sz)       xmalloc(sz)
 #define NVG_REALLOC(ptr, sz) xrealloc(ptr, sz)
 #define NVG_FREE(ptr)        xfree(ptr)
 #define NVG_ASSERT           xassert
 
+#include "nanosvg.h"
 #include "nanovg2.h"
+
+// clang-format off
+#define nvgHexColour2(hex) (NVGcolour){\
+                                        ( hex >>  0  & 0xff) / 255.0f,\
+                                        ((hex >>  8) & 0xff) / 255.0f,\
+                                        ((hex >> 16) & 0xff) / 255.0f,\
+                                        ( hex >> 24)         / 255.0f,\
+                                      }
+// clang-format on
 
 static struct
 {
     NVGcontext* nvg;
-    int         width, height;
+    NSVGimage*  svg;
+
+    int width, height;
 } state;
 
 void program_setup()
@@ -26,10 +40,17 @@ void program_setup()
     state.nvg    = nvgCreateContext(NVG_ANTIALIAS);
     state.width  = APP_WIDTH;
     state.height = APP_HEIGHT;
+
+    static const char* path_tiger_svg = SRC_DIR XFILES_DIR_STR "Ghostscript_Tiger.svg";
+
+    state.svg = nsvgParseFromFile(path_tiger_svg, "px", 96);
+    println("size: %f x %f", state.svg->width, state.svg->height);
 }
 void program_shutdown()
 {
     nvgDestroyContext(state.nvg);
+
+    nsvgDelete(state.svg);
 
     xalloc_shutdown();
 }
@@ -42,6 +63,21 @@ bool program_event(const PWEvent* event)
         state.height = event->resize.height;
     }
     return false;
+}
+
+NVGpaint createLinearGradient(NVGcontext* vg, NSVGgradient* gradient, float alpha)
+{
+    float inverse[6];
+    float sx, sy, ex, ey;
+
+    nvgTransformInverse(inverse, gradient->xform);
+    nvgTransformPoint(&sx, &sy, inverse, 0, 0);
+    nvgTransformPoint(&ex, &ey, inverse, 0, 1);
+
+    NVGcolour col1 = nvgHexColour2(gradient->stops[0].color);
+    NVGcolour col2 = nvgHexColour2(gradient->stops[gradient->nstops - 1].color);
+
+    return nvgLinearGradient(vg, sx, sy, ex, ey, col1, col2);
 }
 
 void program_tick()
@@ -57,7 +93,7 @@ void program_tick()
         &(sg_pass){
             .action =
                 (sg_pass_action){
-                    .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
+                    .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {1.0f, 1.0f, 1.0f, 1.0f}}},
             .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)},
         0,
         0,
@@ -67,22 +103,45 @@ void program_tick()
 
     snvg_command_draw_nvg(state.nvg, "nvg");
 
-    nvgBeginPath(state.nvg);
+    NVGcontext* vg = state.nvg;
 
-    // rectangle
-    int x, y, w, h;
-    x = y = 20;
-    w = h = 200;
+    for (NSVGshape* shape = state.svg->shapes; shape != NULL; shape = shape->next)
+    {
 
-    float vals[] = {NVG_MOVETO, x, y, NVG_LINETO, x, y + h, NVG_LINETO, x + w, y + h, NVG_LINETO, x + w, y, NVG_CLOSE};
-    nvg__appendCommands(state.nvg, vals, NVG_ARRLEN(vals));
+        if (!(shape->flags & NSVG_FLAGS_VISIBLE))
+            continue;
 
-    nvgSetColour(state.nvg, (NVGcolour){1, 0, 0, 1});
-    nvgFill(state.nvg);
-    nvgSetColour(state.nvg, (NVGcolour){0, 1, 0, 1});
-    nvgStroke(state.nvg, 2);
+        for (NSVGpath* path = shape->paths; path != NULL; path = path->next)
+        {
+            nvgBeginPath(vg);
+            nvgMoveTo(vg, path->pts[0], path->pts[1]);
+            for (int i = 0; i < path->npts - 1; i += 3)
+            {
+                float* p = &path->pts[i * 2];
+                nvgBezierTo(vg, p[2], p[3], p[4], p[5], p[6], p[7]);
+            }
+            if (path->closed)
+            {
+                nvgClosePath(vg);
+            }
 
-    snvg_command_end_pass(state.nvg, "end pass");
+            if (shape->fill.type)
+            {
+                xassert(shape->fill.type == NSVG_PAINT_COLOR); // todo, handle linear and radial gradients
+                nvgSetColour(vg, nvgHexColour2(shape->fill.color));
+                nvgFill(vg);
+            }
 
-    nvgEndFrame(state.nvg);
+            if (shape->stroke.type)
+            {
+                xassert(shape->stroke.type == NSVG_PAINT_COLOR);
+                nvgSetColour(vg, nvgHexColour2(shape->stroke.color));
+                nvgStroke(vg, shape->strokeWidth);
+            }
+        }
+    }
+
+    snvg_command_end_pass(vg, "end pass");
+
+    nvgEndFrame(vg);
 }

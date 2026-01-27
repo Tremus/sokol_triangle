@@ -641,6 +641,8 @@ float nvgRadToDeg(float rad);
 // using nvgLinearGradient(), nvgBoxGradient(), nvgRadialGradient() and nvgImagePattern().
 //
 
+NVGpaint nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, NVGcolour icol, NVGcolour ocol);
+
 // Sets current paint style to a solid colour.
 void nvgSetColour(NVGcontext* ctx, NVGcolour colour);
 
