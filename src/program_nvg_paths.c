@@ -16,6 +16,21 @@
 #include "nanosvg.h"
 #include "nanovg2.h"
 
+/*
+It's probably possible to remove so much of Nanovg that all that's left is path rendering
+- No unnecesarry transforms
+- no global alpha
+- no blend modes
+just straight SVG rendering
+
+From there it should be to start removing features from the shader, and compressing data, making it as small as possible
+
+Finally, NanoSVG could be converted to a code generator by simply printing to the conosle nvgMoveTo() etc commands with
+the respective coords, and taking an x, y, and scale parameter for growing/shrinking the SVG
+
+This would be ideal for drawing an SVG icon directly into a texture map
+*/
+
 // clang-format off
 #define nvgHexColour2(hex) (NVGcolour){\
                                         ( hex >>  0  & 0xff) / 255.0f,\
