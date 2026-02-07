@@ -1,9 +1,12 @@
+#define XHL_ALLOC_IMPL
+
 #include "common.h"
 
 #include <cplug.h>
 #include <sokol_gfx.h>
 #include <stdio.h>
 #include <string.h>
+#include <xhl/alloc.h>
 #include <xhl/debug.h>
 #include <xhl/files.h>
 #include <xhl/time.h>

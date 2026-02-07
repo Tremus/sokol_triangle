@@ -5,44 +5,36 @@
 // application state
 static struct
 {
+    bool     resized;
     sg_image offscreen_img;
     sg_view  offscreen_img_colview;
     sg_view  offscreen_img_texview;
 
     struct
     {
-        sg_pass     pass;
         sg_pipeline pip;
-        sg_bindings bind;
+        sg_buffer   vbo;
     } offscreen;
 
     struct
     {
-        sg_pass_action pass_action;
-        sg_pipeline    pip;
-        sg_bindings    bind;
+        sg_pipeline pip;
+
+        sg_buffer  vbo;
+        sg_buffer  ibo;
+        sg_sampler smp;
     } display;
+
+    int width, height;
 } state = {0};
 
 void program_setup()
 {
+    state.width   = APP_WIDTH;
+    state.height  = APP_HEIGHT;
+    state.resized = true;
     // offscreen
     {
-        state.offscreen_img = sg_make_image(&(sg_image_desc){
-            .usage.color_attachment = true,
-            .width                  = APP_WIDTH,
-            .height                 = APP_HEIGHT,
-            .pixel_format           = SG_PIXELFORMAT_RGBA8,
-            .label                  = "offscreen-image"});
-
-        state.offscreen_img_colview = sg_make_view(&(sg_view_desc){.color_attachment = state.offscreen_img});
-        state.offscreen_img_texview = sg_make_view(&(sg_view_desc){.texture = state.offscreen_img});
-
-        state.offscreen.pass = (sg_pass){
-            .attachments.colors[0] = state.offscreen_img_colview,
-            .action = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
-            .label  = "offscreen-pass"};
-
         // a vertex buffer with 3 vertices
         // clang-format off
         float vertices[] = {
@@ -52,12 +44,10 @@ void program_setup()
             -0.5f, -0.5f,     0.0f, 0.0f, 1.0f, 1.0f
         };
         // clang-format on
-        state.offscreen.bind = (sg_bindings){
-            .vertex_buffers[0] =
-                sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "offscreen-vertices"})};
+        state.offscreen.vbo =
+            sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "offscreen-vertices"});
 
         // create shader from code-generated sg_shader_desc
-        sg_shader shd = sg_make_shader(offscreen_shader_desc(sg_query_backend()));
 
         // create a pipeline object (default render states are fine for triangle)
         state.offscreen.pip = sg_make_pipeline(
@@ -66,7 +56,7 @@ void program_setup()
                                     {.attrs =
                                          {[ATTR_display_position].format = SG_VERTEXFORMAT_FLOAT2,
                                           [ATTR_offscreen_color0].format = SG_VERTEXFORMAT_FLOAT4}},
-                                .shader = shd,
+                                .shader = sg_make_shader(offscreen_shader_desc(sg_query_backend())),
                                 .depth =
                                     {
                                         .pixel_format = SG_PIXELFORMAT_NONE,
@@ -77,10 +67,6 @@ void program_setup()
 
     // display
     {
-        // default pass action
-        state.display.pass_action = (sg_pass_action){
-            .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
-
         typedef struct
         {
             float   x, y;
@@ -101,18 +87,13 @@ void program_setup()
             0, 2, 3,
         };
         // clang-format on
-        state.display.bind.vertex_buffers[0] =
-            sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
-
-        state.display.bind.index_buffer = state.display.bind.index_buffer = sg_make_buffer(
+        state.display.vbo = sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices), .label = "quad-vertices"});
+        state.display.ibo = sg_make_buffer(
             &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "quad-indices"});
-
-        // a shader (use separate shader sources here
-        sg_shader shd = sg_make_shader(display_shader_desc(sg_query_backend()));
 
         // a pipeline state object
         state.display.pip = sg_make_pipeline(&(sg_pipeline_desc){
-            .shader     = shd,
+            .shader     = sg_make_shader(display_shader_desc(sg_query_backend())),
             .index_type = SG_INDEXTYPE_UINT16,
             .layout =
                 {.attrs =
@@ -120,10 +101,8 @@ void program_setup()
                       [ATTR_display_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
             .label = "quad-pipeline"});
 
-        state.display.bind.views[VIEW_tex] = state.offscreen_img_texview;
-
         // a sampler object
-        state.display.bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc){
+        state.display.smp = sg_make_sampler(&(sg_sampler_desc){
             .min_filter = SG_FILTER_LINEAR,
             .mag_filter = SG_FILTER_LINEAR,
         });
@@ -135,40 +114,59 @@ bool program_event(const PWEvent* e)
 {
     if (e->type == PW_EVENT_RESIZE_UPDATE)
     {
-        // println("Resized %d %d", e->resize.width, e->resize.height);
-        sg_destroy_view(state.offscreen_img_colview);
-        sg_destroy_view(state.offscreen_img_texview);
-        sg_destroy_image(state.offscreen_img);
+        println("Resized %d %d", e->resize.width, e->resize.height);
 
-        state.offscreen_img         = sg_make_image(&(sg_image_desc){
-                    .usage.color_attachment = true,
-                    .width                  = e->resize.width,
-                    .height                 = e->resize.height,
-                    .pixel_format           = SG_PIXELFORMAT_RGBA8,
-                    .label                  = "offscreen-image"});
-        state.offscreen_img_colview = sg_make_view(&(sg_view_desc){.color_attachment = state.offscreen_img});
-        state.offscreen_img_texview = sg_make_view(&(sg_view_desc){.texture = state.offscreen_img});
-
-        state.offscreen.pass.attachments.colors[0] = state.offscreen_img_colview;
-        state.display.bind.views[VIEW_tex]         = state.offscreen_img_texview;
+        state.width   = e->resize.width;
+        state.height  = e->resize.height;
+        state.resized = true;
     }
     return false;
 }
 
 void program_tick()
 {
+    if (state.resized == true)
+    {
+        state.resized = false;
+        sg_destroy_view(state.offscreen_img_colview);
+        sg_destroy_view(state.offscreen_img_texview);
+        sg_destroy_image(state.offscreen_img);
+
+        state.offscreen_img         = sg_make_image(&(sg_image_desc){
+                    .usage.color_attachment = true,
+                    .width                  = state.width,
+                    .height                 = state.height,
+                    .pixel_format           = SG_PIXELFORMAT_RGBA8,
+                    .label                  = "offscreen-image"});
+        state.offscreen_img_colview = sg_make_view(&(sg_view_desc){.color_attachment = state.offscreen_img});
+        state.offscreen_img_texview = sg_make_view(&(sg_view_desc){.texture = state.offscreen_img});
+    }
     // println("image: %u", state.offscreen_img.id);
     // offscreen
-    sg_begin_pass(&state.offscreen.pass);
+    sg_begin_pass(&(sg_pass){
+        .attachments.colors[0] = state.offscreen_img_colview,
+        .action = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
+        .label  = "offscreen-pass"});
     sg_apply_pipeline(state.offscreen.pip);
-    sg_apply_bindings(&state.offscreen.bind);
+    sg_apply_bindings(&(sg_bindings){
+        .vertex_buffers = state.offscreen.vbo,
+    });
     sg_draw(0, 3, 1);
     sg_end_pass();
 
     // main
-    sg_begin_pass(&(sg_pass){.action = state.display.pass_action, .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
+    sg_begin_pass(&(sg_pass){
+        .action =
+            (sg_pass_action){
+                .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
+        .swapchain = get_swapchain(SG_PIXELFORMAT_RGBA8)});
     sg_apply_pipeline(state.display.pip);
-    sg_apply_bindings(&state.display.bind);
+    sg_apply_bindings(&(sg_bindings){
+        .vertex_buffers[0] = state.display.vbo,
+        .index_buffer      = state.display.ibo,
+        .views[VIEW_tex]   = state.offscreen_img_texview,
+        .samplers[SMP_smp] = state.display.smp,
+    });
     sg_draw(0, 6, 1);
     sg_end_pass();
 }

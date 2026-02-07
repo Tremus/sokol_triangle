@@ -1,4 +1,3 @@
-#define XHL_ALLOC_IMPL
 #define NANOSVG_IMPLEMENTATION
 
 #include "common.h"

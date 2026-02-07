@@ -104,7 +104,7 @@ set(PLUGIN_SOURCES
 # list(APPEND PLUGIN_SOURCES src/program_hello_quad.c)
 # list(APPEND PLUGIN_SOURCES src/program_minimal.c)
 # list(APPEND PLUGIN_SOURCES src/program_texquad.c)
-# list(APPEND PLUGIN_SOURCES src/program_offscreen_render.c)
+list(APPEND PLUGIN_SOURCES src/program_offscreen_render.c)
 # list(APPEND PLUGIN_SOURCES src/program_fxaa.c)
 # list(APPEND PLUGIN_SOURCES src/program_msaa.c) # this one isn't working and Im too lazy to fix it
 # list(APPEND PLUGIN_SOURCES src/program_animated_vertices.c)
@@ -131,7 +131,7 @@ set(PLUGIN_SOURCES
 # list(APPEND PLUGIN_SOURCES src/program_compute_triangle.c)
 # list(APPEND PLUGIN_SOURCES src/program_compute_line_stroke.c)
 # list(APPEND PLUGIN_SOURCES src/program_nvg_paths.c)
-list(APPEND PLUGIN_SOURCES src/program_nanosvg.c)
+# list(APPEND PLUGIN_SOURCES src/program_nanosvg.c)
 
 if (WIN32)
     list(APPEND PLUGIN_DEFINITIONS UNICODE _UNICODE _USE_MATH_DEFINES PW_DX11)
