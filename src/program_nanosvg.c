@@ -10,8 +10,9 @@
 #include <xhl/files.h>
 #include <xhl/time.h>
 
-#include "nanosvg2.h"
+#include "nanosvg3.h"
 #include "nanosvgrast3.h"
+#include "stb_image_write.h"
 
 #include "program_nanosvg.glsl.h"
 
@@ -20,7 +21,7 @@ static struct
     LinkedArena*   arena;
     NSVGrasterizer rast;
 
-    NSVGimage* svg;
+    NSVGimage2* svg;
 
     sg_image   svg_img;
     sg_view    svg_view;
@@ -53,9 +54,8 @@ void program_setup()
     {
         uint64_t time_start = xtime_now_ns();
 
-        // static const char* path_tiger_svg = SRC_DIR XFILES_DIR_STR "Ghostscript_Tiger.svg";
-        static const char* path_tiger_svg = SRC_DIR XFILES_DIR_STR "Retrig_icon.svg";
-        state.svg                         = nsvgParseFromFile(path_tiger_svg, "px", 96);
+        static const char* path_tiger_svg = SRC_DIR XFILES_DIR_STR "Ghostscript_Tiger.svg";
+        state.svg                         = nsvgParseFromFile2(path_tiger_svg, "px", 96);
 
         uint64_t time_end = xtime_now_ns();
 
@@ -78,6 +78,8 @@ void program_setup()
         uint64_t time_end = xtime_now_ns();
         println("Raster image in: %.3fms", xtime_convert_ns_to_ms(time_end - time_start));
     }
+
+    stbi_write_png("C:\\Users\\Tre\\Desktop\\my_img.png", w, h, 4, img, w * 4);
 
     state.svg_img  = sg_make_image(&(sg_image_desc){
          .width              = w,
@@ -107,7 +109,8 @@ void program_setup()
 void program_shutdown()
 {
     linked_arena_destroy(state.arena);
-    nsvgDelete(state.svg);
+    nsvgDelete2(state.svg);
+    // nsvgDelete(state.svg);
 
     xalloc_shutdown();
 }

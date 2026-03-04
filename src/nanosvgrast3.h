@@ -27,7 +27,7 @@
 #define NANOSVGRAST_H
 
 #include "linked_arena.h"
-#include "nanosvg.h"
+#include "nanosvg3.h"
 
 #ifndef NANOSVGRAST_CPLUSPLUS
 #ifdef __cplusplus
@@ -70,7 +70,7 @@ typedef struct NSVGrasterizer
 //   stride - number of bytes per scaleline in the destination buffer
 void nsvgRasterize(
     NSVGrasterizer* r,
-    NSVGimage*      image,
+    NSVGimage2*     image,
     float           tx,
     float           ty,
     float           scale,
@@ -326,19 +326,24 @@ static void nsvg__flattenCubicBez(
     nsvg__flattenCubicBez(r, x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1, type);
 }
 
-static void nsvg__flattenShape(NSVGrasterizerPrivate* r, NSVGshape* shape, float scale)
+static void nsvg__flattenShape(NSVGrasterizerPrivate* r, NSVGimage2* img, NSVGshape2* shape, float scale)
 {
-    int       i, j;
-    NSVGpath* path;
+    int        path_idx;
+    int        i, j;
+    NSVGpath2* path;
+    float*     pts;
 
-    for (path = shape->paths; path != NULL; path = path->next)
+    for (path_idx = shape->first_path_index; path_idx != 0; path_idx = img->paths[path_idx].next_path_idx)
     {
+        path = img->paths + path_idx;
+        pts  = img->points + path->first_pt_idx;
+
         r->npoints = 0;
         // Flatten path
-        nsvg__addPathPoint(r, path->pts[0] * scale, path->pts[1] * scale, 0);
+        nsvg__addPathPoint(r, pts[0] * scale, pts[1] * scale, 0);
         for (i = 0; i < path->npts - 1; i += 3)
         {
-            float* p = &path->pts[i * 2];
+            float* p = &pts[i * 2];
             nsvg__flattenCubicBez(
                 r,
                 p[0] * scale,
@@ -353,7 +358,7 @@ static void nsvg__flattenShape(NSVGrasterizerPrivate* r, NSVGshape* shape, float
                 0);
         }
         // Close path
-        nsvg__addPathPoint(r, path->pts[0] * scale, path->pts[1] * scale, 0);
+        nsvg__addPathPoint(r, pts[0] * scale, pts[1] * scale, 0);
         // Build edges
         for (i = 0, j = r->npoints - 1; i < r->npoints; j = i++)
             nsvg__addEdge(r, r->points[j].x, r->points[j].y, r->points[i].x, r->points[i].y);
@@ -811,24 +816,30 @@ static void nsvg__prepareStroke(NSVGrasterizerPrivate* r, float miterLimit, int 
     }
 }
 
-static void nsvg__flattenShapeStroke(NSVGrasterizerPrivate* r, NSVGshape* shape, float scale)
+static void nsvg__flattenShapeStroke(NSVGrasterizerPrivate* r, NSVGimage2* img, NSVGshape2* shape, float scale)
 {
+    int        path_idx;
     int        i, j, closed;
-    NSVGpath*  path;
+    NSVGpath2* path;
     NSVGpoint *p0, *p1;
-    float      miterLimit = shape->miterLimit;
-    int        lineJoin   = shape->strokeLineJoin;
-    int        lineCap    = shape->strokeLineCap;
-    float      lineWidth  = shape->strokeWidth * scale;
+    float*     pts;
 
-    for (path = shape->paths; path != NULL; path = path->next)
+    float miterLimit = shape->miterLimit;
+    int   lineJoin   = shape->strokeLineJoin;
+    int   lineCap    = shape->strokeLineCap;
+    float lineWidth  = shape->strokeWidth * scale;
+
+    for (path_idx = shape->first_path_index; path_idx != 0; path_idx = img->paths[path_idx].next_path_idx)
     {
+        path = img->paths + path_idx;
+        pts  = img->points + path->first_pt_idx;
+
         // Flatten path
         r->npoints = 0;
-        nsvg__addPathPoint(r, path->pts[0] * scale, path->pts[1] * scale, NSVG_PT_CORNER);
+        nsvg__addPathPoint(r, pts[0] * scale, pts[1] * scale, NSVG_PT_CORNER);
         for (i = 0; i < path->npts - 1; i += 3)
         {
-            float* p = &path->pts[i * 2];
+            float* p = &pts[i * 2];
             nsvg__flattenCubicBez(
                 r,
                 p[0] * scale,
@@ -1455,10 +1466,10 @@ static void nsvg__unpremultiplyAlpha(unsigned char* image, int w, int h, int str
     }
 }
 
-static void nsvg__initPaint(NSVGcachedPaint* cache, NSVGpaint* paint, float opacity)
+static void nsvg__initPaint(NSVGimage2* img, NSVGcachedPaint* cache, NSVGpaint2* paint, float opacity)
 {
-    int           i, j;
-    NSVGgradient* grad;
+    int            i, j;
+    NSVGgradient2* grad;
 
     cache->type = paint->type;
 
@@ -1468,7 +1479,8 @@ static void nsvg__initPaint(NSVGcachedPaint* cache, NSVGpaint* paint, float opac
         return;
     }
 
-    grad = paint->gradient;
+    NSVGgradientStop* stops = img->stops + paint->gradient.stop_idx;
+    grad                    = &paint->gradient;
 
     cache->spread = grad->spread;
     memcpy(cache->xform, grad->xform, sizeof(float) * 6);
@@ -1480,7 +1492,7 @@ static void nsvg__initPaint(NSVGcachedPaint* cache, NSVGpaint* paint, float opac
     }
     else if (grad->nstops == 1)
     {
-        unsigned int color = nsvg__applyOpacity(grad->stops[0].color, opacity);
+        unsigned int color = nsvg__applyOpacity(stops[0].color, opacity);
         for (i = 0; i < 256; i++)
             cache->colors[i] = color;
     }
@@ -1490,9 +1502,9 @@ static void nsvg__initPaint(NSVGcachedPaint* cache, NSVGpaint* paint, float opac
         float        ua, ub, du, u;
         int          ia, ib, count;
 
-        ca = nsvg__applyOpacity(grad->stops[0].color, opacity);
-        ua = nsvg__clampf(grad->stops[0].offset, 0, 1);
-        ub = nsvg__clampf(grad->stops[grad->nstops - 1].offset, ua, 1);
+        ca = nsvg__applyOpacity(stops[0].color, opacity);
+        ua = nsvg__clampf(stops[0].offset, 0, 1);
+        ub = nsvg__clampf(stops[grad->nstops - 1].offset, ua, 1);
         ia = (int)(ua * 255.0f);
         ib = (int)(ub * 255.0f);
         for (i = 0; i < ia; i++)
@@ -1502,10 +1514,10 @@ static void nsvg__initPaint(NSVGcachedPaint* cache, NSVGpaint* paint, float opac
 
         for (i = 0; i < grad->nstops - 1; i++)
         {
-            ca    = nsvg__applyOpacity(grad->stops[i].color, opacity);
-            cb    = nsvg__applyOpacity(grad->stops[i + 1].color, opacity);
-            ua    = nsvg__clampf(grad->stops[i].offset, 0, 1);
-            ub    = nsvg__clampf(grad->stops[i + 1].offset, 0, 1);
+            ca    = nsvg__applyOpacity(stops[i].color, opacity);
+            cb    = nsvg__applyOpacity(stops[i + 1].color, opacity);
+            ua    = nsvg__clampf(stops[i].offset, 0, 1);
+            ub    = nsvg__clampf(stops[i + 1].offset, 0, 1);
             ia    = (int)(ua * 255.0f);
             ib    = (int)(ub * 255.0f);
             count = ib - ia;
@@ -1572,7 +1584,7 @@ style=\"fill:%s;\" />", r->points[i].x, r->points[i].y, r->points[i].flags == 0 
 
 void nsvgRasterize(
     NSVGrasterizer* rstate,
-    NSVGimage*      image,
+    NSVGimage2*     image,
     float           tx,
     float           ty,
     float           scale,
@@ -1587,7 +1599,7 @@ void nsvgRasterize(
     void* la_top = linked_arena_get_top(arena);
 
     NSVGrasterizerPrivate* r     = linked_arena_alloc_clear(arena, sizeof(*r));
-    NSVGshape*             shape = NULL;
+    NSVGshape2*            shape = NULL;
     NSVGedge*              e     = NULL;
     NSVGcachedPaint        cache;
     int                    i;
@@ -1620,8 +1632,10 @@ void nsvgRasterize(
     for (i = 0; i < h; i++)
         memset(&dst[i * stride], 0, w * 4);
 
-    for (shape = image->shapes; shape != NULL; shape = shape->next)
+    for (int shape_idx = image->first_shape_idx; shape_idx != 0; shape_idx = image->shapes[shape_idx].next_shape_index)
     {
+        shape = &image->shapes[shape_idx];
+
         if (!(shape->flags & NSVG_FLAGS_VISIBLE))
             continue;
 
@@ -1634,9 +1648,9 @@ void nsvgRasterize(
             r->nedges   = 0;
 
             if (is_fill)
-                nsvg__flattenShape(r, shape, scale);
+                nsvg__flattenShape(r, image, shape, scale);
             else
-                nsvg__flattenShapeStroke(r, shape, scale);
+                nsvg__flattenShapeStroke(r, image, shape, scale);
 
             // Scale and translate edges
             for (i = 0; i < r->nedges; i++)
@@ -1653,8 +1667,8 @@ void nsvgRasterize(
                 qsort(r->edges, r->nedges, sizeof(NSVGedge), nsvg__cmpEdge);
 
             // now, traverse the scanlines and find the intersections on each scanline, use non-zero rule
-            NSVGpaint* paint = is_fill ? &shape->fill : &shape->stroke;
-            nsvg__initPaint(&cache, paint, shape->opacity);
+            NSVGpaint2* paint = is_fill ? &shape->fill : &shape->stroke;
+            nsvg__initPaint(image, &cache, paint, shape->opacity);
 
             char fillRule = is_fill ? shape->fillRule : NSVG_FILLRULE_NONZERO;
             nsvg__rasterizeSortedEdges(r, tx, ty, scale, &cache, fillRule);
