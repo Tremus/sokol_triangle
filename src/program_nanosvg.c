@@ -12,6 +12,8 @@
 
 #include "nanosvg.h"
 #include "nanosvgrast.h"
+// #include "nanosvg2.h"
+// #include "nanosvgrast2.h"
 
 #include "program_nanosvg.glsl.h"
 
@@ -50,29 +52,32 @@ void program_setup()
     state.height = APP_HEIGHT;
 
     {
-        xtime_stopwatch_start();
+        uint64_t time_start = xtime_now_ns();
 
         // static const char* path_tiger_svg = SRC_DIR XFILES_DIR_STR "Ghostscript_Tiger.svg";
         static const char* path_tiger_svg = SRC_DIR XFILES_DIR_STR "Retrig_icon.svg";
         state.svg                         = nsvgParseFromFile(path_tiger_svg, "px", 96);
 
-        xtime_stopwatch_log_ms("Read file in:");
+        uint64_t time_end = xtime_now_ns();
+
+        println("Read file in: %.3fms", xtime_convert_ns_to_ms(time_end - time_start));
     }
 
     println("SVG size: %f x %f", state.svg->width, state.svg->height);
-    float scale = APP_HEIGHT / state.svg->height;
-    // float          scale = 1;
-    int            w   = (int)ceilf(state.svg->width * scale);
-    int            h   = (int)ceilf(state.svg->height * scale);
+    // float scale = APP_HEIGHT / state.svg->height; // ~800us
+    float          scale = 1; // ~40us
+    int            w     = (int)ceilf(state.svg->width * scale);
+    int            h     = (int)ceilf(state.svg->height * scale);
     unsigned char* img = img = malloc(w * h * 4);
     println("IMG size (scaled): %d x %d", w, h);
 
     {
-        xtime_stopwatch_start();
+        uint64_t time_start = xtime_now_ns();
 
         nsvgRasterize(state.rast, state.svg, 0, 0, scale, img, w, h, w * 4);
 
-        xtime_stopwatch_log_ms("Raster image in");
+        uint64_t time_end = xtime_now_ns();
+        println("Raster image in: %.3fms", xtime_convert_ns_to_ms(time_end - time_start));
     }
 
     state.svg_img  = sg_make_image(&(sg_image_desc){
