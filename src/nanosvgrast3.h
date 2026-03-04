@@ -333,10 +333,13 @@ static void nsvg__flattenShape(NSVGrasterizerPrivate* r, NSVGimage2* img, NSVGsh
     NSVGpath2* path;
     float*     pts;
 
-    for (path_idx = shape->first_path_index; path_idx != 0; path_idx = img->paths[path_idx].next_path_idx)
+    NSVGpath2* paths  = nsvg_get_paths(img);
+    float*     points = nsvg_get_points(img);
+
+    for (path_idx = shape->first_path_index; path_idx != 0; path_idx = paths[path_idx].next_path_idx)
     {
-        path = img->paths + path_idx;
-        pts  = img->points + path->first_pt_idx;
+        path = paths + path_idx;
+        pts  = points + path->first_pt_idx;
 
         r->npoints = 0;
         // Flatten path
@@ -829,10 +832,13 @@ static void nsvg__flattenShapeStroke(NSVGrasterizerPrivate* r, NSVGimage2* img, 
     int   lineCap    = shape->strokeLineCap;
     float lineWidth  = shape->strokeWidth * scale;
 
-    for (path_idx = shape->first_path_index; path_idx != 0; path_idx = img->paths[path_idx].next_path_idx)
+    NSVGpath2* paths  = nsvg_get_paths(img);
+    float*     points = nsvg_get_points(img);
+
+    for (path_idx = shape->first_path_index; path_idx != 0; path_idx = paths[path_idx].next_path_idx)
     {
-        path = img->paths + path_idx;
-        pts  = img->points + path->first_pt_idx;
+        path = paths + path_idx;
+        pts  = points + path->first_pt_idx;
 
         // Flatten path
         r->npoints = 0;
@@ -1479,8 +1485,9 @@ static void nsvg__initPaint(NSVGimage2* img, NSVGcachedPaint* cache, NSVGpaint2*
         return;
     }
 
-    NSVGgradientStop* stops = img->stops + paint->gradient.stop_idx;
-    grad                    = &paint->gradient;
+    NSVGgradientStop* stops  = nsvg_get_stops(img);
+    stops                   += paint->gradient.stop_idx;
+    grad                     = &paint->gradient;
 
     cache->spread = grad->spread;
     memcpy(cache->xform, grad->xform, sizeof(float) * 6);
@@ -1632,9 +1639,10 @@ void nsvgRasterize(
     for (i = 0; i < h; i++)
         memset(&dst[i * stride], 0, w * 4);
 
-    for (int shape_idx = image->first_shape_idx; shape_idx != 0; shape_idx = image->shapes[shape_idx].next_shape_index)
+    NSVGshape2* shapes = nsvg_get_shapes(image);
+    for (int shape_idx = image->first_shape_idx; shape_idx != 0; shape_idx = shapes[shape_idx].next_shape_index)
     {
-        shape = &image->shapes[shape_idx];
+        shape = &shapes[shape_idx];
 
         if (!(shape->flags & NSVG_FLAGS_VISIBLE))
             continue;

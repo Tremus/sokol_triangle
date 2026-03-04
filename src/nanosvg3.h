@@ -250,6 +250,7 @@ typedef struct NSVGimage2
     float width;  // Width of the image.
     float height; // Height of the image.
 
+    int buffer_size;
     int first_shape_idx; // 0 if no shapes
 
     int nshapes;
@@ -257,11 +258,21 @@ typedef struct NSVGimage2
     int npoints; // x2
     int nstops;
 
-    NSVGshape2*       shapes;
-    NSVGpath2*        paths;
-    float*            points;
-    NSVGgradientStop* stops;
+    int offset_shapes;
+    int offset_paths;
+    int offset_points;
+    int offset_stops;
+
+    unsigned char buffer[]; // aligned to 8 bytes
 } NSVGimage2;
+
+static NSVGshape2*       nsvg_get_shapes(NSVGimage2* img) { return (NSVGshape2*)(img->buffer + img->offset_shapes); }
+static NSVGpath2*        nsvg_get_paths(NSVGimage2* img) { return (NSVGpath2*)(img->buffer + img->offset_paths); }
+static float*            nsvg_get_points(NSVGimage2* img) { return (float*)(img->buffer + img->offset_points); }
+static NSVGgradientStop* nsvg_get_stops(NSVGimage2* img)
+{
+    return (NSVGgradientStop*)(img->buffer + img->offset_stops);
+}
 
 NSVGimage2* nsvgParseFromFile2(const char* filename, const char* units, float dpi);
 NSVGimage2* nsvgParse2(char* input, const char* units, float dpi);
@@ -4015,17 +4026,24 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
     img2->width  = img->width;
     img2->height = img->height;
 
-    buffer       += sizeof(NSVGimage2);
-    img2->shapes  = (NSVGshape2*)(buffer);
+    img2->buffer_size = required_size;
 
-    buffer      += (num_shapes + 1) * sizeof(NSVGshape2);
-    img2->paths  = (NSVGpath2*)(buffer);
+    int offset           = 0;
+    img2->offset_shapes  = offset;
+    offset              += (num_shapes + 1) * sizeof(NSVGshape2);
 
-    buffer       += (num_paths + 1) * sizeof(NSVGpath2);
-    img2->points  = (float*)(buffer);
+    img2->offset_paths  = offset;
+    offset             += (num_paths + 1) * sizeof(NSVGpath2);
 
-    buffer      += num_points * sizeof(float) * 2;
-    img2->stops  = (NSVGgradientStop*)(buffer);
+    img2->offset_points  = offset;
+    offset              += num_points * sizeof(float) * 2;
+
+    img2->offset_stops = offset;
+
+    NSVGshape2*       shapes2 = nsvg_get_shapes(img2);
+    NSVGpath2*        paths2  = nsvg_get_paths(img2);
+    float*            points2 = nsvg_get_points(img2);
+    NSVGgradientStop* stops2  = nsvg_get_stops(img2);
 
     int num_shapes2 = 0;
     int num_paths2  = 0;
@@ -4037,7 +4055,7 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
     {
         num_shapes2++;
 
-        NSVGshape2* shape2 = &img2->shapes[num_shapes2];
+        NSVGshape2* shape2 = &shapes2[num_shapes2];
 
         if (shape->paths)
             shape2->first_path_index = num_paths2 + 1;
@@ -4057,7 +4075,7 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
                 shape2->fill.gradient.stop_idx = num_stops2;
 
                 memcpy(
-                    img2->stops + num_stops2,
+                    stops2 + num_stops2,
                     shape->fill.gradient->stops,
                     shape->fill.gradient->nstops * sizeof(NSVGgradientStop));
 
@@ -4086,7 +4104,7 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
                 shape2->stroke.gradient.stop_idx = num_stops2;
 
                 memcpy(
-                    img2->stops + num_stops2,
+                    stops2 + num_stops2,
                     shape->stroke.gradient->stops,
                     shape->stroke.gradient->nstops * sizeof(NSVGgradientStop));
                 num_stops2 += shape->stroke.gradient->nstops;
@@ -4114,7 +4132,7 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
         {
             num_paths2++;
 
-            NSVGpath2* path2 = &img2->paths[num_paths2];
+            NSVGpath2* path2 = &paths2[num_paths2];
 
             path2->first_pt_idx = num_points2 * 2;
             path2->npts         = path->npts;
@@ -4123,7 +4141,7 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
             if (path->next)
                 path2->next_path_idx = num_paths2 + 1;
 
-            memcpy(img2->points + num_points2 * 2, path->pts, sizeof(float) * path->npts * 2);
+            memcpy(points2 + num_points2 * 2, path->pts, sizeof(float) * path->npts * 2);
 
             num_points2 += path->npts;
         }
@@ -4137,8 +4155,8 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
     img2->npoints = num_points2;
     img2->nstops  = num_stops2;
 
-    xassert(0 == memcmp(img2->shapes, &(NSVGshape2){0}, sizeof(NSVGshape2)));
-    xassert(0 == memcmp(img2->paths, &(NSVGpath2){0}, sizeof(NSVGpath2)));
+    xassert(0 == memcmp(shapes2, &(NSVGshape2){0}, sizeof(NSVGshape2)));
+    xassert(0 == memcmp(paths2, &(NSVGpath2){0}, sizeof(NSVGpath2)));
     xassert(num_shapes == num_shapes2);
     xassert(num_paths == num_paths2);
     xassert(num_points == num_points2);
