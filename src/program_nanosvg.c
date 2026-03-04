@@ -10,18 +10,17 @@
 #include <xhl/files.h>
 #include <xhl/time.h>
 
-#include "nanosvg.h"
-#include "nanosvgrast.h"
-// #include "nanosvg2.h"
-// #include "nanosvgrast2.h"
+#include "nanosvg2.h"
+#include "nanosvgrast3.h"
 
 #include "program_nanosvg.glsl.h"
 
 static struct
 {
+    LinkedArena*   arena;
+    NSVGrasterizer rast;
 
-    NSVGrasterizer* rast;
-    NSVGimage*      svg;
+    NSVGimage* svg;
 
     sg_image   svg_img;
     sg_view    svg_view;
@@ -30,7 +29,7 @@ static struct
     sg_pipeline pip;
 
     int width, height;
-} state;
+} state = {0};
 
 static const sg_color_target_state BLEND_DEFAULT = {
     .write_mask = SG_COLORMASK_RGBA,
@@ -47,7 +46,7 @@ void program_setup()
     xalloc_init();
     xtime_init();
 
-    state.rast   = nsvgCreateRasterizer();
+    state.arena  = linked_arena_create_ex(0, 64 * 1024);
     state.width  = APP_WIDTH;
     state.height = APP_HEIGHT;
 
@@ -74,7 +73,7 @@ void program_setup()
     {
         uint64_t time_start = xtime_now_ns();
 
-        nsvgRasterize(state.rast, state.svg, 0, 0, scale, img, w, h, w * 4);
+        nsvgRasterize(&state.rast, state.svg, 0, 0, scale, img, w, h, w * 4, state.arena);
 
         uint64_t time_end = xtime_now_ns();
         println("Raster image in: %.3fms", xtime_convert_ns_to_ms(time_end - time_start));
@@ -107,8 +106,7 @@ void program_setup()
 
 void program_shutdown()
 {
-    nsvgDeleteRasterizer(state.rast);
-
+    linked_arena_destroy(state.arena);
     nsvgDelete(state.svg);
 
     xalloc_shutdown();

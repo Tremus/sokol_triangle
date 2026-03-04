@@ -52,9 +52,9 @@ void* linked_arena_get_top(const LinkedArena* arena);
 #define LINKED_ARENA_TAGGED_LEAK_DETECT_BEGIN(arena, tag)
 #define LINKED_ARENA_TAGGED_LEAK_DETECT_END(arena, tag)
 #else
-#define LINKED_ARENA_TAGGED_LEAK_DETECT_BEGIN(arena, tag) size_t tag = arena->size;
-#define LINKED_ARENA_TAGGED_LEAK_DETECT_END(arena, tag)   xassert(tag == arena->size);
+#define LINKED_ARENA_TAGGED_LEAK_DETECT_BEGIN(arena, tag) void* tag = linked_arena_get_top(arena);
+#define LINKED_ARENA_TAGGED_LEAK_DETECT_END(arena, tag)   xassert(tag == linked_arena_get_top(arena));
 #endif
 
-#define LINKED_ARENA_LEAK_DETECT_BEGIN(arena) LINKED_ARENA_TAGGED_LEAK_DETECT_BEGIN(arena, _arena_size)
-#define LINKED_ARENA_LEAK_DETECT_END(arena)   LINKED_ARENA_TAGGED_LEAK_DETECT_END(arena, _arena_size)
+#define LINKED_ARENA_LEAK_DETECT_BEGIN(arena) LINKED_ARENA_TAGGED_LEAK_DETECT_BEGIN(arena, _arena_top)
+#define LINKED_ARENA_LEAK_DETECT_END(arena)   LINKED_ARENA_TAGGED_LEAK_DETECT_END(arena, _arena_top)
