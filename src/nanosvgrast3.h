@@ -1474,8 +1474,7 @@ static void nsvg__unpremultiplyAlpha(unsigned char* image, int w, int h, int str
 
 static void nsvg__initPaint(NSVGimage2* img, NSVGcachedPaint* cache, NSVGpaint2* paint, float opacity)
 {
-    int            i, j;
-    NSVGgradient2* grad;
+    int i, j;
 
     cache->type = paint->type;
 
@@ -1486,18 +1485,17 @@ static void nsvg__initPaint(NSVGimage2* img, NSVGcachedPaint* cache, NSVGpaint2*
     }
 
     NSVGgradientStop* stops  = nsvg_get_stops(img);
-    stops                   += paint->gradient.stop_idx;
-    grad                     = &paint->gradient;
+    stops                   += paint->stop_idx;
 
-    cache->spread = grad->spread;
-    memcpy(cache->xform, grad->xform, sizeof(float) * 6);
+    cache->spread = paint->spread;
+    memcpy(cache->xform, paint->xform, sizeof(paint->xform));
 
-    if (grad->nstops == 0)
+    if (paint->nstops == 0)
     {
         for (i = 0; i < 256; i++)
             cache->colors[i] = 0;
     }
-    else if (grad->nstops == 1)
+    else if (paint->nstops == 1)
     {
         unsigned int color = nsvg__applyOpacity(stops[0].color, opacity);
         for (i = 0; i < 256; i++)
@@ -1511,7 +1509,7 @@ static void nsvg__initPaint(NSVGimage2* img, NSVGcachedPaint* cache, NSVGpaint2*
 
         ca = nsvg__applyOpacity(stops[0].color, opacity);
         ua = nsvg__clampf(stops[0].offset, 0, 1);
-        ub = nsvg__clampf(stops[grad->nstops - 1].offset, ua, 1);
+        ub = nsvg__clampf(stops[paint->nstops - 1].offset, ua, 1);
         ia = (int)(ua * 255.0f);
         ib = (int)(ub * 255.0f);
         for (i = 0; i < ia; i++)
@@ -1519,7 +1517,7 @@ static void nsvg__initPaint(NSVGimage2* img, NSVGcachedPaint* cache, NSVGpaint2*
             cache->colors[i] = ca;
         }
 
-        for (i = 0; i < grad->nstops - 1; i++)
+        for (i = 0; i < paint->nstops - 1; i++)
         {
             ca    = nsvg__applyOpacity(stops[i].color, opacity);
             cb    = nsvg__applyOpacity(stops[i + 1].color, opacity);
@@ -1643,9 +1641,6 @@ void nsvgRasterize(
     for (int shape_idx = image->first_shape_idx; shape_idx != 0; shape_idx = shapes[shape_idx].next_shape_index)
     {
         shape = &shapes[shape_idx];
-
-        if (!(shape->flags & NSVG_FLAGS_VISIBLE))
-            continue;
 
         int is_fill   = shape->fill.type != NSVG_PAINT_NONE;
         int is_stroke = shape->stroke.type != NSVG_PAINT_NONE && (shape->strokeWidth * scale) > 0.01f;

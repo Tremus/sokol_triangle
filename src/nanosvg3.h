@@ -197,52 +197,50 @@ void nsvgDelete(NSVGimage* image);
 
 //=============================================================================
 
-typedef struct NSVGgradient2
-{
-    float xform[6];
-    char  spread;
-    float fx, fy;
-    int   nstops;
-    int   stop_idx;
-} NSVGgradient2;
-
 typedef struct NSVGpaint2
 {
-    enum NSVGpaintType type;
-    unsigned int       color;
-    NSVGgradient2      gradient;
+    enum NSVGpaintType  type;
+    enum NSVGspreadType spread;
+    unsigned int        color;
+
+    unsigned short nstops;
+    unsigned short stop_idx;
+
+    float xform[6];
+    float fx, fy;
 } NSVGpaint2;
 
 typedef struct NSVGpath2
 {
-    // float* pts;       // Cubic bezier points: x0,y0, [cpx1,cpx1,cpx2,cpy2,x1,y1], ...
-    int   first_pt_idx;
-    int   npts;          // Total number of bezier points.
-    char  closed;        // Flag indicating if shapes should be treated as closed.
-    float bounds[4];     // Tight bounding box of the shape [minx,miny,maxx,maxy].
-    int   next_path_idx; // Index to next path, or 0 if last element.
+    unsigned short first_pt_idx;  // Index to cubic bezier points: x0,y0, [cpx1,cpx1,cpx2,cpy2,x1,y1], ...
+    unsigned short npts;          // Total number of bezier points.
+    unsigned short closed;        // Flag indicating if shapes should be treated as closed.
+    unsigned short next_path_idx; // Index to next path, or 0 if last element.
 } NSVGpath2;
 
 typedef struct NSVGshape2
 {
-    NSVGpaint2 fill;               // Fill paint
-    NSVGpaint2 stroke;             // Stroke paint
-    float      opacity;            // Opacity of the shape.
-    float      strokeWidth;        // Stroke width (scaled).
-    float      strokeDashOffset;   // Stroke dash offset (scaled).
-    float      strokeDashArray[8]; // Stroke dash array (scaled).
-    char       strokeDashCount;    // Number of dash values in dash array.
-    char       strokeLineJoin;     // Stroke join type.
-    char       strokeLineCap;      // Stroke cap type.
-    char       fillRule;           // Fill rule, see NSVGfillRule.
-    unsigned   flags;              // Logical or of NSVG_FLAGS_* flags
-    float      miterLimit;         // Miter limit
-    float      bounds[4];          // Tight bounding box of the shape [minx,miny,maxx,maxy].
-    float      xform[6];           // Root transformation for fill/stroke gradient
+    NSVGpaint2 fill;   // Fill paint
+    NSVGpaint2 stroke; // Stroke paint
+
     // NSVGpath*         paths;
     // struct NSVGshape* next;
-    int first_path_index; // Index to first path. 0 if last element.
-    int next_shape_index; // Index to next shape. 0 if last element.
+
+    float opacity;          // Opacity of the shape.
+    float strokeWidth;      // Stroke width (scaled).
+    float strokeDashOffset; // Stroke dash offset (scaled).
+    float miterLimit;       // Miter limit
+
+    float strokeDashArray[8]; // Stroke dash array (scaled).
+
+    unsigned char strokeDashCount; // Number of dash values in dash array.
+    unsigned char strokeLineJoin;  // Stroke join type.
+    unsigned char strokeLineCap;   // Stroke cap type.
+    unsigned char fillRule;        // Fill rule, see NSVGfillRule.
+
+    unsigned short first_path_index; // Index to first path. 0 if last element.
+    unsigned short next_shape_index; // Index to next shape. 0 if last element.
+
 } NSVGshape2;
 
 typedef struct NSVGimage2
@@ -250,18 +248,18 @@ typedef struct NSVGimage2
     float width;  // Width of the image.
     float height; // Height of the image.
 
-    int buffer_size;
-    int first_shape_idx; // 0 if no shapes
+    unsigned buffer_size;
+    unsigned first_shape_idx; // 0 if no shapes
 
-    int nshapes;
-    int npaths;
-    int npoints; // x2
-    int nstops;
+    unsigned nshapes;
+    unsigned npaths;
+    unsigned npoints; // x2
+    unsigned nstops;
 
-    int offset_shapes;
-    int offset_paths;
-    int offset_points;
-    int offset_stops;
+    unsigned offset_shapes;
+    unsigned offset_paths;
+    unsigned offset_points;
+    unsigned offset_stops;
 
     unsigned char buffer[]; // aligned to 8 bytes
 } NSVGimage2;
@@ -797,15 +795,13 @@ static void nsvg__curveBounds(float* bounds, float* curve)
 static NSVGparser* nsvg__createParser(void)
 {
     NSVGparser* p;
-    p = (NSVGparser*)malloc(sizeof(NSVGparser));
+    p = (NSVGparser*)calloc(1, sizeof(NSVGparser));
     if (p == NULL)
         goto error;
-    memset(p, 0, sizeof(NSVGparser));
 
-    p->image = (NSVGimage*)malloc(sizeof(NSVGimage));
+    p->image = (NSVGimage*)calloc(1, sizeof(NSVGimage));
     if (p->image == NULL)
         goto error;
-    memset(p->image, 0, sizeof(NSVGimage));
 
     // Init style
     nsvg__xformIdentity(p->attr[0].xform);
@@ -1070,7 +1066,7 @@ nsvg__createGradient(NSVGparser* p, const char* id, const float* localBounds, fl
     if (stops == NULL)
         return NULL;
 
-    grad = (NSVGgradient*)malloc(sizeof(NSVGgradient) + sizeof(NSVGgradientStop) * (nstops - 1));
+    grad = (NSVGgradient*)calloc(1, sizeof(NSVGgradient) + sizeof(NSVGgradientStop) * (nstops - 1));
     if (grad == NULL)
         return NULL;
 
@@ -1192,10 +1188,9 @@ static void nsvg__addShape(NSVGparser* p)
     if (p->plist == NULL)
         return;
 
-    shape = (NSVGshape*)malloc(sizeof(NSVGshape));
+    shape = (NSVGshape*)calloc(1, sizeof(NSVGshape));
     if (shape == NULL)
         goto error;
-    memset(shape, 0, sizeof(NSVGshape));
 
     memcpy(shape->id, attr->id, sizeof shape->id);
     memcpy(shape->title, attr->title, sizeof shape->title);
@@ -1297,12 +1292,11 @@ static void nsvg__addPath(NSVGparser* p, char closed)
     if ((p->npts % 3) != 1)
         return;
 
-    path = (NSVGpath*)malloc(sizeof(NSVGpath));
+    path = (NSVGpath*)calloc(1, sizeof(NSVGpath));
     if (path == NULL)
         goto error;
-    memset(path, 0, sizeof(NSVGpath));
 
-    path->pts = (float*)malloc(p->npts * 2 * sizeof(float));
+    path->pts = (float*)calloc(1, p->npts * 2 * sizeof(float));
     if (path->pts == NULL)
         goto error;
     path->closed = closed;
@@ -3246,10 +3240,9 @@ static void nsvg__parseSVG(NSVGparser* p, const char** attr)
 static void nsvg__parseGradient(NSVGparser* p, const char** attr, signed char type)
 {
     int               i;
-    NSVGgradientData* grad = (NSVGgradientData*)malloc(sizeof(NSVGgradientData));
+    NSVGgradientData* grad = (NSVGgradientData*)calloc(1, sizeof(NSVGgradientData));
     if (grad == NULL)
         return;
-    memset(grad, 0, sizeof(NSVGgradientData));
     grad->units = NSVG_OBJECT_SPACE;
     grad->type  = type;
     if (grad->type == NSVG_PAINT_LINEAR_GRADIENT)
@@ -3544,11 +3537,10 @@ static char* nsvg__strndup(const char* s, size_t n)
     if (n < len)
         len = n;
 
-    result = (char*)malloc(len + 1);
+    result = (char*)calloc(1, len + 1); // incl. null terminating char
     if (!result)
         return 0;
 
-    result[len] = '\0';
     return (char*)memcpy(result, s, len);
 }
 
@@ -3603,7 +3595,7 @@ static void nsvg__content(void* ud, const char* s)
                 if (nsvg__isspace(c) || c == '{')
                 {
                     NSVGstyles* next       = p->styles;
-                    p->styles              = (NSVGstyles*)malloc(sizeof(NSVGstyles));
+                    p->styles              = (NSVGstyles*)calloc(1, sizeof(NSVGstyles));
                     p->styles->next        = next;
                     p->styles->name        = nsvg__strndup(start, (size_t)(s - start));
                     p->styles->description = NULL;
@@ -3888,12 +3880,11 @@ NSVGimage* nsvgParseFromFile(const char* filename, const char* units, float dpi)
     fseek(fp, 0, SEEK_END);
     size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    data = (char*)malloc(size + 1);
+    data = (char*)calloc(1, size + 1); // +1 for null terminating char
     if (data == NULL)
         goto error;
     if (fread(data, 1, size, fp) != size)
         goto error;
-    data[size] = '\0'; // Must be null terminated.
     fclose(fp);
     image = nsvgParse(data, units, dpi);
     free(data);
@@ -3917,12 +3908,11 @@ NSVGpath* nsvgDuplicatePath(NSVGpath* p)
     if (p == NULL)
         return NULL;
 
-    res = (NSVGpath*)malloc(sizeof(NSVGpath));
+    res = (NSVGpath*)calloc(1, sizeof(NSVGpath));
     if (res == NULL)
         goto error;
-    memset(res, 0, sizeof(NSVGpath));
 
-    res->pts = (float*)malloc(p->npts * 2 * sizeof(float));
+    res->pts = (float*)calloc(1, p->npts * 2 * sizeof(float));
     if (res->pts == NULL)
         goto error;
     memcpy(res->pts, p->pts, p->npts * sizeof(float) * 2);
@@ -3977,36 +3967,38 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
     NSVGimage* img = p->image;
     for (NSVGshape* shape = img->shapes; shape != NULL; shape = shape->next)
     {
+        if (!(shape->flags & NSVG_FLAGS_VISIBLE))
+            continue;
+
         num_shapes++;
+
+        if (shape->fill.type == NSVG_PAINT_LINEAR_GRADIENT || shape->fill.type == NSVG_PAINT_RADIAL_GRADIENT)
+        {
+            if (shape->fill.gradient)
+            {
+                num_stops += shape->fill.gradient->nstops;
+            }
+        }
+        if (shape->stroke.type == NSVG_PAINT_LINEAR_GRADIENT || shape->stroke.type == NSVG_PAINT_RADIAL_GRADIENT)
+        {
+            if (shape->stroke.gradient)
+            {
+                num_stops += shape->stroke.gradient->nstops;
+            }
+        }
 
         for (NSVGpath* path = shape->paths; path != NULL; path = path->next)
         {
             num_paths++;
-
             num_points += path->npts;
-
-            if (shape->fill.type == NSVG_PAINT_LINEAR_GRADIENT || shape->fill.type == NSVG_PAINT_RADIAL_GRADIENT)
-            {
-                if (shape->fill.gradient)
-                {
-                    num_stops += shape->fill.gradient->nstops;
-                }
-            }
-            if (shape->stroke.type == NSVG_PAINT_LINEAR_GRADIENT || shape->stroke.type == NSVG_PAINT_RADIAL_GRADIENT)
-            {
-                if (shape->stroke.gradient)
-                {
-                    num_stops += shape->stroke.gradient->nstops;
-                }
-            }
         }
     }
-    println(
-        "Img stats: num_shapes %d num_paths %d num_points %d num_stops %d",
-        num_shapes,
-        num_paths,
-        num_points,
-        num_stops);
+    // println(
+    //     "Img stats: num_shapes %d num_paths %d num_points %d num_stops %d",
+    //     num_shapes,
+    //     num_paths,
+    //     num_points,
+    //     num_stops);
 
     // Create our data structure
     size_t required_size = sizeof(NSVGimage2);
@@ -4016,10 +4008,9 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
     required_size += num_points * sizeof(float) * 2;
     required_size += num_stops * sizeof(NSVGgradientStop);
 
-    println("Alloc size: %zu", required_size);
+    // println("Alloc size: %zu", required_size);
 
-    unsigned char* buffer = malloc(required_size + 16); // w/ padding
-    memset(buffer, 0, required_size + 16);
+    unsigned char* buffer = calloc(1, required_size + 16); // w/ padding
 
     img2 = (NSVGimage2*)buffer;
 
@@ -4053,6 +4044,9 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
     // Fill arrays
     for (NSVGshape* shape = img->shapes; shape != NULL; shape = shape->next)
     {
+        if (!(shape->flags & NSVG_FLAGS_VISIBLE))
+            continue;
+
         num_shapes2++;
 
         NSVGshape2* shape2 = &shapes2[num_shapes2];
@@ -4062,57 +4056,35 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
         if (shape->next)
             shape2->next_shape_index = num_shapes2 + 1;
 
-        shape2->fill.type = shape->fill.type;
-        if (shape->fill.type == NSVG_PAINT_LINEAR_GRADIENT || shape->fill.type == NSVG_PAINT_RADIAL_GRADIENT)
+        for (int paint_type = 0; paint_type < 2; paint_type++)
         {
-            if (shape->fill.gradient)
+            NSVGpaint*  paint  = paint_type == 0 ? &shape->fill : &shape->stroke;
+            NSVGpaint2* paint2 = paint_type == 0 ? &shape2->fill : &shape2->stroke;
+
+            paint2->type = paint->type;
+            if (paint->type == NSVG_PAINT_LINEAR_GRADIENT || paint->type == NSVG_PAINT_RADIAL_GRADIENT)
             {
-                memcpy(shape2->fill.gradient.xform, shape->fill.gradient->xform, sizeof(shape->fill.gradient->xform));
-                shape2->fill.gradient.spread   = shape->fill.gradient->spread;
-                shape2->fill.gradient.fx       = shape->fill.gradient->fx;
-                shape2->fill.gradient.fy       = shape->fill.gradient->fy;
-                shape2->fill.gradient.nstops   = shape->fill.gradient->nstops;
-                shape2->fill.gradient.stop_idx = num_stops2;
+                if (paint->gradient)
+                {
+                    memcpy(paint2->xform, paint->gradient->xform, sizeof(paint->gradient->xform));
+                    paint2->spread   = paint->gradient->spread;
+                    paint2->fx       = paint->gradient->fx;
+                    paint2->fy       = paint->gradient->fy;
+                    paint2->nstops   = paint->gradient->nstops;
+                    paint2->stop_idx = num_stops2;
 
-                memcpy(
-                    stops2 + num_stops2,
-                    shape->fill.gradient->stops,
-                    shape->fill.gradient->nstops * sizeof(NSVGgradientStop));
+                    memcpy(
+                        stops2 + num_stops2,
+                        paint->gradient->stops,
+                        paint->gradient->nstops * sizeof(NSVGgradientStop));
 
-                num_stops2 += shape->fill.gradient->nstops;
+                    num_stops2 += paint->gradient->nstops;
+                }
             }
-        }
-        else
-        {
-            shape2->fill.color = shape->fill.color;
-        }
-        // xassert(shape2->fill.gradient.xform == shape2->fill.gradient.xform);
-        xassert(isnan(shape2->fill.gradient.xform[0]) == false);
-
-        if (shape->stroke.type == NSVG_PAINT_LINEAR_GRADIENT || shape->stroke.type == NSVG_PAINT_RADIAL_GRADIENT)
-        {
-            if (shape->stroke.gradient)
+            else
             {
-                memcpy(
-                    shape2->stroke.gradient.xform,
-                    shape->stroke.gradient->xform,
-                    sizeof(shape->stroke.gradient->xform));
-                shape2->stroke.gradient.spread   = shape->stroke.gradient->spread;
-                shape2->stroke.gradient.fx       = shape->stroke.gradient->fx;
-                shape2->stroke.gradient.fy       = shape->stroke.gradient->fy;
-                shape2->stroke.gradient.nstops   = shape->stroke.gradient->nstops;
-                shape2->stroke.gradient.stop_idx = num_stops2;
-
-                memcpy(
-                    stops2 + num_stops2,
-                    shape->stroke.gradient->stops,
-                    shape->stroke.gradient->nstops * sizeof(NSVGgradientStop));
-                num_stops2 += shape->stroke.gradient->nstops;
+                paint2->color = paint->color;
             }
-        }
-        else
-        {
-            shape2->stroke.color = shape->stroke.color;
         }
 
         shape2->opacity          = shape->opacity;
@@ -4122,11 +4094,8 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
         shape2->strokeLineJoin   = shape->strokeLineJoin;
         shape2->strokeLineCap    = shape->strokeLineCap;
         shape2->fillRule         = shape->fillRule;
-        shape2->flags            = shape->flags;
         shape2->miterLimit       = shape->miterLimit;
         memcpy(shape2->strokeDashArray, shape->strokeDashArray, sizeof(shape->strokeDashArray));
-        memcpy(shape2->bounds, shape->bounds, sizeof(shape->bounds));
-        memcpy(shape2->xform, shape->xform, sizeof(shape->xform));
 
         for (NSVGpath* path = shape->paths; path != NULL; path = path->next)
         {
@@ -4137,7 +4106,6 @@ NSVGimage2* nsvg_createImage2(NSVGparser* p)
             path2->first_pt_idx = num_points2 * 2;
             path2->npts         = path->npts;
             path2->closed       = path->closed;
-            memcpy(path2->bounds, path->bounds, sizeof(path->bounds));
             if (path->next)
                 path2->next_path_idx = num_paths2 + 1;
 
@@ -4178,12 +4146,11 @@ NSVGimage2* nsvgParseFromFile2(const char* filename, const char* units, float dp
     fseek(fp, 0, SEEK_END);
     size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    data = (char*)malloc(size + 1);
+    data = (char*)calloc(1, size + 1); // +1 null terminating char
     if (data == NULL)
         goto error;
     if (fread(data, 1, size, fp) != size)
         goto error;
-    data[size] = '\0'; // Must be null terminated.
     fclose(fp);
     image2 = nsvgParse2(data, units, dpi);
     free(data);
