@@ -32,7 +32,7 @@ static struct
     uint32_t width;
     uint32_t height;
 
-    Image n64;
+    Image img;
 
     sg_pipeline pip_liquidglass;
     sg_pipeline pip_ui;
@@ -68,8 +68,10 @@ void program_setup()
     state.width  = APP_WIDTH;
     state.height = APP_HEIGHT;
 
-    static const char* path_n64_png = SRC_DIR XFILES_DIR_STR "n64.png";
-    state.n64                       = load_image_file(path_n64_png);
+    static const char* path_brain_jpg = SRC_DIR XFILES_DIR_STR "brain.jpg";
+    static const char* path_n64_png   = SRC_DIR XFILES_DIR_STR "n64.png";
+
+    state.img = load_image_file(path_brain_jpg);
 
     state.pip_liquidglass = sg_make_pipeline(&(sg_pipeline_desc){
         .shader    = sg_make_shader(texquad_shader_desc(sg_query_backend())),
@@ -101,7 +103,7 @@ void program_setup()
     // for (int i = 0; i < ARRLEN(state.sliders); i++)
     //     state.sliders[i].value = 0.5f;
     state.sliders[SLIDER_RADIUS].value     = 0.25;
-    state.sliders[SLIDER_REFRACTION].value = 1;
+    state.sliders[SLIDER_REFRACTION].value = 0.5;
     set_boundaries();
 }
 void program_shutdown() {}
@@ -154,13 +156,15 @@ void program_tick()
         sg_apply_pipeline(state.pip_liquidglass);
         sg_apply_bindings(&(sg_bindings){
             .samplers[SMP_smp] = state.smp_linear,
-            .views[VIEW_tex]   = state.n64.texview,
+            .views[VIEW_tex]   = state.img.texview,
         });
 
         fs_liquidglass_t uniforms = {
             .u_radius = state.sliders[SLIDER_RADIUS].value,
             // .u_refraction = 0.9f,
             .u_refraction = state.sliders[SLIDER_REFRACTION].value,
+
+            .u_size = {state.width, state.height},
         };
         sg_apply_uniforms(UB_fs_liquidglass, &SG_RANGE(uniforms));
         sg_draw(0, 3, 1);
