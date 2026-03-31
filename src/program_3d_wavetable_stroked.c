@@ -364,11 +364,6 @@ void program_tick()
     {
         sg_apply_pipeline(state.pip_ui);
 
-        unsigned half_width     = state.width / 2;
-        unsigned quarter_width  = state.width / 4;
-        unsigned half_height    = state.height / 2;
-        unsigned quarter_height = state.height / 4;
-
         // Param bg
         {
             uint32_t      col      = 0x303030ff;

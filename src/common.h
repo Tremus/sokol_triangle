@@ -19,6 +19,8 @@ enum
 #include <cplug_extensions/window.h>
 #include <sokol_gfx.h>
 
+#include <xhl/debug.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,6 +34,24 @@ void program_tick();
 bool program_event(const PWEvent* event);
 
 sg_swapchain get_swapchain(sg_pixel_format pixel_format);
+
+sg_color_target_state get_blending();
+
+typedef struct XFile
+{
+    void*  data;
+    size_t size;
+} XFile;
+XFile read_file(const char* path);
+
+typedef struct Image
+{
+    sg_image img;
+    sg_view  texview;
+    int      width;
+    int      height;
+} Image;
+Image load_image_file(const char* path);
 
 #ifdef __cplusplus
 }

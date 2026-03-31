@@ -11,6 +11,8 @@
 #include <xhl/files.h>
 #include <xhl/time.h>
 
+#include "stb_image.h"
+
 static void my_sg_logger(
     const char* tag,              // always "sapp"
     uint32_t    log_level,        // 0=panic, 1=error, 2=warning, 3=info
@@ -105,6 +107,8 @@ void pw_tick(void* _gui)
     sg_set_global(NULL);
 }
 
+//=============================================================================
+
 sg_swapchain get_swapchain(sg_pixel_format pixel_format)
 {
     return (sg_swapchain){
@@ -121,6 +125,51 @@ sg_swapchain get_swapchain(sg_pixel_format pixel_format)
         .d3d11.depth_stencil_view = pw_get_dx11_depth_stencil_view(g_pw),
 #endif
     };
+}
+
+sg_color_target_state get_blending()
+{
+    return (sg_color_target_state){
+        .write_mask = SG_COLORMASK_RGBA,
+        .blend      = {
+                 .enabled          = true,
+                 .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                 .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                 .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                 .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+        }};
+}
+
+XFile read_file(const char* path)
+{
+    XFile file = {0};
+    xfiles_read(path, &file.data, &file.size);
+    return file;
+}
+
+Image load_image_file(const char* path)
+{
+    XFile file = read_file(path);
+    Image img  = {0};
+
+    int            comp;
+    unsigned char* data = stbi_load_from_memory(file.data, file.size, &img.width, &img.height, &comp, STBI_rgb_alpha);
+    println("%s. size %dx%d", path, img.width, img.height);
+    xassert(data);
+
+    img.img     = sg_make_image(&(sg_image_desc){
+            .width              = img.width,
+            .height             = img.height,
+            .pixel_format       = SG_PIXELFORMAT_RGBA8,
+            .data.mip_levels[0] = {
+                .ptr  = data,
+                .size = 4 * img.width * img.height,
+        }});
+    img.texview = sg_make_view(&(sg_view_desc){.texture.image = img.img});
+
+    free(data);
+
+    return img;
 }
 
 //=============================================================================
