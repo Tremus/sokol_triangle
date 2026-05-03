@@ -1,12 +1,14 @@
 #define XHL_TIME_IMPL
 #define XHL_FILES_IMPL
-#define NANOVG_SOKOL_IMPLEMENTATION
+#define XHL_STRING_IMPL
 
 #include "common.h"
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <xhl/time.h>
 #include <xhl/files.h>
+#include <xhl/string.h>
 
 void println(const char* const fmt, ...)
 {

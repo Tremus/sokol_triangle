@@ -44,11 +44,11 @@ out flat vec2 uv_xy_scale;
 
 out flat uint sdf_type;
 out flat uint grad_type;
-out flat float feather;
-out flat float stroke_width;
-
 out flat uint colour1;
 out flat uint colour2;
+
+out flat float feather;
+out flat float stroke_width;
 
 // either:
 // - border_radius
@@ -121,8 +121,8 @@ void main() {
     vec4 sdf_data = unpackUnorm4x8(vert.sdf_data);
     vec2 arcpie   = 2 * PI * unpackUnorm2x16(vert.borderradius_arcpie);
 
-    sdf_type     = uint(sdf_data.x * 255);
-    grad_type    = uint(sdf_data.y * 255); 
+    sdf_type     = (vert.sdf_data >> 0) & 0xff;
+    grad_type    = (vert.sdf_data >> 8) & 0xff;
     feather      =      sdf_data.z * 1;
     stroke_width =      sdf_data.w * 16;
     stroke_width = 2 * stroke_width / vw * uv_xy_scale.x;
@@ -175,11 +175,12 @@ in flat vec2 uv_xy_scale;
 
 in flat uint sdf_type;
 in flat uint grad_type;
+in flat uint colour1;
+in flat uint colour2;
+
 in flat float feather;
 in flat float stroke_width;
 
-in flat uint colour1;
-in flat uint colour2;
 
 in flat vec4 borderradius_arcpie;
 
