@@ -30,6 +30,7 @@ CALL sokol-shdc.exe --input src\program_compute_triangle.glsl       --output src
 CALL sokol-shdc.exe --input src\program_compute_line_stroke.glsl    --output src\program_compute_line_stroke.glsl.h    --slang hlsl5
 CALL sokol-shdc.exe --input src\program_nanosvg.glsl                --output src\program_nanosvg.glsl.h                --slang hlsl5
 CALL sokol-shdc.exe --input src\program_liquidglass.glsl            --output src\program_liquidglass.glsl.h            --slang hlsl5
+CALL sokol-shdc.exe --input src\program_slug.glsl                   --output src\program_slug.glsl.h                   --slang hlsl5
 
 shader-hotreloader.exe -i src
 
