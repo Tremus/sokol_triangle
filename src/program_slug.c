@@ -20,9 +20,9 @@
 //    have required vendoring vecmath.h's matrix type just for the uniform)
 //    to a flat vec4 xform (sx, sy, tx, ty), matching the convention already
 //    used by program_liquidglass.c of avoiding matrix uniforms.
-//  - slugutil, vecmath (used internally by slugutil for vec2_t/vec4_t) and
-//    stb_ds (dynamic arrays used by slugutil) are vendored into src/, same
-//    as the original sample vendors them.
+//  - slugutil and vecmath (used internally by slugutil for vec2_t/vec4_t) are
+//    vendored into src/, same as the original sample vendors them. Dynamic
+//    arrays use xhl/array.h instead of the original sample's stb_ds.
 //------------------------------------------------------------------------------
 #include "common.h"
 
@@ -30,8 +30,7 @@
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
-#define STB_DS_IMPLEMENTATION
-#include "stb_ds.h"
+#include "xhl/array.h"
 
 #include "program_slug.glsl.h"
 
@@ -242,13 +241,13 @@ static void push_emoji(const slug_font_t* font, uint32_t codepoint, float x, flo
     for (uint16_t i = 0; i < colr_base->num_layers; i++)
     {
         slug_colr_layer_t* layer = &font->colr_layers[colr_base->first_layer + i];
-        if (layer->glyph_id >= arrlen(font->glyphs))
+        if (layer->glyph_id >= xarr_len(font->glyphs))
         {
             continue;
         }
         slug_glyph_t* glyph = &font->glyphs[layer->glyph_id];
         vec4_t        color = {1.0f, 1.0f, 1.0f, 1.0f};
-        if (layer->palette_index < arrlen(font->cpal_colors))
+        if (layer->palette_index < xarr_len(font->cpal_colors))
         {
             color = font->cpal_colors[layer->palette_index];
         }
