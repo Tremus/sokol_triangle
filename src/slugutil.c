@@ -8,6 +8,7 @@
 #include "slugutil.h"
 #include "xhl/array.h"
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 
 typedef struct

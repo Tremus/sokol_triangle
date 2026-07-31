@@ -17,12 +17,11 @@
 //    delta (see cplug_extensions/window_osx.m / window_win.c), used here as
 //    the zoom delta instead of sapp_event's scroll_y.
 //  - The shader's vs_params uniform was changed from a mat4 mvp (which would
-//    have required vendoring vecmath.h's matrix type just for the uniform)
-//    to a flat vec4 xform (sx, sy, tx, ty), matching the convention already
-//    used by program_liquidglass.c of avoiding matrix uniforms.
-//  - slugutil and vecmath (used internally by slugutil for vec2_t/vec4_t) are
-//    vendored into src/, same as the original sample vendors them. Dynamic
-//    arrays use xhl/array.h instead of the original sample's stb_ds.
+//    have required a matrix type just for the uniform) to a flat vec4 xform
+//    (sx, sy, tx, ty), matching the convention already used by
+//    program_liquidglass.c of avoiding matrix uniforms.
+//  - slugutil is vendored into src/. Dynamic arrays use xhl/array.h instead
+//    of the original sample's stb_ds.
 //------------------------------------------------------------------------------
 #include "common.h"
 

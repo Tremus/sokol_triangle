@@ -1,8 +1,37 @@
 #include "sokol_gfx.h"
 #include "stb_truetype.h"
 #include <stdint.h>
-#define VECMATH_GENERICS
-#include "vecmath.h"
+
+typedef struct vec2_t
+{
+    float x, y;
+} vec2_t;
+
+typedef struct vec4_t
+{
+    float x, y, z, w;
+} vec4_t;
+
+static inline vec2_t vec2(float x, float y)
+{
+    vec2_t v;
+    v.x = x;
+    v.y = y;
+    return v;
+}
+static inline vec2_t vec2_add(vec2_t a, vec2_t b) { return vec2(a.x + b.x, a.y + b.y); }
+static inline vec2_t vec2_sub(vec2_t a, vec2_t b) { return vec2(a.x - b.x, a.y - b.y); }
+static inline vec2_t vec2_mulf(vec2_t a, float s) { return vec2(a.x * s, a.y * s); }
+
+static inline vec4_t vec4(float x, float y, float z, float w)
+{
+    vec4_t v;
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    v.w = w;
+    return v;
+}
 
 #define SLUG_TEX_WIDTH (4096)
 #define SLUG_MAX_BANDS (16)
