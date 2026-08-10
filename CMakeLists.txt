@@ -133,7 +133,8 @@ set(PLUGIN_SOURCES
 # list(APPEND PLUGIN_SOURCES src/program_nvg_paths.c)
 # list(APPEND PLUGIN_SOURCES src/program_nanosvg.c)
 # list(APPEND PLUGIN_SOURCES src/program_liquidglass.c)
-list(APPEND PLUGIN_SOURCES src/program_slug.c src/slugutil.c)
+# list(APPEND PLUGIN_SOURCES src/program_slug.c src/slugutil.c)
+list(APPEND PLUGIN_SOURCES src/program_slug2.c)
 
 if (WIN32)
     list(APPEND PLUGIN_DEFINITIONS UNICODE _UNICODE _USE_MATH_DEFINES PW_DX11)

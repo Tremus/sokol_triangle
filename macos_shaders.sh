@@ -32,5 +32,6 @@ sokol-shdc --input src/program_compute_line_stroke.glsl    --output src/program_
 sokol-shdc --input src/program_nanosvg.glsl                --output src/program_nanosvg.glsl.h                --slang metal_macos
 sokol-shdc --input src/program_liquidglass.glsl            --output src/program_liquidglass.glsl.h            --slang metal_macos
 sokol-shdc --input src/program_slug.glsl                   --output src/program_slug.glsl.h                   --slang metal_macos
+sokol-shdc --input src/program_slug2.glsl                  --output src/program_slug2.glsl.h                  --slang metal_macos
 
 shader-hotreloader -i src

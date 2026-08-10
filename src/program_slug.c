@@ -480,7 +480,7 @@ bool program_event(const PWEvent* event)
     case PW_EVENT_MOUSE_TOUCHPAD_BEGIN:
     case PW_EVENT_MOUSE_TOUCHPAD_MOVE:
     {
-        float scroll_scale   = -1.0f;
+        float scroll_scale   = 1.0f;
         float h              = (float)state.height;
         float mx             = state.inp.prev_mouse_x;
         float my             = state.inp.prev_mouse_y;
